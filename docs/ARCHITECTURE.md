@@ -1,12 +1,13 @@
-# Архитектура Jarvis
+# Архитектура Kivi
 
-Версия: 0.1 (проектирование). Целевая платформа: Windows 11, один пользователь, один ПК.
+Версия: 0.2 (проектирование). Целевая платформа: Windows 11, один пользователь, один ПК.
+Персона: Kivi, женский голос, 3D-аватар. Долгосрочно — псевдо-ОС поверх Windows, позже Linux.
 
 ---
 
 ## 1. Резюме
 
-Jarvis — это **локальный агент**, а не чат с моделью. Модель — только один из компонентов.
+Kivi — это **локальный агент**, а не чат с моделью. Модель — только один из компонентов.
 Система состоит из семи слоёв:
 
 1. **Kernel** — события, планировщик, состояние, права, ресурсы, аудит.
@@ -15,12 +16,17 @@ Jarvis — это **локальный агент**, а не чат с моде�
 4. **Senses** — голос, слух, зрение, текст.
 5. **Tools** — файлы, shell, процессы, браузер, код, медиа, документы, ОС.
 6. **Memory** — рабочая, эпизодическая, семантическая, профиль, артефакты.
-7. **Interfaces** — CLI, локальный API, web-UI/HUD, трей, голосовой цикл.
+7. **Interfaces** — CLI, локальный API, web-UI/HUD, трей, голосовой цикл, аватар Kivi.
+8. **Modules** — версионированные плагины: `work_crm`, `mail`, `telegram`, `media` и др.
 
-Сквозные подсистемы: **Safety/Policy**, **Observability**, **Backup/Rollback**.
+Сквозные подсистемы: **Safety/Policy**, **Protected Zones**, **Cloud Broker**,
+**Observability**, **Backup/Rollback**, **Cost Guard**.
 
-Главное ограничение — **8 ГБ VRAM**. Поэтому модель — это ресурс с арендой (lease),
-а не постоянно запущенный сервис.
+Главное ограничение — **8 ГБ VRAM** (планируется 12 ГБ). Поэтому модель — это ресурс
+с арендой (lease), а не постоянно запущенный сервис.
+
+Ключевые решения: `docs/DECISIONS.md`. Персона и аватар: `docs/PERSONA.md`.
+Плагины: `docs/MODULES.md`.
 
 ---
 
@@ -28,15 +34,19 @@ Jarvis — это **локальный агент**, а не чат с моде�
 
 ### 2.1. Функциональные (v1)
 
-- Текст и голос; ответ текстом и голосом.
+- Текст и голос; ответ текстом и голосом; TTS + анимация речи.
 - Файлы: поиск, чтение, запись в workspace, безопасное удаление.
-- Shell: безопасные команды, подтверждение опасных, запрет разрушительных.
+- Shell: безопасные команды, A4-Bounded, запрет разрушительных.
 - Документы: PDF/DOCX/XLSX/MD → текст → выжимка/поиск.
 - Память: факты, предпочтения, история задач, поиск по базе знаний.
 - Код: генерация, запуск в песочнице, тесты, диффы.
-- Изображения: SDXL через WebUI/ComfyUI.
+- Изображения: SDXL локально + бесплатные облачные провайдеры.
 - Браузер: открытие, чтение, клики, формы (Playwright/CDP).
-- UI: чат, дерево задач, подтверждения, монитор VRAM, логи.
+- Почта/Telegram: чтение, черновики, отправка по политике.
+- Управление ПК: приложения, окна, буфер, UI Automation.
+- Облако: только бесплатные лимиты, handoff при исчерпании.
+- UI: чат, задачи, подтверждения, VRAM, логи, аватар Kivi.
+- Модули: work_crm, mail, telegram, media.
 - Аудит и kill switch.
 
 ### 2.2. Нефункциональные
@@ -60,6 +70,8 @@ Jarvis — это **локальный агент**, а не чат с моде�
 - 126 ГБ на D: хватит на LLM + SDXL, но не на зоопарк видео-моделей.
 - WDDM: при переполнении VRAM Windows уходит в shared memory и скорость падает в разы.
   Это нужно **детектировать и запрещать**, а не терпеть.
+- Планируется GPU 12 ГБ и SSD 1 ТБ: бюджеты в `models.yaml` пересматриваются после апгрейда.
+  12 ГБ всё ещё не гарантируют 14B + видео 1080p + аватар одновременно.
 
 ---
 
@@ -67,13 +79,14 @@ Jarvis — это **локальный агент**, а не чат с моде�
 
 ```
 ┌────────────────────────────── Интерфейсы ──────────────────────────────┐
-│ CLI/TUI · Web UI/HUD · Голос (wake/VAD/STT/TTS) · Трей · Local API      │
+│ CLI/TUI · Web UI/HUD · Аватар Kivi · Голос · Трей · Local API           │
 └───────────────────────────────────┬─────────────────────────────────────┘
                                     │ команды / события
 ┌───────────────────────────────────▼─────────────────────────────────────┐
 │ KERNEL                                                                  │
 │ Event Bus · Task Scheduler (DAG) · State Store · Config                 │
-│ Permission Engine · Resource Governor · Audit · Secrets · Watchdog      │
+│ Permission Engine · Protected Zones · Resource Governor · Audit        │
+│ Secrets · Watchdog · Kill Switch                                        │
 └───────┬───────────────────┬───────────────────┬─────────────────────────┘
         │                   │                   │
 ┌───────▼────────┐  ┌───────▼────────┐  ┌───────▼─────────────────────────┐
@@ -85,10 +98,16 @@ Jarvis — это **локальный агент**, а не чат с моде�
 │ Reflector      │  │ Metrics        │  │                                 │
 └───────┬────────┘  └───────┬────────┘  └───────┬─────────────────────────┘
         │                   │                   │
+        │           ┌───────▼────────┐          │
+        │           │ CLOUD BROKER   │          │
+        │           │ Free quotas    │          │
+        │           │ Handoff/local  │          │
+        │           └───────┬────────┘          │
+        │                   │                   │
 ┌───────▼───────────────────▼───────────────────▼─────────────────────────┐
-│ TOOLS                                                                   │
+│ TOOLS + MODULES                                                         │
 │ FS · Shell · Process · Browser · Code Sandbox · Media · Docs            │
-│ OS/UI Automation · Network · Integrations                               │
+│ OS/UI Automation · Network · work_crm · mail · telegram                 │
 └───────────────────────────────────┬─────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼─────────────────────────────────────┐
@@ -97,7 +116,7 @@ Jarvis — это **локальный агент**, а не чат с моде�
 │ Artifacts · Consolidation · Retention                                   │
 └─────────────────────────────────────────────────────────────────────────┘
 
-Сквозное: Safety/Policy · Observability · Backup/Rollback · Cost Guard
+Сквозное: Safety/Policy · Protected Zones · Observability · Backup/Rollback
 ```
 
 ### 3.1. Правила зависимостей
@@ -211,6 +230,11 @@ Append-only JSONL + запись в SQLite:
 | 3 | Эмбеддинги | bge-m3 | CPU, 0,5 ГБ | Всегда CPU |
 | 4 | Изображения | SDXL / SD1.5 | 6,5–7,0 / 3,0–4,0 ГБ | Эксклюзивно, выгрузить всё |
 | 4 | Видео | Wan 2.1 1.3B / LTX 2B | 7,0–8,0 ГБ | Эксклюзивно, долгая задача; облако предпочтительно |
+| UI | Аватар Kivi (VRM) | three.js + WebGL | 0,1–0,3 ГБ | Входит в резерв рабочего стола |
+
+**Важно:** аватар, Chrome и LLM 8B могут не поместиться одновременно на 8 ГБ.
+Gateway учитывает аватар в резерве; при нехватке — снижает качество рендера или просит закрыть браузер.
+После апгрейда до 12 ГБ станет комфортнее, но правило «одна тяжёлая модель» сохраняется.
 
 ### 5.3. Бюджет
 
@@ -306,6 +330,45 @@ OLLAMA_KV_CACHE_TYPE=q8_0
 
 Всё пишется в `model_runs` и показывается в UI.
 
+### 5.9. Cloud Broker — только бесплатные лимиты
+
+Облако — не зависимость, а **дополнительный ресурс**. Политика: `cloud: auto_free`.
+
+```
+задача → Cloud Broker
+           ├─ локальная модель справляется → локально
+           ├─ нужен облачный провайдер, бесплатный лимит есть → вызов
+           ├─ лимит исчерпан / 429 → checkpoint + handoff pack
+           │       → локальная модель продолжает
+           └─ провайдер не разрешён / данные запрещены → только локально
+```
+
+Реестр провайдеров:
+
+| Поле | Пример |
+|---|---|
+| `id` | `openrouter_free` |
+| `type` | `llm`, `image`, `video`, `embedding` |
+| `auth` | ключ в vault |
+| `free_quota` | запросы/токены/секунды в месяц |
+| `reset_at` | дата сброса |
+| `rate_limit` | запросов в минуту |
+| `data_policy` | обучаются ли на данных |
+| `max_size` | разрешение/длина |
+| `watermark` | да/нет |
+| `enabled` | только после подтверждения пользователя |
+
+Правила:
+
+- `cost_limit = 0`: платные вызовы запрещены.
+- Учёт квот в SQLite; при исчерпании провайдер помечается `unavailable` до сброса.
+- Перед вызовом — проверка denylist и redaction.
+- **Handoff pack**: цель, критерии, план, выполненные шаги, артефакты, сводка диалога,
+  ограничения, следующий шаг. Сохраняется и передаётся локальной модели.
+- Kivi может искать бесплатные инструменты и предлагать карточку провайдера,
+  но не создаёт аккаунты, не обходит CAPTCHA и не нарушает ToS.
+- Для инструментов без API — браузерная автоматизация с сессией пользователя и подтверждением.
+
 ---
 
 ## 6. Brain (оркестратор)
@@ -393,9 +456,17 @@ OLLAMA_KV_CACHE_TYPE=q8_0
 Формат: когда применять, шаги, инструменты, ограничения, примеры.
 Загружаются прогрессивно: в контекст попадает только релевантный скилл.
 
+### 6.8. Адаптивная подробность
+
+- По умолчанию — краткий ответ (1–3 предложения) + результат.
+- Если тема сложная — предложить «Рассказать подробнее?».
+- Технические/кодовые ответы и предупреждения безопасности — без опасных сокращений.
+- Пользователь просит «подробно» → полный разбор.
+- Контекст диалога учитывается: не повторять уже объяснённое.
+
 ---
 
-## 7. Инструменты
+## 7. Инструменты и модули
 
 ### 7.1. Контракт
 
@@ -451,6 +522,18 @@ class Tool(Protocol):
 - Долгие процессы — с прогрессом и возможностью убить.
 - Команды запускаются без shell-инъекций: массив аргументов, а не склейка строк.
 - PowerShell — с `-NoProfile -NonInteractive`, UTF-8.
+
+### 7.4. Модули
+
+Крупные возможности (работа, почта, Telegram, медиа) — не в ядре, а в модулях:
+
+- `modules/<id>/module.yaml` — версия, API, права, tools, UI, миграции;
+- `ModuleContext` — только SDK: memory namespace, models, tools, events, artifacts;
+- отдельный пакет/процесс, свои зависимости и тесты;
+- обновление: validate → backup → migrate → start → healthcheck → rollback;
+- модуль не может менять safety-ядро, аудит и Protected Zones.
+
+Контракт и миграция `ai-agent` → `work_crm`: `docs/MODULES.md`.
 
 ---
 
@@ -518,7 +601,7 @@ audit(id, ts, actor, action, args_hash, decision, result, hash_prev, hash)
 
 | Этап | Технология | Бюджет |
 |---|---|---|
-| Wake word | openWakeWord (своя модель «Джарвис») или push-to-talk | < 100 мс |
+| Wake word | openWakeWord (своя модель «Kivi») или push-to-talk | < 100 мс |
 | VAD | Silero VAD | < 50 мс |
 | STT | faster-whisper large-v3-turbo, ru | первый partial < 500 мс |
 | TTS | Piper, русский голос | первый звук < 700 мс |
@@ -529,7 +612,7 @@ audit(id, ts, actor, action, args_hash, decision, result, hash_prev, hash)
 - Русский язык основной; технические термины — латиницей.
 - Эхо-подавление: рекомендуется гарнитура; AEC — опционально.
 - Во время звонков/встреч микрофон можно ставить на паузу.
-- Команды: «Джарвис, стоп», «отмена», «подтверждаю».
+- Команды: «Kivi, стоп», «отмена», «подтверждаю».
 - Push-to-talk (Ctrl+Alt+Space) — fallback, если wake-word ошибается.
 
 ### 9.2. Зрение
@@ -546,13 +629,26 @@ audit(id, ts, actor, action, args_hash, decision, result, hash_prev, hash)
 
 | Интерфейс | Когда | Детали |
 |---|---|---|
-| CLI | v1, отладка | Typer + Rich: `jarvis chat`, `jarvis doctor`, `jarvis models` |
+| CLI | v1, отладка | Typer + Rich: `kivi chat`, `kivi doctor`, `kivi models` |
 | Local API | v1 | FastAPI на `127.0.0.1`, токен, WebSocket для событий |
 | Web UI | v2 | React/Vite: чат, задачи, подтверждения, VRAM, логи |
-| HUD | v3 | Tauri, always-on-top, горячая клавиша |
-| Голос | v2 | wake-word + push-to-talk |
-| Трей | v2 | статус, пауза, kill switch |
-| Telegram | v3 | только с шифрованием и allowlist; риск утечки |
+| HUD / Kivi Shell | M8 | Tauri, always-on-top, аватар, лаунчер |
+| Голос | M5 | wake-word + push-to-talk |
+| Трей | M8 | статус, пауза, kill switch |
+| Telegram | M4 | бот (рекомендуется) или user-account; allowlist |
+
+### 10.1. Kivi Shell и аватар
+
+**Kivi Shell** — не настоящая ОС, а полноэкранная оболочка поверх Windows:
+лаунчер, поиск, файлы, задачи, чат, настройки, уведомления, аватар.
+
+- Технологии: Tauri + React + three.js (`@pixiv/three-vrm`).
+- Аватар: VRM 1.0, состояния `idle/listening/thinking/speaking/happy/error`.
+- Липсинк: v1 — RMS-огибающая TTS → blendshapes; v2 — виземы/выравнивание.
+- Прозрачное окно, always-on-top, пауза рендера при скрытии.
+- Бюджет: 100–300 МБ VRAM, 30–60 FPS; входит в резерв «рабочий стол».
+- 2D-заглушка с анимацией — уже в M1; 3D-VRM — в M5.
+- Платформенная абстракция: Windows сейчас; Linux — позже.
 
 Требования к UI:
 
@@ -574,9 +670,36 @@ audit(id, ts, actor, action, args_hash, decision, result, hash_prev, hash)
 | A1 | Предлагает действия, но не выполняет |
 | A2 | Выполняет безопасное; опасное — с подтверждением |
 | A3 | Автономно в рамках allowlist; всё остальное — подтверждение |
-| A4 | Полная автономия (не рекомендуется) |
+| **A4-Bounded** | **Полная автономия внутри разрешённых областей; снаружи — hard deny** |
 
-**По умолчанию: A2, с возможностью включить A3 для доверенных папок и задач.**
+Принят **A4-Bounded** (см. `docs/DECISIONS.md`):
+
+- внутри scope — без подтверждений, длинные цепочки действий;
+- снаружи — не «спросить», а **отказ**;
+- hard stops: `C:\Windows`, `Program Files`, `ProgramData\Microsoft`, EFI/загрузчик,
+  `diskpart`/`format`/`bcdedit`, HKLM, драйверы, службы, антивирус, бэкапы, аудит,
+  секреты (пароли, токены, SSH/GPG, профили браузера), safety-ядро, denylist;
+- список запретов подписан и доступен ядру только на чтение; правит только пользователь
+  через UI с подтверждением личности; изменения — после перезапуска и в аудите;
+- агент не может добавить себя в исключения или отключить проверку;
+- проверка путей: канонизация, запрет `..`, symlink, junction, hardlink, UNC, 8.3, ADS;
+- для hard stops — только ручной break-glass с Windows Hello/паролем, не агентом.
+
+### 11.1.1. Почему не «всё от администратора»
+
+Права администратора Windows позволяют менять систему, драйверы, реестр HKLM, службы,
+политики безопасности и файлы других пользователей. Постоянная работа Kivi с такими правами
+означает, что любая ошибка модели или prompt injection может повредить ОС.
+
+Схема:
+
+- ядро, UI и аватар — обычные права;
+- admin-операции — через **elevated broker**: отдельный процесс, UAC, узкий allowlist,
+  подтверждение и аудит;
+- никакого «произвольного PowerShell от администратора» через LLM.
+
+Это сохраняет «практически полный доступ» к пользовательским файлам, программам, браузеру,
+буферу, окнам и микрофону. Admin нужен только для драйверов, служб и системных настроек.
 
 ### 11.2. Capabilities
 
@@ -626,7 +749,7 @@ fs.write:
 
 ### 11.6. Песочница
 
-- Сгенерированный код — в WSL2-дистрибутиве `jarvis-sandbox` или Windows Sandbox.
+- Сгенерированный код — в WSL2-дистрибутиве `kivi-sandbox` или Windows Sandbox.
 - Монтируется только workspace; сеть выключена по умолчанию.
 - Лимиты CPU/RAM/времени; process tree убивается по таймауту.
 - Если песочницы нет — только `dry_run` и объяснение, как её включить.
@@ -642,7 +765,7 @@ fs.write:
 ### 11.8. Обратимость
 
 - Удаление — в корзину (`send2trash`).
-- Перезапись — копия в `.jarvis/backups/<sha>`.
+- Перезапись — копия в `.kivi/backups/<sha>`.
 - Код — git-ветка на задачу; merge только с подтверждением.
 - БД — ежедневный бэкап, 7 дней.
 - Системные изменения — точка восстановления перед операцией.
@@ -650,7 +773,7 @@ fs.write:
 ### 11.9. Kill switch
 
 - Глобальная горячая клавиша `Ctrl+Alt+J`.
-- Голос: «Джарвис, стоп».
+- Голос: «Kivi, стоп».
 - Иконка в трее.
 - Отменяет задачи, убивает процессы, выгружает модели, глушит микрофон.
 - Watchdog слушает kill switch независимо от основного цикла.
@@ -741,52 +864,78 @@ models:
 
 ```yaml
 default: deny
+mode: A4-Bounded
 
 workspace: D:\AI-assistent\workspace
 
+# hard stops: ядро не даёт агенту даже пытаться
+protected:
+  - "C:\\Windows\\**"
+  - "C:\\Program Files\\**"
+  - "C:\\Program Files (x86)\\**"
+  - "C:\\ProgramData\\Microsoft\\**"
+  - "D:\\Secrets\\**"
+  - "**\\.ssh\\**"
+  - "**\\*.kdbx"
+
 rules:
   - capability: fs.read
-    paths: ["D:\\AI-assistent\\**", "D:\\AI-base\\**"]
+    paths: ["D:\\AI-assistent\\**", "D:\\AI-base\\**", "D:\\Docs\\**"]
     mode: allow
   - capability: fs.write
     paths: ["D:\\AI-assistent\\workspace\\**"]
     mode: allow
   - capability: fs.delete
     paths: ["D:\\AI-assistent\\workspace\\**"]
-    mode: confirm
+    mode: allow          # только в корзину
   - capability: shell.exec
     commands: ["git *", "python *", "npm *", "Get-ChildItem *", "dir"]
-    mode: confirm
+    mode: allow          # A4 внутри scope
   - capability: shell.exec
-    commands: ["format *", "diskpart *", "Remove-Item * -Recurse *", "reg delete *", "shutdown *"]
+    commands: ["format *", "diskpart *", "bcdedit *", "reg delete *", "shutdown *"]
     mode: deny
   - capability: ui.control
-    mode: confirm
+    mode: allow
   - capability: net.http
     domains: ["*"]
     mode: allow
   - capability: money.spend
-    mode: confirm
+    mode: deny           # бюджет $0; break-glass вручную
 ```
 
-### 12.3. `config/jarvis.yaml`
+### 12.3. `config/kivi.yaml`
 
 ```yaml
-name: Jarvis
+name: Kivi
 language: ru
-autonomy: A2
+autonomy: A4-Bounded
 confirm_timeout_s: 60
 killswitch_hotkey: Ctrl+Alt+J
-wake_word: джарвис
+wake_word: kivi
 voice:
   enabled: false
   tts: piper
+  voice: ru_RU-irina-medium
   stt: faster-whisper
+avatar:
+  enabled: true
+  mode: vrm            # none | 2d | vrm
+  model: assets/kivi.vrm
+  lip_sync: amplitude  # amplitude | viseme
+  always_on_top: true
+cloud:
+  mode: auto_free      # never | auto_free | allow_paid
+  monthly_budget_usd: 0
+  handoff_on_quota: true
 privacy:
-  cloud: ask            # never | ask | allow
   excluded_paths:
+    - "C:\\Windows\\**"
+    - "C:\\Program Files\\**"
+    - "C:\\Program Files (x86)\\**"
     - "D:\\Secrets\\**"
     - "**\\passwords*"
+    - "**\\*.kdbx"
+    - "**\\.ssh\\**"
 retention:
   raw_logs_days: 90
 ```
@@ -804,24 +953,31 @@ D:\AI-assistent\
 ├─ docs\
 │  ├─ ARCHITECTURE.md
 │  ├─ ROADMAP.md
+│  ├─ DECISIONS.md
+│  ├─ PERSONA.md
+│  ├─ MODULES.md
 │  ├─ REUSE-AUDIT.md
+│  ├─ BASELINE.md
 │  ├─ OPEN-QUESTIONS.md
 │  └─ adr\                     # решения по мере принятия
 ├─ config\
-│  ├─ jarvis.yaml
+│  ├─ kivi.yaml
 │  ├─ models.yaml
 │  ├─ permissions.yaml
 │  └─ personas\
-├─ src\jarvis\
+├─ src\kivi\
 │  ├─ __main__.py
 │  ├─ kernel\                  # events, scheduler, state, resources, permissions, audit, secrets
 │  ├─ brain\                   # router, planner, executor, verifier, context, prompts
-│  ├─ models\                  # gateway, registry, leases, backends\ollama.py, comfyui.py, whisper.py
+│  ├─ models\                  # gateway, registry, leases, cloud_broker, backends\
 │  ├─ senses\                  # audio\, vision\
 │  ├─ tools\                   # base, registry, fs, shell, process, browser, code, media, docs
 │  ├─ memory\                  # db, episodic, semantic, profile, consolidation
-│  ├─ interfaces\              # cli, api, voice, tray
-│  └─ safety\                  # policy, approvals, sandbox, redaction
+│  ├─ interfaces\              # cli, api, voice, tray, avatar
+│  ├─ safety\                  # policy, protected_zones, approvals, sandbox, redaction
+│  └─ platform\                # windows\, linux\ (абстракция)
+├─ modules\                    # work_crm, mail, telegram, media
+├─ assets\                     # kivi.vrm, анимации, иконки
 ├─ tests\
 │  ├─ unit\
 │  ├─ integration\
@@ -878,14 +1034,26 @@ screenshot (R0) → OCR (CPU) → VLM 3B (эксклюзивно)
               → ответ; при необходимости — ui.control (R2, подтверждение)
 ```
 
+### 14.5. «Сделай видео по описанию»
+
+```
+intent → media.video → Cloud Broker: найти бесплатного провайдера
+       → отправить job → poll → скачать → артефакт
+       → если квота кончилась: handoff → локальный SDXL/анимация
+```
+
+Kivi не создаёт аккаунты и не обходит лимиты; провайдер добавляется после подтверждения.
+При отсутствии бесплатного видео — честный отчёт и локальный fallback (480p/анимация).
+
 ---
 
 ## 15. Нефункциональные требования и бюджет
 
 | Ресурс | Цель | Как проверяем |
 |---|---|---|
-| VRAM idle | 0 | `nvidia-smi` после 10 мин простоя |
+| VRAM idle | 0 (кроме аватара 100–300 МБ) | `nvidia-smi` после 10 мин простоя |
 | VRAM peak | ≤ 7,5 ГБ | логи `model_runs` |
+| VRAM аватара | 100–300 МБ | WebGL-монитор |
 | RAM idle | < 700 МБ | диспетчер задач / psutil |
 | RAM peak (видео) | ≤ 24 ГБ | замер |
 | CPU idle | < 3% | замер |
@@ -915,9 +1083,18 @@ screenshot (R0) → OCR (CPU) → VLM 3B (эксклюзивно)
 
 ## 17. Что осознанно не делаем в v1
 
-- Полную автономию A4.
+- **Реальную замену ОС**: Kivi Shell — оболочка, не ядро Linux/Windows.
+- **A4 без границ**: автономия только внутри Protected Zones.
 - Управление играми и античитами.
 - Локальное видео 1080p.
-- Мультипользовательский режим и удалённый доступ.
-- Автоматическое merged-изменение собственного кода.
-- Работу ядра с правами администратора.
+- Мультипользовательский режим и удалённый доступ без туннеля.
+- Автоматическое изменение safety-ядра, аудита и denylist.
+- Постоянную работу ядра с правами администратора.
+
+## 18. Связанные документы
+
+- `docs/DECISIONS.md` — принятые решения и границы A4.
+- `docs/PERSONA.md` — Kivi, голос, аватар, липсинк.
+- `docs/MODULES.md` — Plugin API и `work_crm`.
+- `docs/ROADMAP.md` — порядок этапов.
+- `docs/BASELINE.md` — замеры и бюджеты.
