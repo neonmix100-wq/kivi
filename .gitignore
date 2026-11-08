@@ -24,3 +24,7 @@ build/
 
 # local model/config overrides
 config/local.*
+
+# downloaded TTS voice models (large)
+assets/voice-samples/piper-voices/
+latest_silero_models.yml
