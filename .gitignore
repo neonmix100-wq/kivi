@@ -1,0 +1,26 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+.env
+.env.*
+!.env.example
+
+data/
+workspace/
+models/
+logs/
+*.log
+
+node_modules/
+dist/
+build/
+.vite/
+
+# local model/config overrides
+config/local.*
