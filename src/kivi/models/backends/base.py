@@ -24,7 +24,12 @@ class ModelBackend(Protocol):
     def running(self) -> dict[str, int]:
         """Loaded model -> VRAM used in MB (0 when the backend cannot tell)."""
 
-    def load(self, model_id: str, keep_alive: str = "5m") -> None: ...
+    def load(
+        self,
+        model_id: str,
+        keep_alive: str = "5m",
+        options: dict[str, Any] | None = None,
+    ) -> None: ...
 
     def unload(self, model_id: str) -> None: ...
 
@@ -35,6 +40,7 @@ class ModelBackend(Protocol):
         *,
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
+        think: bool | None = None,
     ) -> str: ...
 
     def chat_stream(
@@ -44,5 +50,6 @@ class ModelBackend(Protocol):
         *,
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
+        think: bool | None = None,
     ) -> Iterator[str]:
         """Yield answer chunks as the backend produces them."""

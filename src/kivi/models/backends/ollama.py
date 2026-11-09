@@ -82,12 +82,21 @@ class OllamaBackend:
             loaded[name] = int(size) // (1024 * 1024)
         return loaded
 
-    def load(self, model_id: str, keep_alive: str = "5m") -> None:
-        self._request(
-            "POST",
-            "/api/generate",
-            json={"model": model_id, "prompt": "", "stream": False, "keep_alive": keep_alive},
-        )
+    def load(
+        self,
+        model_id: str,
+        keep_alive: str = "5m",
+        options: dict[str, Any] | None = None,
+    ) -> None:
+        body: dict[str, Any] = {
+            "model": model_id,
+            "prompt": "",
+            "stream": False,
+            "keep_alive": keep_alive,
+        }
+        if options:
+            body["options"] = options
+        self._request("POST", "/api/generate", json=body)
 
     def unload(self, model_id: str) -> None:
         self._request(
@@ -103,6 +112,7 @@ class OllamaBackend:
         *,
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
+        think: bool | None = None,
     ) -> str:
         body: dict[str, Any] = {
             "model": model_id,
@@ -112,6 +122,8 @@ class OllamaBackend:
         }
         if options:
             body["options"] = options
+        if think is not None:
+            body["think"] = think
         payload = self._request("POST", "/api/chat", json=body)
         message = payload.get("message")
         if not isinstance(message, dict) or not isinstance(message.get("content"), str):
@@ -125,6 +137,7 @@ class OllamaBackend:
         *,
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
+        think: bool | None = None,
     ) -> Iterator[str]:
         body: dict[str, Any] = {
             "model": model_id,
@@ -134,6 +147,8 @@ class OllamaBackend:
         }
         if options:
             body["options"] = options
+        if think is not None:
+            body["think"] = think
         try:
             with self._client.stream("POST", "/api/chat", json=body) as response:
                 if response.status_code >= 400:

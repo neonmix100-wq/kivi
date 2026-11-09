@@ -212,7 +212,10 @@ class ModelGateway:
 
             started = self._clock()
             try:
-                self.backend.load(model_id)
+                self.backend.load(
+                    model_id,
+                    options=self._load_options(spec),
+                )
             except BackendError:
                 self._metrics["failures"] += 1
                 raise
@@ -335,6 +338,7 @@ class ModelGateway:
         priority: int = 5,
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
+        think: bool | None = None,
     ) -> str:
         lease = self.acquire(
             model_id,
@@ -342,12 +346,14 @@ class ModelGateway:
             priority=priority,
             ttl_s=max(1, int(self._ttl_from_keep_alive(keep_alive))),
         )
+        effective_think = self.registry.require(model_id).think if think is None else think
         try:
             answer = self.backend.chat(
                 model_id,
                 messages,
                 keep_alive=keep_alive,
                 options=options,
+                think=effective_think,
             )
         except BackendError:
             self._metrics["failures"] += 1
@@ -365,6 +371,7 @@ class ModelGateway:
         priority: int = 5,
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
+        think: bool | None = None,
     ) -> Iterator[str]:
         """Stream answer chunks, keeping the lease warm until the last chunk."""
         lease = self.acquire(
@@ -373,12 +380,14 @@ class ModelGateway:
             priority=priority,
             ttl_s=max(1, int(self._ttl_from_keep_alive(keep_alive))),
         )
+        effective_think = self.registry.require(model_id).think if think is None else think
         try:
             yield from self.backend.chat_stream(
                 model_id,
                 messages,
                 keep_alive=keep_alive,
                 options=options,
+                think=effective_think,
             )
         except BackendError:
             self._metrics["failures"] += 1
@@ -386,6 +395,17 @@ class ModelGateway:
         finally:
             with self._lock:
                 lease.touch(self._clock())
+
+    @staticmethod
+    def _load_options(spec: ModelSpec) -> dict[str, Any] | None:
+        """Pin the registry context at load time.
+
+        Ollama otherwise falls back to the model's advertised maximum (up to
+        262k tokens for Qwen), which overflows 8 GB VRAM and spills to CPU.
+        """
+        if spec.context > 0:
+            return {"num_ctx": spec.context}
+        return None
 
     @staticmethod
     def _ttl_from_keep_alive(keep_alive: str) -> float:

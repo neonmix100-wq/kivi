@@ -45,11 +45,12 @@ def test_load_and_unload_use_keep_alive() -> None:
         return httpx.Response(200, json={})
 
     with make_backend(handler) as backend:
-        backend.load("m")
+        backend.load("m", options={"num_ctx": 4096})
         backend.unload("m")
 
     assert '"keep_alive":"5m"' in bodies[0]
     assert '"prompt":""' in bodies[0]
+    assert '"options":{"num_ctx":4096}' in bodies[0]
     assert '"keep_alive":0' in bodies[1]
 
 
@@ -74,9 +75,16 @@ def test_chat_stream_yields_chunks() -> None:
         return httpx.Response(200, content=lines.encode())
 
     with make_backend(handler) as backend:
-        chunks = list(backend.chat_stream("m", [{"role": "user", "content": "hi"}]))
+        chunks = list(
+            backend.chat_stream(
+                "m",
+                [{"role": "user", "content": "hi"}],
+                think=False,
+            )
+        )
     assert chunks == ["Hel", "lo"]
     assert '"stream":true' in bodies[0]
+    assert '"think":false' in bodies[0]
 
 
 def test_chat_stream_error_payload_is_wrapped() -> None:

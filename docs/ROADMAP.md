@@ -90,7 +90,9 @@
 `model.orphan_unloaded`, `gateway.status()`, колонка Loaded в `kivi models`,
 benchmark-стенд с fake- и real-режимами.
 **Сделано в третьем срезе:** NVML с fallback на nvidia-smi, стриминг Ollama
-(`kivi ask --stream`), benchmark 20 переключений.
+(`kivi ask --stream`), фиксация `num_ctx` при загрузке, измеренные footprint'ы
+4B/7B (`scripts/measure_footprint.py`), benchmark 20 переключений
+(`docs/BENCH-GATEWAY.md`).
 **Осталось до приёмки:** очередь, fallback, embedding-модель в цикле переключений.
 
 **Приёмка:** 20 циклов «чат → кодер → эмбеддинги → чат» без OOM; простой 10 мин → VRAM 0;

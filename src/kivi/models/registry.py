@@ -33,6 +33,7 @@ class ModelSpec:
     context: int = 4096
     exclusive: bool = False
     pinned: bool = False
+    think: bool = False
     notes: str = ""
 
     def __post_init__(self) -> None:
@@ -49,7 +50,7 @@ DEFAULT_MODELS: tuple[ModelSpec, ...] = (
         id=DEFAULT_TIER0,
         tier=0,
         role="router",
-        vram_mb=3300,
+        vram_mb=3800,
         ram_mb=1200,
         context=4096,
         notes="fast path, may stay resident",

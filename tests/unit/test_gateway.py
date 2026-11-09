@@ -21,6 +21,8 @@ class FakeBackend:
     def __init__(self) -> None:
         self.loaded: set[str] = set()
         self.calls: list[tuple[str, str]] = []
+        self.load_options: dict[str, dict | None] = {}
+        self.last_think: bool | None = None
 
     def list_models(self) -> list[str]:
         return ["small", "heavy", "pinned"]
@@ -28,20 +30,28 @@ class FakeBackend:
     def running(self) -> dict[str, int]:
         return {model_id: 0 for model_id in self.loaded}
 
-    def load(self, model_id: str, keep_alive: str = "5m") -> None:
+    def load(
+        self,
+        model_id: str,
+        keep_alive: str = "5m",
+        options: dict | None = None,
+    ) -> None:
         self.calls.append(("load", model_id))
+        self.load_options[model_id] = options
         self.loaded.add(model_id)
 
     def unload(self, model_id: str) -> None:
         self.calls.append(("unload", model_id))
         self.loaded.discard(model_id)
 
-    def chat(self, model_id, messages, *, keep_alive="5m", options=None) -> str:
+    def chat(self, model_id, messages, *, keep_alive="5m", options=None, think=None) -> str:
         self.calls.append(("chat", model_id))
+        self.last_think = think
         return f"echo:{messages[-1]['content']}"
 
-    def chat_stream(self, model_id, messages, *, keep_alive="5m", options=None):
+    def chat_stream(self, model_id, messages, *, keep_alive="5m", options=None, think=None):
         self.calls.append(("stream", model_id))
+        self.last_think = think
         yield "echo:"
         yield messages[-1]["content"]
 
@@ -189,6 +199,18 @@ def test_keep_alive_parsing() -> None:
     assert ModelGateway._ttl_from_keep_alive("5m") == 300
     assert ModelGateway._ttl_from_keep_alive("2h") == 7200
     assert ModelGateway._ttl_from_keep_alive("garbage") == 300
+
+
+def test_load_pins_registry_context() -> None:
+    gateway, backend, _, _ = make_gateway()
+    gateway.acquire("small")
+    assert backend.load_options["small"] == {"num_ctx": 4096}
+
+
+def test_chat_disables_thinking_by_default() -> None:
+    gateway, backend, _, _ = make_gateway()
+    gateway.chat("small", [{"role": "user", "content": "hi"}])
+    assert backend.last_think is False
 
 
 def test_stream_keeps_lease_and_returns_chunks() -> None:

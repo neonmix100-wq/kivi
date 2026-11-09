@@ -29,7 +29,12 @@ class FakeBackend:
             raise self.running_error
         return {model_id: 0 for model_id in self.loaded}
 
-    def load(self, model_id: str, keep_alive: str = "5m") -> None:
+    def load(
+        self,
+        model_id: str,
+        keep_alive: str = "5m",
+        options: dict | None = None,
+    ) -> None:
         self.calls.append(("load", model_id))
         self.loaded.add(model_id)
 

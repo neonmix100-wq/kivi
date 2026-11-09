@@ -194,6 +194,9 @@ def cmd_ask(args: argparse.Namespace) -> int:
 
     task_id = f"tsk_{uuid.uuid4().hex[:12]}"
     messages = [{"role": "user", "content": args.prompt}]
+    options: dict[str, int] = {"num_predict": args.num_predict}
+    if spec.context > 0:
+        options["num_ctx"] = spec.context
     answer = ""
 
     with _state(paths) as (db, bus):
@@ -222,6 +225,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
                         task_id=task_id,
                         priority=0,
                         keep_alive=args.keep_alive,
+                        options=options,
                     ):
                         chunks.append(chunk)
                         sys.stdout.write(chunk)
@@ -236,6 +240,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
                         task_id=task_id,
                         priority=0,
                         keep_alive=args.keep_alive,
+                        options=options,
                     )
                 metrics = gateway.metrics()
         except (GatewayError, BackendError) as exc:
@@ -347,6 +352,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--keep-alive", default="5m", help="Ollama keep_alive after the answer")
     ask.add_argument("--timeout", type=float, default=180.0, help="HTTP timeout in seconds")
     ask.add_argument("--stream", action="store_true", help="print answer chunks as they arrive")
+    ask.add_argument("--num-predict", type=int, default=512, help="maximum generated tokens")
     ask.set_defaults(func=cmd_ask)
 
     events = sub.add_parser("events", help="show recent events")

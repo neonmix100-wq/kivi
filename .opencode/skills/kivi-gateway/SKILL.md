@@ -14,7 +14,7 @@ Read first:
 
 Files: `src/kivi/models/{registry,gateway,vram,watchdog}.py`,
 `src/kivi/models/backends/ollama.py`, `config/models.yaml`,
-`scripts/bench_gateway.py`.
+`scripts/bench_gateway.py`, `scripts/measure_footprint.py`.
 
 Invariants:
 - Only `ModelGateway` loads/unloads models; tools call `gateway.chat` or

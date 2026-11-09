@@ -7,7 +7,7 @@ models:
     backend: ollama
     tier: 0
     role: router
-    vram_mb: 3300
+    vram_mb: 3800
     ram_mb: 1200
     context: 4096
     exclusive: false
@@ -53,7 +53,7 @@ models:
     backend: ollama
     tier: 2
     role: code
-    vram_mb: 4800
+    vram_mb: 4700
     ram_mb: 1400
     context: 8192
     exclusive: true

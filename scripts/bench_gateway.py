@@ -42,7 +42,12 @@ class FakeBenchBackend:
     def running(self) -> dict[str, int]:
         return dict(self.loaded)
 
-    def load(self, model_id: str, keep_alive: str = "5m") -> None:
+    def load(
+        self,
+        model_id: str,
+        keep_alive: str = "5m",
+        options: dict[str, Any] | None = None,
+    ) -> None:
         spec = FAKE_REGISTRY.require(model_id)
         self.loaded[model_id] = spec.vram_mb
 
@@ -95,6 +100,20 @@ def _models_from_roles(registry: ModelRegistry) -> list[str]:
     return models
 
 
+def _wait_for_release(vram_source: Any, baseline_free: int | None, timeout_s: float = 10.0):
+    """Wait until the backend has actually returned memory after unload."""
+    if baseline_free is None:
+        return vram_source()
+    deadline = time.monotonic() + timeout_s
+    snapshot = vram_source()
+    while time.monotonic() < deadline:
+        if snapshot is not None and snapshot.free_mb >= baseline_free - 512:
+            return snapshot
+        time.sleep(0.5)
+        snapshot = vram_source()
+    return snapshot
+
+
 def run_switches(
     gateway: ModelGateway,
     models: list[str],
@@ -110,6 +129,8 @@ def run_switches(
 
     runs: list[SwitchResult] = []
     started = time.time()
+    baseline = vram_source()
+    baseline_free = baseline.free_mb if baseline else None
     for index in range(switches):
         model_id = models[index % len(models)]
         before = gateway.metrics()["loads"]
@@ -130,7 +151,7 @@ def run_switches(
                 )
             )
             gateway.release(model_id)
-            after = vram_source()
+            after = _wait_for_release(vram_source, baseline_free)
             runs[-1].vram_after = after.as_dict() if after else None
         except (GatewayError, BackendError) as exc:
             runs.append(
@@ -222,6 +243,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--timeout", type=float, default=300.0, help="Ollama timeout, seconds")
+    parser.add_argument("--margin-mb", type=int, default=256, help="VRAM safety margin")
     parser.add_argument("--no-write", action="store_true", help="do not write a JSON report")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="report directory")
     return parser
@@ -270,7 +292,7 @@ def main(argv: list[str] | None = None) -> int:
         registry,
         backend,
         vram_total_mb=8192,
-        safety_margin_mb=512,
+        safety_margin_mb=args.margin_mb,
         vram_source=vram_source,
     )
     try:
