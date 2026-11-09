@@ -79,6 +79,20 @@ Vault — сама папка `docs/`. Открой её в Obsidian: **Open fol
 `D:\AI-assistent\docs`. Начни с `_INDEX.md`; граф и обратные ссылки работают
 без копирования файлов. Подробнее — skill `kivi-obsidian`.
 
+## GitHub
+
+Репозиторий: приватный, создаётся скриптом `scripts/publish_github.ps1`.
+
+- После каждой масштабной доработки и по прямой просьбе пользователя:
+  сделать коммит и запустить публикацию.
+- Перед push проверить `git status`: секреты, `.env`, `data/`, `private/`,
+  `voice-dataset/` и модели не должны попадать в коммит.
+- Команда:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\publish_github.ps1
+```
+
 ## Skills
 
 `kivi-core`, `kivi-verify`, `kivi-gateway`, `kivi-security`, `kivi-docs`,
