@@ -11,25 +11,32 @@ param(
     [switch]$Public
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $gh = Join-Path $env:LOCALAPPDATA "Programs\gh\bin\gh.exe"
 if (-not (Test-Path $gh)) {
     $gh = "gh"
 }
 
+$previous = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
 & $gh auth status *> $null
-if ($LASTEXITCODE -ne 0) {
+$authOk = ($LASTEXITCODE -eq 0)
+
+& $gh api user --jq .login *> $null
+$owner = if ($LASTEXITCODE -eq 0) { (& $gh api user --jq .login).Trim() } else { "" }
+
+$fullName = "$owner/$RepoName"
+& $gh repo view $fullName *> $null
+$exists = ($LASTEXITCODE -eq 0)
+
+$ErrorActionPreference = $previous
+
+if (-not $authOk) {
     throw "GitHub CLI is not authenticated. Run: $gh auth login"
 }
-
-$owner = (& $gh api user --jq .login).Trim()
 if (-not $owner) {
     throw "Could not resolve the GitHub user"
 }
-$fullName = "$owner/$RepoName"
-
-& $gh repo view $fullName *> $null
-$exists = ($LASTEXITCODE -eq 0)
 
 if (-not $exists) {
     $visibility = if ($Public) { "--public" } else { "--private" }
