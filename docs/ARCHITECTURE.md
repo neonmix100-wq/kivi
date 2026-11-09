@@ -22,7 +22,7 @@ Kivi — это **локальный агент**, а не чат с модел�
 Сквозные подсистемы: **Safety/Policy**, **Protected Zones**, **Cloud Broker**,
 **Observability**, **Backup/Rollback**, **Cost Guard**.
 
-Главное ограничение — **8 ГБ VRAM** (планируется 12–16 ГБ). Поэтому модель — это ресурс
+Главное ограничение — **8 ГБ VRAM** (планируется **RTX 4070 12 ГБ**). Поэтому модель — это ресурс
 с арендой (lease), а не постоянно запущенный сервис.
 
 Ключевые решения: `docs/DECISIONS.md`. Персона и аватар: `docs/PERSONA.md`.
@@ -71,9 +71,9 @@ Kivi — это **локальный агент**, а не чат с модел�
 - 126 ГБ на D: хватит на LLM + SDXL, но не на зоопарк видео-моделей.
 - WDDM: при переполнении VRAM Windows уходит в shared memory и скорость падает в разы.
   Это нужно **детектировать и запрещать**, а не терпеть.
-- Планируется GPU 12–16 ГБ и SSD 1 ТБ: бюджеты в `models.yaml` пересматриваются после апгрейда.
-  12 ГБ всё ещё не гарантируют 14B + видео 1080p + аватар одновременно; 16 ГБ комфортнее.
-- **RTX 3070 — 8 ГБ, не 12 ГБ.** Если покупается 3070, это не апгрейд по VRAM;
+- Планируется **RTX 4070 12 ГБ** и SSD 1 ТБ: бюджеты в `models.yaml` пересматриваются после апгрейда.
+  12 ГБ не гарантируют 14B + видео 1080p + аватар одновременно; 16 ГБ комфортнее, но выбрана 4070.
+- **RTX 3070 — 8 ГБ, не 12 ГБ.** Она рассматривалась и отклонена: по VRAM это не апгрейд;
   см. `docs/BASELINE.md`, раздел 8.
 
 ---
@@ -229,7 +229,7 @@ Append-only JSONL + запись в SQLite:
 | 2 | Код/рассуждения | 14B Q4 | 8,5–9,5 ГБ | Частичный offload или облако |
 | 2 | VLM (скриншоты) | `qwen2.5vl:3b` | 3,0–4,0 ГБ | Эксклюзивно или с tier 0 |
 | 3 | ASR | faster-whisper large-v3-turbo int8 | 1,5–2,5 ГБ | С tier 0, не с 8B |
-| 3 | TTS | Piper | CPU, 0,1–0,3 ГБ | Всегда CPU |
+| 3 | TTS | Silero `v5_ru` (`baya`) / Piper fallback | CPU, 0 VRAM; 0,3–0,8 ГБ RAM | Всегда доступен; GPU — опционально |
 | 3 | Эмбеддинги | bge-m3 | CPU, 0,5 ГБ | Всегда CPU |
 | 4 | Изображения | SDXL / SD1.5 | 6,5–7,0 / 3,0–4,0 ГБ | Эксклюзивно, выгрузить всё |
 | 4 | Видео | Wan 2.1 1.3B / LTX 2B | 7,0–8,0 ГБ | Эксклюзивно, долгая задача; облако предпочтительно |
@@ -237,7 +237,7 @@ Append-only JSONL + запись в SQLite:
 
 **Важно:** аватар, Chrome и LLM 8B могут не поместиться одновременно на 8 ГБ.
 Gateway учитывает аватар в резерве; при нехватке — снижает качество рендера или просит закрыть браузер.
-После апгрейда до 12–16 ГБ станет комфортнее, но правило «одна тяжёлая модель» сохраняется.
+После апгрейда до **RTX 4070 12 ГБ** станет комфортнее, но правило «одна тяжёлая модель» сохраняется.
 
 ### 5.3. Бюджет
 
@@ -307,7 +307,7 @@ Gateway может начать загрузку заранее, **только 
 | ComfyUI | SDXL, img2img, upscale, видео | API + workflow JSON, `--lowvram`/`--medvram`, выгрузка после job |
 | SD WebUI | Быстрый старт картинок | API `/sdapi/v1/txt2img`, `--medvram` |
 | faster-whisper | ASR | CUDA int8_float16, fallback CPU int8 |
-| Piper | TTS | CPU, потоковая генерация |
+| Silero `v5_ru` / Piper | TTS | Silero: CPU по умолчанию, 48 кГц; Piper — fallback |
 | Cloud | Тяжёлые рассуждения, видео, качественные картинки | Только по политике; redaction; лимит стоимости |
 
 Рекомендуемые переменные Ollama:
@@ -519,7 +519,7 @@ class Tool(Protocol):
 | `docs.extract` | R0 | да | PDF/DOCX/XLSX/MD |
 | `media.image` | R1 | да | SDXL |
 | `media.video` | R1 | эксперимент | Wan/LTX или облако |
-| `audio.speak` | R0 | да | Piper |
+| `audio.speak` | R0 | да | Silero `v5_ru` / Piper |
 | `ui.control` | R2 | v2 | мышь/клавиатура |
 | `system.admin` | R3 | v3 | только через elevated broker |
 | `money.spend` | R4 | облако | двойное подтверждение, лимит |
@@ -613,7 +613,7 @@ audit(id, ts, actor, action, args_hash, decision, result, hash_prev, hash)
 | Wake word | openWakeWord (своя модель «Kivi») или push-to-talk | < 100 мс |
 | VAD | Silero VAD | < 50 мс |
 | STT | faster-whisper large-v3-turbo, ru | первый partial < 500 мс |
-| TTS | Piper, русский голос | первый звук < 700 мс |
+| TTS | Silero `v5_ru` `baya`, 48 кГц | первый звук < 700 мс |
 | Barge-in | остановка TTS по голосу/кнопке | < 200 мс |
 
 Особенности:
@@ -870,8 +870,11 @@ models:
     tier: 3
     footprint_mb: 2000
   tts:
-    backend: piper
-    voice: ru_RU-irina-medium
+    backend: silero
+    voice: baya
+    model: v5_ru
+    sample_rate: 48000
+    fallback: piper
     tier: 3
     footprint_mb: 0
   image:
@@ -941,8 +944,11 @@ killswitch_hotkey: Ctrl+Alt+J
 wake_word: kivi
 voice:
   enabled: false
-  tts: piper
-  voice: ru_RU-irina-medium
+  tts: silero
+  voice: baya
+  model: v5_ru
+  sample_rate: 48000
+  fallback: piper
   stt: faster-whisper
 avatar:
   enabled: true

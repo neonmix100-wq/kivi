@@ -1,0 +1,89 @@
+# Kivi runtime configuration (no secrets).
+# Secrets belong in the OS vault / private/, never in this file.
+
+version: 1
+name: Kivi
+language: ru
+autonomy: A4-Bounded
+
+model_gateway:
+  prefer_local: true
+  one_heavy_model: true
+  safety_margin_mb: 512
+  vram_total_mb: 8192        # current RTX 3060 Ti; set 12288 after RTX 4070
+  fallback: [gpu, cpu, cloud]
+  cloud:
+    mode: auto_free
+    cost_limit_usd: 0
+    allow_data_for_training: true
+    scout_on_quota_exhausted: true
+
+voice:
+  provider: silero
+  model: v5_ru
+  speaker: baya
+  sample_rate: 48000
+  output: assets/voice-samples/silero_v5_baya_48k.wav
+  rate: 1.0
+  put_accent: true
+  put_yo: true
+  stream_by_sentence: true
+  fallback:
+    provider: piper
+    voice: ru_RU-irina-medium
+  cloud_fallback: false      # Edge TTS only with explicit consent
+  clone:
+    enabled: false           # requires written consent, see docs/VOICE-CLONING.md
+    consent_file: private/voice/consent/consent.pdf
+    dataset_dir: private/voice/dataset
+    model_dir: private/voice/models
+
+avatar:
+  mode: 2d                   # none | 2d | vrm
+  vrm: assets/kivi.vrm
+  lip_sync: amplitude        # amplitude | viseme
+  always_on_top: true
+  display: desktop           # desktop | window | second_monitor
+  hide_hotkey: Ctrl+Alt+K
+  outfit: summer_casual_05   # light mint sundress, cropped cardigan, sandals
+
+shell:
+  mode: A                    # A = fullscreen app, B = beta shell, C = default shell
+  explorer_fallback: true
+  emergency_hotkey: Ctrl+Alt+Shift+E
+
+mail:
+  provider: gmail
+  auth: oauth
+  # Gmail API has no drafts-only scope. The app uses gmail.readonly + gmail.compose
+  # but only calls drafts.* methods; messages.send is blocked in code and policy.
+  scopes:
+    - https://www.googleapis.com/auth/gmail.readonly
+    - https://www.googleapis.com/auth/gmail.compose
+  drafts_only: true
+  auto_send: false
+  allowed_methods:
+    - users.messages.list
+    - users.messages.get
+    - users.drafts.list
+    - users.drafts.get
+    - users.drafts.create
+    - users.drafts.update
+  denied_methods:
+    - users.messages.send
+    - users.drafts.send
+
+telegram:
+  mode: bot
+  allow_groups: false
+
+security:
+  protected_zones_signed: true
+  audit_enabled: true
+  killswitch_hotkey: Ctrl+Alt+J
+  redact_secrets: true
+  egress_deny:
+    - private/**
+    - '**/.env'
+    - '**/*.pem'
+    - '**/*.key'

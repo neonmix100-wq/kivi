@@ -24,6 +24,11 @@ build/
 
 # local model/config overrides
 config/local.*
+config/secrets.*
+
+# private data: voice consent, dataset, cloned checkpoints
+private/
+voice-dataset/
 
 # downloaded TTS voice models (large)
 assets/voice-samples/piper-voices/

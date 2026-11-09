@@ -1,0 +1,15 @@
+{
+  "name": "kivi_fullbody_cardigan",
+  "seed": 18052201,
+  "width": 512,
+  "height": 768,
+  "steps": 28,
+  "cfg_scale": 7.0,
+  "sampler": "Euler a",
+  "model": "Counterfeit-V2.5_fp16.safetensors",
+  "prompt": "masterpiece, best quality, highres, anime style, soft cel shading, 1girl, solo, adult, 18 years old, slender, long turquoise hair, wavy hair, turquoise eyes, detailed eyes, gentle smile, fair skin, no accessories, bare arms, light green sundress, mint green dress, sleeveless dress, knee-length skirt, modest round neckline, white cropped cardigan, short cardigan, flat sandals, bare legs, neutral light gray studio background, soft diffused lighting, summer, character design, full body, standing, front view, relaxed neutral pose, looking at viewer",
+  "negative_prompt": "lowres, worst quality, bad anatomy, bad hands, extra digits, fewer digits, deformed, mutated, text, watermark, signature, logo, frame, child, loli, nsfw, nude, cleavage, school uniform, serafuku, sailor collar, necktie, bow, ribbon, hat, hair ribbon, headwear, vest, black skirt, pleated skirt, thigh strap, garter, gloves, glasses, headphones, jewelry, choker, bag, hair ornament, chibi, 3d, photorealistic, multiple girls, cropped head, out of frame",
+  "note": "local SD 1.5 draft; cloud image tool unavailable",
+  "seconds": 19.4,
+  "out": "assets/avatar/concept/kivi_fullbody_cardigan.png"
+}
