@@ -22,6 +22,11 @@ class RegistryError(ValueError):
     """Raised for an unreadable registry or an unknown model id."""
 
 
+def canonical_model_id(model_id: str) -> str:
+    """Ollama reports the implicit tag as ``:latest``; compare canonically."""
+    return model_id if ":" in model_id else f"{model_id}:latest"
+
+
 @dataclass(frozen=True, slots=True)
 class ModelSpec:
     id: str

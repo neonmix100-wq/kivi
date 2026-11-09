@@ -36,6 +36,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe doctor
 .venv\Scripts\kivi.exe models
 .venv\Scripts\kivi.exe ask "вопрос" --keep-alive 0
+.venv\Scripts\kivi.exe embed "text" --keep-alive 0
 ```
 
 Для проверки используй `verify` (он пишет полный лог в `data/logs/`), а не

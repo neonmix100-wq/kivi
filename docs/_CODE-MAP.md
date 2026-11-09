@@ -29,7 +29,7 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 1 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.cli` | 385 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 469 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -50,12 +50,12 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.models.__init__` | 44 | Model Gateway: registry, VRAM/RAM budgets, leases and fallback. |
+| `src.kivi.models.__init__` | 46 | Model Gateway: registry, VRAM/RAM budgets, leases and fallback. |
 | `src.kivi.models.backends.__init__` | 10 | Model backends: Ollama first, others follow in later stages. |
-| `src.kivi.models.backends.base` | 55 | Backend protocol shared by Ollama, llama.cpp, ComfyUI and cloud workers. |
-| `src.kivi.models.backends.ollama` | 179 | Ollama backend. |
-| `src.kivi.models.gateway` | 449 | Model Gateway: budget checks, leases and eviction. |
-| `src.kivi.models.registry` | 200 | Model registry: what can be loaded, how much it costs and who may use it. |
+| `src.kivi.models.backends.base` | 65 | Backend protocol shared by Ollama, llama.cpp, ComfyUI and cloud workers. |
+| `src.kivi.models.backends.ollama` | 216 | Ollama backend. |
+| `src.kivi.models.gateway` | 515 | Model Gateway: budget checks, leases and eviction. |
+| `src.kivi.models.registry` | 205 | Model registry: what can be loaded, how much it costs and who may use it. |
 | `src.kivi.models.vram` | 116 | VRAM accounting via ``nvidia-smi``. |
 | `src.kivi.models.watchdog` | 141 | Background watchdog for the Model Gateway. |
 

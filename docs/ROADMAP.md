@@ -76,11 +76,11 @@
 - [x] Registry моделей + стартовые footprint'ы (`config/models.yaml`).
 - [x] Ollama-адаптер: загрузка, `keep_alive`, выгрузка (стриминг — позже).
 - [x] NVML total/used/free (shared — эвристика: отдельного поля у WDDM/NVML нет).
-- [x] Lease Manager: приоритеты, TTL, эксклюзивность (очередь — позже).
+- [x] Lease Manager: приоритеты, TTL, эксклюзивность, очередь за pinned (`wait_s`).
 - [x] Eviction + проверка освобождения VRAM (базовая).
 - [ ] Fallback: контекст → offload → CPU → облако.
 - [x] Watchdog, метрики, сверка с backend (`/api/ps`).
-- [x] Benchmark 20 переключений: `docs/BENCH-GATEWAY.md` (chat/code; embeddings — после `bge-m3`).
+- [x] Benchmark 20 переключений: `docs/BENCH-GATEWAY.md` (chat → code → embedding → chat).
 - [x] CLI-срез: `kivi ask "..."` через Gateway.
 
 **Сделано в первом срезе:** registry, Ollama backend, `kivi models` с VRAM и каталогом,
@@ -90,10 +90,11 @@
 `model.orphan_unloaded`, `gateway.status()`, колонка Loaded в `kivi models`,
 benchmark-стенд с fake- и real-режимами.
 **Сделано в третьем срезе:** NVML с fallback на nvidia-smi, стриминг Ollama
-(`kivi ask --stream`), фиксация `num_ctx` при загрузке, измеренные footprint'ы
-4B/7B (`scripts/measure_footprint.py`), benchmark 20 переключений
-(`docs/BENCH-GATEWAY.md`).
-**Осталось до приёмки:** очередь, fallback, embedding-модель в цикле переключений.
+(`kivi ask --stream`), очередь за pinned-моделью (`--wait`), фиксация `num_ctx`
+при загрузке, embedding-модель (`kivi embed`, `/api/embed`), измеренные
+footprint'ы 4B/7B (`scripts/measure_footprint.py`), benchmark 20 переключений
+полного цикла (`docs/BENCH-GATEWAY.md`).
+**Осталось до приёмки:** fallback CPU → облако.
 
 **Приёмка:** 20 циклов «чат → кодер → эмбеддинги → чат» без OOM; простой 10 мин → VRAM 0;
 искусственный OOM → понятный fallback; реальные цифры в отчёте

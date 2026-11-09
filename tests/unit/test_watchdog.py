@@ -34,6 +34,7 @@ class FakeBackend:
         model_id: str,
         keep_alive: str = "5m",
         options: dict | None = None,
+        embedding: bool = False,
     ) -> None:
         self.calls.append(("load", model_id))
         self.loaded.add(model_id)

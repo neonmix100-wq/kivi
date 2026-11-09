@@ -26,6 +26,7 @@ from kivi.models import (
     ModelGateway,
     OllamaBackend,
     RegistryError,
+    canonical_model_id,
     load_registry,
     query_vram,
 )
@@ -105,7 +106,7 @@ def cmd_models(args: argparse.Namespace) -> int:
 
     registry = _registry(paths)
     names = ollama_models()
-    installed_names = set(names)
+    installed_names = {canonical_model_id(name) for name in names}
     running: dict[str, int] = {}
     try:
         with OllamaBackend(timeout=3) as backend:
@@ -126,7 +127,7 @@ def cmd_models(args: argparse.Namespace) -> int:
             str(spec.tier),
             spec.role,
             f"{spec.vram_mb} MB",
-            "yes" if spec.id in installed_names else "-",
+            "yes" if canonical_model_id(spec.id) in installed_names else "-",
             f"{running[spec.id]} MB" if spec.id in running else "-",
         )
     console.print(catalog)
@@ -226,6 +227,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
                         priority=0,
                         keep_alive=args.keep_alive,
                         options=options,
+                        wait_s=args.wait,
                     ):
                         chunks.append(chunk)
                         sys.stdout.write(chunk)
@@ -241,6 +243,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
                         priority=0,
                         keep_alive=args.keep_alive,
                         options=options,
+                        wait_s=args.wait,
                     )
                 metrics = gateway.metrics()
         except (GatewayError, BackendError) as exc:
@@ -260,6 +263,68 @@ def cmd_ask(args: argparse.Namespace) -> int:
     if not args.stream:
         console.print(f"[cyan]Kivi[/cyan] · [dim]{spec.id}[/dim]")
         console.print(answer or "(empty answer)")
+    console.print(
+        f"[dim]loads={metrics['loads']} evictions={metrics['evictions']} "
+        f"last_load={metrics['last_load_ms']} ms[/dim]"
+    )
+    return 0
+
+
+def cmd_embed(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    registry = _registry(paths)
+    try:
+        spec = registry.require(args.model) if args.model else registry.default_for("embedding")
+    except RegistryError as exc:
+        console.print(f"[red]model error:[/red] {exc}")
+        return 2
+
+    task_id = f"tsk_{uuid.uuid4().hex[:12]}"
+    with _state(paths) as (db, bus):
+        db.create_task(task_id, "embed", {"text": args.text, "model": spec.id})
+        bus.emit(
+            "embed.request",
+            task_id=task_id,
+            source="cli",
+            payload={"model": spec.id, "chars": len(args.text)},
+        )
+        try:
+            with OllamaBackend(timeout=args.timeout) as backend:
+                gateway = ModelGateway(
+                    registry,
+                    backend,
+                    vram_total_mb=config.model_gateway.vram_total_mb,
+                    safety_margin_mb=config.model_gateway.safety_margin_mb,
+                    events=bus,
+                )
+                vectors = gateway.embed(
+                    spec.id,
+                    [args.text],
+                    task_id=task_id,
+                    priority=0,
+                    keep_alive=args.keep_alive,
+                    wait_s=args.wait,
+                )
+                metrics = gateway.metrics()
+        except (GatewayError, BackendError) as exc:
+            db.update_task(task_id, "failed", {"error": str(exc)})
+            bus.emit("embed.failed", task_id=task_id, source="cli", payload={"error": str(exc)})
+            console.print(f"[red]embedding error:[/red] {exc}")
+            return 1
+
+        vector = vectors[0] if vectors else []
+        db.update_task(task_id, "done", {"model": spec.id, "dim": len(vector)})
+        bus.emit(
+            "embed.done",
+            task_id=task_id,
+            source="cli",
+            payload={"model": spec.id, "dim": len(vector)},
+        )
+
+    preview = ", ".join(f"{value:.4f}" for value in vector[:8])
+    console.print(f"[cyan]Kivi[/cyan] · [dim]{spec.id}[/dim] · dim={len(vector)}")
+    console.print(f"[{preview}, …]")
     console.print(
         f"[dim]loads={metrics['loads']} evictions={metrics['evictions']} "
         f"last_load={metrics['last_load_ms']} ms[/dim]"
@@ -353,7 +418,26 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--timeout", type=float, default=180.0, help="HTTP timeout in seconds")
     ask.add_argument("--stream", action="store_true", help="print answer chunks as they arrive")
     ask.add_argument("--num-predict", type=int, default=512, help="maximum generated tokens")
+    ask.add_argument(
+        "--wait",
+        type=float,
+        default=120.0,
+        help="seconds to wait behind a pinned model instead of failing",
+    )
     ask.set_defaults(func=cmd_ask)
+
+    embed = sub.add_parser("embed", help="embed text with the embedding model")
+    embed.add_argument("text", help="text to embed")
+    embed.add_argument("-m", "--model", default=None, help="embedding model id")
+    embed.add_argument("--keep-alive", default="5m", help="Ollama keep_alive after the request")
+    embed.add_argument("--timeout", type=float, default=180.0, help="HTTP timeout in seconds")
+    embed.add_argument(
+        "--wait",
+        type=float,
+        default=120.0,
+        help="seconds to wait behind a pinned model instead of failing",
+    )
+    embed.set_defaults(func=cmd_embed)
 
     events = sub.add_parser("events", help="show recent events")
     events.add_argument("-n", "--limit", type=int, default=20)

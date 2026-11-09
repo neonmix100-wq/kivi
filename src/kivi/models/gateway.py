@@ -95,11 +95,13 @@ class ModelGateway:
         self._leases: dict[str, Lease] = {}
         self._managed: set[str] = set()
         self._lock = threading.RLock()
+        self._cond = threading.Condition(self._lock)
         self._metrics: dict[str, int | float] = {
             "loads": 0,
             "unloads": 0,
             "evictions": 0,
             "failures": 0,
+            "waits": 0,
             "lost": 0,
             "orphan_unloads": 0,
             "last_load_ms": 0.0,
@@ -160,26 +162,55 @@ class ModelGateway:
         task_id: str = "",
         priority: int = 5,
         ttl_s: int = 300,
+        wait_s: float = 0.0,
     ) -> Lease:
-        """Ensure ``model_id`` is loaded and return its lease."""
+        """Ensure ``model_id`` is loaded and return its lease.
+
+        ``wait_s`` queues behind pinned models instead of failing immediately.
+        """
         spec = self.registry.require(model_id)
         now = self._clock()
+        deadline = time.monotonic() + max(0.0, wait_s)
+        queued = False
 
-        with self._lock:
-            existing = self._leases.get(model_id)
-            if existing is not None:
-                existing.touch(now)
-                return existing
+        with self._cond:
+            while True:
+                existing = self._leases.get(model_id)
+                if existing is not None:
+                    existing.touch(now)
+                    return existing
 
-            victims: list[Lease] = []
-            if spec.exclusive:
-                victims = [lease for lease in self._leases.values() if not lease.pinned]
-                blocked = [lease for lease in self._leases.values() if lease.pinned]
-                if blocked:
+                blocked = (
+                    [lease for lease in self._leases.values() if lease.pinned]
+                    if spec.exclusive
+                    else []
+                )
+                if not blocked:
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    self._metrics["failures"] += 1
                     raise ModelBusy(
                         "exclusive model is blocked by pinned: "
                         + ", ".join(lease.model_id for lease in blocked)
                     )
+                if not queued:
+                    self._metrics["waits"] += 1
+                    queued = True
+                    self._emit(
+                        "model.queued",
+                        {
+                            "model_id": model_id,
+                            "task_id": task_id,
+                            "blocked_by": [lease.model_id for lease in blocked],
+                            "wait_s": wait_s,
+                        },
+                    )
+                self._cond.wait(remaining)
+
+            victims: list[Lease] = []
+            if spec.exclusive:
+                victims = [lease for lease in self._leases.values() if not lease.pinned]
 
             snapshot = self.vram()
             if snapshot is not None:
@@ -215,6 +246,7 @@ class ModelGateway:
                 self.backend.load(
                     model_id,
                     options=self._load_options(spec),
+                    embedding=spec.role == "embedding",
                 )
             except BackendError:
                 self._metrics["failures"] += 1
@@ -262,6 +294,7 @@ class ModelGateway:
             "model.unloaded",
             {"model_id": lease.model_id, "reason": reason, "task_id": lease.task_id},
         )
+        self._cond.notify_all()
 
     def release(self, model_id: str) -> None:
         with self._lock:
@@ -285,6 +318,7 @@ class ModelGateway:
                 "model.lost",
                 {"model_id": model_id, "reason": reason, "task_id": lease.task_id},
             )
+            self._cond.notify_all()
             return True
 
     def reconcile(self, running: dict[str, int]) -> tuple[list[str], list[str]]:
@@ -339,12 +373,14 @@ class ModelGateway:
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
         think: bool | None = None,
+        wait_s: float = 0.0,
     ) -> str:
         lease = self.acquire(
             model_id,
             task_id=task_id,
             priority=priority,
             ttl_s=max(1, int(self._ttl_from_keep_alive(keep_alive))),
+            wait_s=wait_s,
         )
         effective_think = self.registry.require(model_id).think if think is None else think
         try:
@@ -362,6 +398,34 @@ class ModelGateway:
             lease.touch(self._clock())
         return answer
 
+    def embed(
+        self,
+        model_id: str,
+        inputs: list[str],
+        *,
+        task_id: str = "",
+        priority: int = 5,
+        keep_alive: str = "5m",
+        wait_s: float = 0.0,
+    ) -> list[list[float]]:
+        """Embed texts, loading the embedding model when needed."""
+        lease = self.acquire(
+            model_id,
+            task_id=task_id,
+            priority=priority,
+            ttl_s=max(1, int(self._ttl_from_keep_alive(keep_alive))),
+            wait_s=wait_s,
+        )
+        try:
+            vectors = self.backend.embed(model_id, inputs, keep_alive=keep_alive)
+        except BackendError:
+            self._metrics["failures"] += 1
+            raise
+        finally:
+            with self._lock:
+                lease.touch(self._clock())
+        return vectors
+
     def chat_stream(
         self,
         model_id: str,
@@ -372,6 +436,7 @@ class ModelGateway:
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
         think: bool | None = None,
+        wait_s: float = 0.0,
     ) -> Iterator[str]:
         """Stream answer chunks, keeping the lease warm until the last chunk."""
         lease = self.acquire(
@@ -379,6 +444,7 @@ class ModelGateway:
             task_id=task_id,
             priority=priority,
             ttl_s=max(1, int(self._ttl_from_keep_alive(keep_alive))),
+            wait_s=wait_s,
         )
         effective_think = self.registry.require(model_id).think if think is None else think
         try:

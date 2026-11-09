@@ -87,23 +87,60 @@ class OllamaBackend:
         model_id: str,
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
+        embedding: bool = False,
     ) -> None:
         body: dict[str, Any] = {
             "model": model_id,
-            "prompt": "",
-            "stream": False,
             "keep_alive": keep_alive,
         }
         if options:
             body["options"] = options
+        if embedding:
+            body["input"] = [" "]
+            body["truncate"] = True
+            self._request("POST", "/api/embed", json=body)
+            return
+        body["prompt"] = ""
+        body["stream"] = False
         self._request("POST", "/api/generate", json=body)
 
     def unload(self, model_id: str) -> None:
-        self._request(
-            "POST",
-            "/api/generate",
-            json={"model": model_id, "prompt": "", "stream": False, "keep_alive": 0},
-        )
+        try:
+            self._request(
+                "POST",
+                "/api/generate",
+                json={"model": model_id, "prompt": "", "stream": False, "keep_alive": 0},
+            )
+        except BackendError:
+            self._request(
+                "POST",
+                "/api/embed",
+                json={"model": model_id, "input": [" "], "keep_alive": 0},
+            )
+
+    def embed(
+        self,
+        model_id: str,
+        inputs: list[str],
+        *,
+        keep_alive: str = "5m",
+        options: dict[str, Any] | None = None,
+    ) -> list[list[float]]:
+        if not inputs:
+            return []
+        body: dict[str, Any] = {
+            "model": model_id,
+            "input": inputs,
+            "truncate": True,
+            "keep_alive": keep_alive,
+        }
+        if options:
+            body["options"] = options
+        payload = self._request("POST", "/api/embed", json=body)
+        embeddings = payload.get("embeddings")
+        if not isinstance(embeddings, list) or len(embeddings) != len(inputs):
+            raise BackendError("Ollama /api/embed returned a malformed embeddings list")
+        return embeddings
 
     def chat(
         self,

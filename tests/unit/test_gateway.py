@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import threading
+import time
+
 import pytest
 
 from kivi.models.gateway import (
@@ -35,10 +38,15 @@ class FakeBackend:
         model_id: str,
         keep_alive: str = "5m",
         options: dict | None = None,
+        embedding: bool = False,
     ) -> None:
         self.calls.append(("load", model_id))
         self.load_options[model_id] = options
         self.loaded.add(model_id)
+
+    def embed(self, model_id, inputs, *, keep_alive="5m", options=None):
+        self.calls.append(("embed", model_id))
+        return [[float(len(text))] for text in inputs]
 
     def unload(self, model_id: str) -> None:
         self.calls.append(("unload", model_id))
@@ -175,6 +183,26 @@ def test_pinned_model_blocks_exclusive_load() -> None:
     assert backend.loaded == {"pinned"}
 
 
+def test_exclusive_waits_for_pinned_release() -> None:
+    gateway, backend, _, _ = make_gateway()
+    gateway.acquire("pinned")
+
+    def release_later() -> None:
+        time.sleep(0.05)
+        gateway.release("pinned")
+
+    worker = threading.Thread(target=release_later)
+    worker.start()
+    try:
+        lease = gateway.acquire("heavy", wait_s=2)
+    finally:
+        worker.join(timeout=2)
+
+    assert lease.model_id == "heavy"
+    assert "heavy" in backend.loaded
+    assert gateway.metrics()["waits"] == 1
+
+
 def test_expired_lease_is_unloaded() -> None:
     gateway, backend, _, clock = make_gateway()
     gateway.acquire("small", ttl_s=10)
@@ -199,6 +227,14 @@ def test_keep_alive_parsing() -> None:
     assert ModelGateway._ttl_from_keep_alive("5m") == 300
     assert ModelGateway._ttl_from_keep_alive("2h") == 7200
     assert ModelGateway._ttl_from_keep_alive("garbage") == 300
+
+
+def test_embed_returns_vectors_and_keeps_lease() -> None:
+    gateway, backend, _, _ = make_gateway()
+    vectors = gateway.embed("small", ["a", "bb"])
+    assert vectors == [[1.0], [2.0]]
+    assert backend.calls == [("load", "small"), ("embed", "small")]
+    assert "small" in gateway.loaded()
 
 
 def test_load_pins_registry_context() -> None:

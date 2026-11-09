@@ -15,6 +15,7 @@ from kivi.models.registry import (
     ModelRegistry,
     ModelSpec,
     RegistryError,
+    canonical_model_id,
     load_registry,
 )
 from kivi.models.vram import VramSnapshot, parse_smi_output, query_vram
@@ -37,6 +38,7 @@ __all__ = [
     "RegistryError",
     "VramSnapshot",
     "WatchdogResult",
+    "canonical_model_id",
     "gateway_from_config",
     "load_registry",
     "parse_smi_output",

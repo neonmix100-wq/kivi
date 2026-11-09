@@ -64,6 +64,44 @@ def test_chat_returns_content() -> None:
     assert answer == "привет"
 
 
+def test_embed_returns_vectors() -> None:
+    bodies: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(request.read().decode())
+        assert request.url.path == "/api/embed"
+        return httpx.Response(200, json={"embeddings": [[0.1, 0.2], [0.3, 0.4]]})
+
+    with make_backend(handler) as backend:
+        vectors = backend.embed("m", ["a", "b"], keep_alive="0")
+
+    assert vectors == [[0.1, 0.2], [0.3, 0.4]]
+    assert '"input":["a","b"]' in bodies[0]
+    assert '"keep_alive":"0"' in bodies[0]
+
+
+def test_embed_rejects_malformed_response() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"embeddings": [[0.1]]})
+
+    with make_backend(handler) as backend, pytest.raises(BackendError, match="malformed"):
+        backend.embed("m", ["a", "b"])
+
+
+def test_embedding_load_uses_embed_endpoint() -> None:
+    bodies: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append((request.url.path, request.read().decode()))
+        return httpx.Response(200, json={"embeddings": [[0.0]]})
+
+    with make_backend(handler) as backend:
+        backend.load("m", embedding=True)
+
+    assert bodies[0][0] == "/api/embed"
+    assert '"input":[" "]' in bodies[0][1]
+
+
 def test_chat_stream_yields_chunks() -> None:
     bodies: list[str] = []
 

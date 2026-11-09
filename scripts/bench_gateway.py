@@ -21,7 +21,7 @@ from typing import Any
 from kivi.models.backends.base import BackendError
 from kivi.models.backends.ollama import OllamaBackend
 from kivi.models.gateway import GatewayError, ModelGateway
-from kivi.models.registry import ModelRegistry, load_registry
+from kivi.models.registry import ModelRegistry, canonical_model_id, load_registry
 from kivi.models.vram import VramSnapshot, query_vram
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,12 +47,16 @@ class FakeBenchBackend:
         model_id: str,
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
+        embedding: bool = False,
     ) -> None:
         spec = FAKE_REGISTRY.require(model_id)
         self.loaded[model_id] = spec.vram_mb
 
     def unload(self, model_id: str) -> None:
         self.loaded.pop(model_id, None)
+
+    def embed(self, model_id, inputs, *, keep_alive="5m", options=None):
+        return [[0.0] for _ in inputs]
 
     def chat(
         self,
@@ -61,6 +65,7 @@ class FakeBenchBackend:
         *,
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
+        think: bool | None = None,
     ) -> str:
         return "fake"
 
@@ -133,9 +138,13 @@ def run_switches(
     baseline_free = baseline.free_mb if baseline else None
     for index in range(switches):
         model_id = models[index % len(models)]
+        spec = gateway.registry.require(model_id)
         before = gateway.metrics()["loads"]
         try:
-            gateway.acquire(model_id, task_id=f"bench_{index}", ttl_s=60)
+            if spec.role == "embedding":
+                gateway.embed(model_id, ["benchmark"], task_id=f"bench_{index}")
+            else:
+                gateway.acquire(model_id, task_id=f"bench_{index}", ttl_s=60)
             metrics = gateway.metrics()
             load_ms = int(metrics["last_load_ms"]) if metrics["loads"] > before else 0
             snapshot = vram_source()
@@ -272,11 +281,11 @@ def main(argv: list[str] | None = None) -> int:
         models = _models_from_roles(registry)
 
     if not args.fake:
-        installed = set(backend.list_models())
-        missing = [model_id for model_id in models if model_id not in installed]
+        installed = {canonical_model_id(name) for name in backend.list_models()}
+        missing = [m for m in models if canonical_model_id(m) not in installed]
         if missing:
             print("skipping models not installed in Ollama: " + ", ".join(missing))
-        models = [model_id for model_id in models if model_id in installed]
+        models = [m for m in models if canonical_model_id(m) in installed]
         if not models:
             print("no requested models are installed; nothing to benchmark")
             return 2

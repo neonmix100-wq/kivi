@@ -9,6 +9,7 @@ from kivi.models.registry import (
     ModelRegistry,
     ModelSpec,
     RegistryError,
+    canonical_model_id,
     load_registry,
 )
 from kivi.paths import project_root
@@ -25,6 +26,11 @@ def test_default_registry_has_router_and_chat() -> None:
 def test_duplicate_ids_are_rejected() -> None:
     with pytest.raises(RegistryError, match="duplicate"):
         ModelRegistry([ModelSpec(id="a"), ModelSpec(id="a")])
+
+
+def test_canonical_model_id_adds_latest() -> None:
+    assert canonical_model_id("bge-m3") == "bge-m3:latest"
+    assert canonical_model_id("qwen3.5:4b") == "qwen3.5:4b"
 
 
 def test_unknown_model_raises() -> None:
@@ -72,11 +78,7 @@ def test_missing_file_falls_back_to_defaults(tmp_path: Path) -> None:
 def test_load_custom_registry(tmp_path: Path) -> None:
     path = tmp_path / "models.yaml"
     path.write_text(
-        "models:\n"
-        "  - id: custom:1b\n"
-        "    tier: 0\n"
-        "    role: router\n"
-        "    vram_mb: 1000\n",
+        "models:\n  - id: custom:1b\n    tier: 0\n    role: router\n    vram_mb: 1000\n",
         encoding="utf-8",
     )
     registry = load_registry(path)

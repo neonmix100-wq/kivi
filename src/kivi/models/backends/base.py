@@ -29,9 +29,19 @@ class ModelBackend(Protocol):
         model_id: str,
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
+        embedding: bool = False,
     ) -> None: ...
 
     def unload(self, model_id: str) -> None: ...
+
+    def embed(
+        self,
+        model_id: str,
+        inputs: list[str],
+        *,
+        keep_alive: str = "5m",
+        options: dict[str, Any] | None = None,
+    ) -> list[list[float]]: ...
 
     def chat(
         self,
