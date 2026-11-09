@@ -1,8 +1,9 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этап 1 — скелет ядра (v0.4). Работают `kivi doctor`, `kivi models`,
-> `kivi chat` (заглушка), конфиг с валидацией, SQLite, Event Bus, аудит и Policy Engine.
-> Следующий этап — Model Gateway и VRAM-бюджеты.
+> **Статус:** этап 2 — Model Gateway, первый срез (v0.5). Работают `kivi doctor`,
+> `kivi models`, `kivi ask` (локальная модель через Ollama), реестр моделей,
+> VRAM-бюджет, lease/eviction, SQLite, Event Bus, аудит и Policy Engine.
+> Осталось: NVML/shared-метрики, fallback, watchdog и benchmark.
 
 ## Быстрый старт
 
@@ -11,6 +12,7 @@ py -3.12 -m venv .venv
 .venv\Scripts\python.exe -m pip install -e ".[dev]"
 .venv\Scripts\kivi.exe doctor
 .venv\Scripts\kivi.exe config check
+.venv\Scripts\kivi.exe ask "привет, кто ты?" --keep-alive 0
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
 ```
@@ -141,5 +143,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 2. Сравнить `v5_ru` 48 кГц и очищенный вариант с `v4`; зафиксировать настройки TTS.
 3. Подготовить концепт-арт Kivi (turnaround + портрет), затем VRM в VRoid/Blender.
 4. ~~Зафиксировать baseline и собрать скелет.~~ Скелет собран (этап 1), baseline — частично.
-5. Реализовать Model Gateway и первый срез: «файл → ответ» с аудитом, монитором VRAM
-   и базовой защитой от prompt injection.
+5. ~~Реализовать Model Gateway и первый срез.~~ Сделано: `config/models.yaml`, registry,
+   `kivi ask`, nvidia-smi-бюджет, lease/eviction, события `model.*`.
+6. Довести Gateway: NVML и shared-метрики, fallback CPU → облако, watchdog, benchmark
+   20 запросов; затем Cloud Broker (этап 3) и Permission Engine (этап 4).

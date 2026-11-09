@@ -1,0 +1,104 @@
+# Model registry for Kivi (stage 2).
+# Footprints are estimates until benchmarked; the gateway replaces them with
+# measured peak VRAM. Keep only models that actually exist in the backend.
+
+models:
+  - id: qwen3.5:4b
+    backend: ollama
+    tier: 0
+    role: router
+    vram_mb: 3300
+    ram_mb: 1200
+    context: 4096
+    exclusive: false
+    notes: fast path, may stay resident
+
+  - id: hf.co/Qwen/Qwen3-8B-GGUF:Q4_K_M
+    backend: ollama
+    tier: 1
+    role: chat
+    vram_mb: 5800
+    ram_mb: 1500
+    context: 8192
+    exclusive: true
+
+  - id: hf.co/Qwen/Qwen3-8B-GGUF:Q5_K_M
+    backend: ollama
+    tier: 1
+    role: chat
+    vram_mb: 6500
+    ram_mb: 1700
+    context: 8192
+    exclusive: true
+
+  - id: llama3:8b
+    backend: ollama
+    tier: 1
+    role: chat
+    vram_mb: 5200
+    ram_mb: 1500
+    context: 4096
+    exclusive: true
+
+  - id: qwen2.5:7b-instruct
+    backend: ollama
+    tier: 1
+    role: chat
+    vram_mb: 5000
+    ram_mb: 1400
+    context: 8192
+    exclusive: true
+
+  - id: qwen2.5-coder:7b
+    backend: ollama
+    tier: 2
+    role: code
+    vram_mb: 4800
+    ram_mb: 1400
+    context: 8192
+    exclusive: true
+
+  - id: deepseek-coder:6.7b
+    backend: ollama
+    tier: 2
+    role: code
+    vram_mb: 4000
+    ram_mb: 1300
+    context: 8192
+    exclusive: true
+
+  - id: qwen2.5vl:3b
+    backend: ollama
+    tier: 2
+    role: vision
+    vram_mb: 3600
+    ram_mb: 1200
+    context: 4096
+    exclusive: true
+
+  - id: faster-whisper-large-v3-turbo-int8
+    backend: faster-whisper
+    tier: 3
+    role: asr
+    vram_mb: 2000
+    ram_mb: 800
+    context: 0
+    exclusive: false
+
+  - id: bge-m3
+    backend: cpu
+    tier: 3
+    role: embedding
+    vram_mb: 0
+    ram_mb: 500
+    context: 8192
+    exclusive: false
+
+  - id: sdxl
+    backend: comfyui
+    tier: 4
+    role: image
+    vram_mb: 6800
+    ram_mb: 2500
+    context: 0
+    exclusive: true

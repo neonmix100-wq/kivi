@@ -73,13 +73,19 @@
 
 ## 5. Этап 2 — Model Gateway (7–10 дней)
 
-- [ ] Registry моделей + измеренные footprint'ы.
-- [ ] Ollama-адаптер: загрузка, `keep_alive`, выгрузка, стриминг.
-- [ ] NVML-монитор: total/used/free/shared.
-- [ ] Lease Manager: приоритеты, TTL, эксклюзивность, очередь.
-- [ ] Eviction + проверка освобождения VRAM.
+- [x] Registry моделей + стартовые footprint'ы (`config/models.yaml`).
+- [x] Ollama-адаптер: загрузка, `keep_alive`, выгрузка (стриминг — позже).
+- [ ] NVML-монитор: total/used/free/shared (сейчас nvidia-smi + эвристика shared).
+- [x] Lease Manager: приоритеты, TTL, эксклюзивность (очередь — позже).
+- [x] Eviction + проверка освобождения VRAM (базовая).
 - [ ] Fallback: контекст → offload → CPU → облако.
 - [ ] Watchdog, метрики, benchmark 20 переключений.
+- [x] CLI-срез: `kivi ask "..."` через Gateway.
+
+**Сделано в первом срезе:** registry, Ollama backend, `kivi models` с VRAM и каталогом,
+`kivi ask`, бюджет `free + evictable ≥ footprint + margin`, отказ при активной shared-памяти,
+события `model.loaded/unloaded/unload_failed`, счётчики loads/evictions/failures.
+**Осталось до приёмки:** NVML, стриминг, очередь, fallback, watchdog, benchmark.
 
 **Приёмка:** 20 циклов «чат → кодер → эмбеддинги → чат» без OOM; простой 10 мин → VRAM 0;
 искусственный OOM → понятный fallback; реальные цифры в отчёте.

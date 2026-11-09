@@ -20,6 +20,15 @@ from kivi.doctor import ollama_models, run_checks, summary
 from kivi.kernel.db import Database
 from kivi.kernel.events import EventBus
 from kivi.kernel.logs import JsonlLogger
+from kivi.models import (
+    BackendError,
+    GatewayError,
+    ModelGateway,
+    OllamaBackend,
+    RegistryError,
+    load_registry,
+    query_vram,
+)
 from kivi.paths import Paths, get_paths
 
 console = Console()
@@ -39,6 +48,14 @@ def _config(paths: Paths) -> KiviConfig:
         return load_config(paths.config_file)
     except ConfigError as exc:
         console.print(f"[red]config error:[/red] {exc}")
+        raise SystemExit(2) from exc
+
+
+def _registry(paths: Paths):
+    try:
+        return load_registry(paths.root / "config" / "models.yaml")
+    except RegistryError as exc:
+        console.print(f"[red]model registry error:[/red] {exc}")
         raise SystemExit(2) from exc
 
 
@@ -73,7 +90,38 @@ def cmd_models(args: argparse.Namespace) -> int:
     table.add_row("cloud cost limit", f"${config.model_gateway.cloud.cost_limit_usd:.2f}")
     console.print(table)
 
+    snapshot = query_vram()
+    if snapshot is None:
+        console.print("[yellow]VRAM: nvidia-smi did not return a GPU snapshot.[/yellow]")
+    else:
+        console.print(
+            f"VRAM now: [bold]{snapshot.free_mb} MB free[/bold] of "
+            f"{snapshot.total_mb} MB ({snapshot.used_ratio:.0%} used)"
+        )
+        if snapshot.overcommitted:
+            console.print(
+                "[yellow]Shared memory is active; a heavy load should be refused.[/yellow]"
+            )
+
+    registry = _registry(paths)
     names = ollama_models()
+    installed_names = set(names)
+    catalog = Table(title="Model registry")
+    catalog.add_column("Model", overflow="fold")
+    catalog.add_column("Tier", justify="right")
+    catalog.add_column("Role")
+    catalog.add_column("VRAM", justify="right")
+    catalog.add_column("Installed")
+    for spec in sorted(registry.all(), key=lambda item: (item.tier, item.id)):
+        catalog.add_row(
+            spec.id,
+            str(spec.tier),
+            spec.role,
+            f"{spec.vram_mb} MB",
+            "yes" if spec.id in installed_names else "-",
+        )
+    console.print(catalog)
+
     if not names:
         console.print("[yellow]Ollama is not running or has no models installed.[/yellow]")
         return 0
@@ -102,8 +150,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
     config = _config(paths)
     prompt = args.prompt or ""
     if not prompt:
-        console.print("Interactive chat arrives with the Model Gateway (stage 2).")
-        console.print("For now pass a prompt: [bold]kivi chat \"привет\"[/bold]")
+        console.print("Interactive chat arrives with the Web-UI (stage 6).")
+        console.print("For a real local answer use: [bold]kivi ask \"привет\"[/bold]")
         return 0
 
     task_id = f"tsk_{uuid.uuid4().hex[:12]}"
@@ -117,6 +165,68 @@ def cmd_chat(args: argparse.Namespace) -> int:
     console.print(
         f"[dim]voice={config.voice.provider}/{config.voice.speaker}, "
         f"autonomy={config.autonomy}[/dim]"
+    )
+    return 0
+
+
+def cmd_ask(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    registry = _registry(paths)
+    try:
+        spec = registry.require(args.model) if args.model else registry.default_for("router")
+    except RegistryError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 2
+
+    task_id = f"tsk_{uuid.uuid4().hex[:12]}"
+    messages = [{"role": "user", "content": args.prompt}]
+    answer = ""
+
+    with _state(paths) as (db, bus):
+        db.create_task(task_id, "ask", {"prompt": args.prompt, "model": spec.id})
+        bus.emit(
+            "ask.request",
+            task_id=task_id,
+            source="cli",
+            payload={"model": spec.id, "priority": 0},
+        )
+        try:
+            with OllamaBackend(timeout=args.timeout) as backend:
+                gateway = ModelGateway(
+                    registry,
+                    backend,
+                    vram_total_mb=config.model_gateway.vram_total_mb,
+                    safety_margin_mb=config.model_gateway.safety_margin_mb,
+                    events=bus,
+                )
+                answer = gateway.chat(
+                    spec.id,
+                    messages,
+                    task_id=task_id,
+                    priority=0,
+                    keep_alive=args.keep_alive,
+                )
+                metrics = gateway.metrics()
+        except (GatewayError, BackendError) as exc:
+            db.update_task(task_id, "failed", {"error": str(exc)})
+            bus.emit("ask.failed", task_id=task_id, source="cli", payload={"error": str(exc)})
+            console.print(f"[red]model error:[/red] {exc}")
+            return 1
+
+        db.update_task(task_id, "done", {"model": spec.id, "answer": answer[:4000]})
+        bus.emit(
+            "ask.done",
+            task_id=task_id,
+            source="cli",
+            payload={"model": spec.id, "chars": len(answer)},
+        )
+
+    console.print(f"[cyan]Kivi[/cyan] · [dim]{spec.id}[/dim]")
+    console.print(answer or "(empty answer)")
+    console.print(
+        f"[dim]loads={metrics['loads']} evictions={metrics['evictions']} "
+        f"last_load={metrics['last_load_ms']} ms[/dim]"
     )
     return 0
 
@@ -197,9 +307,16 @@ def build_parser() -> argparse.ArgumentParser:
     models = sub.add_parser("models", help="show model gateway settings and installed models")
     models.set_defaults(func=cmd_models)
 
-    chat = sub.add_parser("chat", help="chat placeholder (gateway arrives in stage 2)")
+    chat = sub.add_parser("chat", help="chat placeholder (real answers: kivi ask)")
     chat.add_argument("prompt", nargs="?", default="", help="prompt text")
     chat.set_defaults(func=cmd_chat)
+
+    ask = sub.add_parser("ask", help="ask a local model through the Model Gateway")
+    ask.add_argument("prompt", help="prompt text")
+    ask.add_argument("-m", "--model", default=None, help="model id from config/models.yaml")
+    ask.add_argument("--keep-alive", default="5m", help="Ollama keep_alive after the answer")
+    ask.add_argument("--timeout", type=float, default=180.0, help="HTTP timeout in seconds")
+    ask.set_defaults(func=cmd_ask)
 
     events = sub.add_parser("events", help="show recent events")
     events.add_argument("-n", "--limit", type=int, default=20)

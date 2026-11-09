@@ -13,7 +13,7 @@ __pycache__/
 
 data/
 workspace/
-models/
+/models/
 logs/
 *.log
 
