@@ -147,3 +147,19 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
    `kivi ask`, nvidia-smi-бюджет, lease/eviction, события `model.*`.
 6. Довести Gateway: NVML и shared-метрики, fallback CPU → облако, watchdog, benchmark
    20 запросов; затем Cloud Broker (этап 3) и Permission Engine (этап 4).
+
+## 10. Разработка и база знаний
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\python.exe -m ruff check src tests
+.venv\Scripts\python.exe scripts\kivi_context.py stage
+.venv\Scripts\python.exe scripts\kivi_context.py search "Model Gateway"
+.venv\Scripts\python.exe scripts\build_knowledge_index.py
+```
+
+Документация открывается в Obsidian как vault: **Open folder as vault** →
+`D:\AI-assistent\docs`, стартовая карта — `_INDEX.md`. Карта кода —
+`_CODE-MAP.md`. Обе генерируются из docs/docstring'ов, не правь их вручную.
+
+Агентные инструкции и skills лежат в `AGENTS.md` и `.opencode/skills/`.

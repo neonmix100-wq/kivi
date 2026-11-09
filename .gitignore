@@ -33,3 +33,7 @@ voice-dataset/
 # downloaded TTS voice models (large)
 assets/voice-samples/piper-voices/
 latest_silero_models.yml
+
+# Obsidian local UI state (shared settings are tracked)
+docs/.obsidian/workspace*.json
+docs/.obsidian/cache/

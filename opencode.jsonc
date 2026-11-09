@@ -1,0 +1,76 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "compaction": {
+    "auto": true,
+    "keep": {
+      "tokens": 12000
+    },
+    "buffer": "20%"
+  },
+  "tool_output": {
+    "max_lines": 400,
+    "max_bytes": 20480
+  },
+  "watcher": {
+    "ignore": [
+      "**/.git/**",
+      "**/.venv/**",
+      "**/__pycache__/**",
+      "**/.pytest_cache/**",
+      "**/.ruff_cache/**",
+      "**/node_modules/**",
+      "data/**",
+      "logs/**",
+      "workspace/**",
+      "models/**",
+      "**/*.pyc",
+      "**/*.db",
+      "**/*.sqlite",
+      "**/*.wav",
+      "**/*.mp3",
+      "**/*.png",
+      "**/*.jpg",
+      "**/*.jpeg",
+      "**/*.webp"
+    ]
+  },
+  "formatter": {
+    "ruff": {
+      "command": [".venv\\Scripts\\python.exe", "-m", "ruff", "format", "$FILE"],
+      "extensions": [".py"]
+    }
+  },
+  "permissions": [
+    { "action": "read", "resource": "*", "effect": "allow" },
+    { "action": "read", "resource": "**/.git/**", "effect": "deny" },
+    { "action": "read", "resource": "**/.venv/**", "effect": "deny" },
+    { "action": "read", "resource": "**/__pycache__/**", "effect": "deny" },
+    { "action": "read", "resource": "**/.pytest_cache/**", "effect": "deny" },
+    { "action": "read", "resource": "**/.ruff_cache/**", "effect": "deny" },
+    { "action": "read", "resource": "**/node_modules/**", "effect": "deny" },
+    { "action": "read", "resource": "data/**", "effect": "deny" },
+    { "action": "read", "resource": "logs/**", "effect": "deny" },
+    { "action": "read", "resource": "models/**", "effect": "deny" },
+    { "action": "read", "resource": "**/*.pyc", "effect": "deny" },
+    { "action": "read", "resource": "**/*.db", "effect": "deny" },
+    { "action": "read", "resource": "**/*.sqlite", "effect": "deny" },
+    { "action": "read", "resource": "**/*.wav", "effect": "deny" },
+    { "action": "read", "resource": "**/*.mp3", "effect": "deny" },
+    { "action": "read", "resource": "**/*.png", "effect": "deny" },
+    { "action": "read", "resource": "**/*.jpg", "effect": "deny" },
+    { "action": "read", "resource": "**/*.jpeg", "effect": "deny" },
+    { "action": "read", "resource": "**/*.webp", "effect": "deny" }
+  ],
+  "agents": {
+    "verify": {
+      "description": "Run focused Kivi tests and lint, report failures without editing files",
+      "mode": "subagent",
+      "steps": 6,
+      "system": "You verify the Kivi repository. Run the requested focused pytest target and ruff. Do not edit files. Report only: command, PASS/FAIL, failing test names, and the first actionable error line. Never run git push or destructive commands.",
+      "permissions": [
+        { "action": "edit", "resource": "*", "effect": "deny" },
+        { "action": "shell", "resource": "*", "effect": "allow" }
+      ]
+    }
+  }
+}
