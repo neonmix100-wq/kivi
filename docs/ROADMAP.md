@@ -46,12 +46,12 @@
 
 ## 3. Этап 0 — решения и baseline (2–3 дня)
 
-- [ ] Зафиксировать ADR-0001 (`docs/DECISIONS.md`) — сделано.
+- [x] Зафиксировать ADR-0001 (`docs/DECISIONS.md`) — сделано.
 - [ ] Уточнить детали: аватар, запретные папки, облачные аккаунты, автоматизация работы.
 - [ ] Замерить baseline при закрытых Chrome/Telegram/Broadcast.
 - [ ] Проверить `OLLAMA_MODELS=D:\ollama_models`.
-- [ ] Создать venv Python 3.12, `pyproject.toml`, линтер, тесты.
-- [ ] Первый коммит.
+- [x] Создать venv Python 3.12, `pyproject.toml`, линтер, тесты.
+- [x] Первый коммит.
 
 **Приёмка:** `docs/BASELINE.md` с цифрами; решения зафиксированы; репозиторий собирается.
 
@@ -59,13 +59,13 @@
 
 ## 4. Этап 1 — скелет ядра (5–7 дней)
 
-- [ ] Пакеты `kernel/brain/models/senses/tools/memory/interfaces/safety/modules`.
-- [ ] Конфиг YAML + Pydantic.
-- [ ] JSONL-логи, трассировка.
-- [ ] SQLite + миграции (`tasks`, `steps`, `events`, `audit`).
-- [ ] Event Bus.
-- [ ] CLI: `kivi doctor`, `kivi models`, `kivi chat` (заглушка).
-- [ ] `kivi doctor`: GPU, RAM, диск, Ollama, WebUI, модели.
+- [x] Пакеты `kernel/brain/models/senses/tools/memory/interfaces/safety/modules`.
+- [x] Конфиг YAML + Pydantic.
+- [x] JSONL-логи, трассировка.
+- [x] SQLite + миграции (`tasks`, `steps`, `events`, `audit`).
+- [x] Event Bus.
+- [x] CLI: `kivi doctor`, `kivi models`, `kivi chat` (заглушка).
+- [x] `kivi doctor`: GPU, RAM, диск, Ollama, WebUI, модели.
 
 **Приёмка:** `kivi doctor` показывает железо; событие пишется в БД и лог; тесты зелёные.
 

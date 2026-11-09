@@ -1,7 +1,19 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** проектирование (v0.3). Код ещё не начат — в репозитории лежит проектный пакет:
-> архитектура, дорожная карта, аудит наработок, персона, безопасность и решения.
+> **Статус:** этап 1 — скелет ядра (v0.4). Работают `kivi doctor`, `kivi models`,
+> `kivi chat` (заглушка), конфиг с валидацией, SQLite, Event Bus, аудит и Policy Engine.
+> Следующий этап — Model Gateway и VRAM-бюджеты.
+
+## Быстрый старт
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.venv\Scripts\kivi.exe doctor
+.venv\Scripts\kivi.exe config check
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\python.exe -m ruff check src tests
+```
 
 ## 1. Цель
 
@@ -128,6 +140,6 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
    Gmail-черновики.
 2. Сравнить `v5_ru` 48 кГц и очищенный вариант с `v4`; зафиксировать настройки TTS.
 3. Подготовить концепт-арт Kivi (turnaround + портрет), затем VRM в VRoid/Blender.
-4. Зафиксировать baseline и собрать скелет.
+4. ~~Зафиксировать baseline и собрать скелет.~~ Скелет собран (этап 1), baseline — частично.
 5. Реализовать Model Gateway и первый срез: «файл → ответ» с аудитом, монитором VRAM
    и базовой защитой от prompt injection.
