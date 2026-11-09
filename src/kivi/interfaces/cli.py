@@ -106,12 +106,20 @@ def cmd_models(args: argparse.Namespace) -> int:
     registry = _registry(paths)
     names = ollama_models()
     installed_names = set(names)
+    running: dict[str, int] = {}
+    try:
+        with OllamaBackend(timeout=3) as backend:
+            running = backend.running()
+    except BackendError:
+        running = {}
+
     catalog = Table(title="Model registry")
     catalog.add_column("Model", overflow="fold")
     catalog.add_column("Tier", justify="right")
     catalog.add_column("Role")
     catalog.add_column("VRAM", justify="right")
     catalog.add_column("Installed")
+    catalog.add_column("Loaded")
     for spec in sorted(registry.all(), key=lambda item: (item.tier, item.id)):
         catalog.add_row(
             spec.id,
@@ -119,8 +127,13 @@ def cmd_models(args: argparse.Namespace) -> int:
             spec.role,
             f"{spec.vram_mb} MB",
             "yes" if spec.id in installed_names else "-",
+            f"{running[spec.id]} MB" if spec.id in running else "-",
         )
     console.print(catalog)
+
+    extra = sorted(set(running) - {spec.id for spec in registry.all()})
+    if extra:
+        console.print("[yellow]Loaded outside the registry:[/yellow] " + ", ".join(extra))
 
     if not names:
         console.print("[yellow]Ollama is not running or has no models installed.[/yellow]")
@@ -151,7 +164,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     prompt = args.prompt or ""
     if not prompt:
         console.print("Interactive chat arrives with the Web-UI (stage 6).")
-        console.print("For a real local answer use: [bold]kivi ask \"привет\"[/bold]")
+        console.print('For a real local answer use: [bold]kivi ask "привет"[/bold]')
         return 0
 
     task_id = f"tsk_{uuid.uuid4().hex[:12]}"
@@ -290,8 +303,7 @@ def cmd_config_check(args: argparse.Namespace) -> int:
     console.print(f"voice: {config.voice.provider} {config.voice.model}/{config.voice.speaker}")
     console.print(f"avatar: {config.avatar.mode}, outfit {config.avatar.outfit}")
     console.print(
-        f"shell: mode {config.shell.mode}, "
-        f"explorer fallback {config.shell.explorer_fallback}"
+        f"shell: mode {config.shell.mode}, explorer fallback {config.shell.explorer_fallback}"
     )
     console.print(f"mail: {config.mail.provider}, drafts only {config.mail.drafts_only}")
     return 0

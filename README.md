@@ -1,9 +1,9 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этап 2 — Model Gateway, первый срез (v0.5). Работают `kivi doctor`,
+> **Статус:** этап 2 — Model Gateway, второй срез (v0.6). Работают `kivi doctor`,
 > `kivi models`, `kivi ask` (локальная модель через Ollama), реестр моделей,
-> VRAM-бюджет, lease/eviction, SQLite, Event Bus, аудит и Policy Engine.
-> Осталось: NVML/shared-метрики, fallback, watchdog и benchmark.
+> VRAM-бюджет, lease/eviction, watchdog, SQLite, Event Bus, аудит и Policy Engine.
+> Осталось: NVML/shared-метрики, streaming, очередь, fallback и реальный benchmark.
 
 ## Быстрый старт
 
@@ -145,8 +145,10 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 4. ~~Зафиксировать baseline и собрать скелет.~~ Скелет собран (этап 1), baseline — частично.
 5. ~~Реализовать Model Gateway и первый срез.~~ Сделано: `config/models.yaml`, registry,
    `kivi ask`, nvidia-smi-бюджет, lease/eviction, события `model.*`.
-6. Довести Gateway: NVML и shared-метрики, fallback CPU → облако, watchdog, benchmark
-   20 запросов; затем Cloud Broker (этап 3) и Permission Engine (этап 4).
+6. ~~Watchdog и метрики.~~ Сделано: `GatewayWatchdog`, сверка с `/api/ps`,
+   `gateway.status()`, benchmark-стенд `scripts/bench_gateway.py`.
+7. Довести Gateway: NVML и shared-метрики, streaming, очередь, fallback CPU → облако,
+   реальные 20 переключений; затем Cloud Broker (этап 3) и Permission Engine (этап 4).
 
 ## 10. Разработка и база знаний
 
@@ -155,6 +157,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 .venv\Scripts\python.exe -m ruff check src tests
 .venv\Scripts\python.exe scripts\kivi_context.py stage
 .venv\Scripts\python.exe scripts\kivi_context.py search "Model Gateway"
+.venv\Scripts\python.exe scripts\bench_gateway.py --fake --switches 20 --no-write
 .venv\Scripts\python.exe scripts\build_knowledge_index.py
 ```
 

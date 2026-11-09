@@ -30,6 +30,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\python.exe -m pytest -q tests\unit\test_gateway.py
 .venv\Scripts\python.exe -m ruff check src tests
 .venv\Scripts\python.exe scripts\kivi_context.py verify --path tests\unit\test_gateway.py
+.venv\Scripts\python.exe scripts\bench_gateway.py --switches 20
+.venv\Scripts\python.exe scripts\bench_gateway.py --fake --switches 20 --no-write
 .venv\Scripts\kivi.exe doctor
 .venv\Scripts\kivi.exe models
 .venv\Scripts\kivi.exe ask "вопрос" --keep-alive 0

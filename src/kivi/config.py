@@ -46,6 +46,8 @@ class ModelGatewaySettings(BaseModel):
         default_factory=lambda: ["gpu", "cpu", "cloud"]
     )
     cloud: CloudSettings = Field(default_factory=CloudSettings)
+    watchdog_enabled: bool = True
+    watchdog_interval_s: float = Field(default=30.0, ge=1.0)
 
 
 class VoiceFallback(BaseModel):
@@ -117,9 +119,7 @@ class MailSettings(BaseModel):
     auto_send: bool = False
     allowed_methods: list[str] = Field(default_factory=list)
     # Sending is denied by default: a missing entry must never widen access.
-    denied_methods: list[str] = Field(
-        default_factory=lambda: sorted(MAIL_METHODS_ALWAYS_DENIED)
-    )
+    denied_methods: list[str] = Field(default_factory=lambda: sorted(MAIL_METHODS_ALWAYS_DENIED))
 
     @model_validator(mode="after")
     def _drafts_only_is_enforced(self) -> MailSettings:

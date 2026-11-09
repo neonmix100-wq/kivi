@@ -93,12 +93,15 @@ class ModelGateway:
         self._clock = clock
         self._events = events
         self._leases: dict[str, Lease] = {}
+        self._managed: set[str] = set()
         self._lock = threading.RLock()
         self._metrics: dict[str, int | float] = {
             "loads": 0,
             "unloads": 0,
             "evictions": 0,
             "failures": 0,
+            "lost": 0,
+            "orphan_unloads": 0,
             "last_load_ms": 0.0,
         }
 
@@ -126,6 +129,17 @@ class ModelGateway:
     def metrics(self) -> dict[str, int | float]:
         with self._lock:
             return dict(self._metrics)
+
+    def status(self) -> dict[str, Any]:
+        """Serialisable snapshot used by the watchdog and CLI."""
+        with self._lock:
+            snapshot = self.vram()
+            return {
+                "leases": [lease.as_dict() for lease in self._leases.values()],
+                "managed": sorted(self._managed),
+                "metrics": dict(self._metrics),
+                "vram": snapshot.as_dict() if snapshot is not None else None,
+            }
 
     def _required_mb(self, spec: ModelSpec) -> int:
         return spec.vram_mb + self.safety_margin_mb + self.reserve_mb
@@ -215,6 +229,7 @@ class ModelGateway:
                 pinned=spec.pinned,
             )
             self._leases[model_id] = lease
+            self._managed.add(model_id)
             self._metrics["loads"] += 1
             self._metrics["last_load_ms"] = round(elapsed_ms, 1)
             self._emit(
@@ -251,6 +266,56 @@ class ModelGateway:
             if lease is None:
                 return
             self._evict(lease, reason="release")
+
+    def forget(self, model_id: str, *, reason: str = "backend_missing") -> bool:
+        """Drop a lease whose model is no longer loaded by the backend.
+
+        Unlike :meth:`release` this does not call the backend: the model is
+        already gone, so an unload request would only produce a spurious error.
+        """
+        with self._lock:
+            lease = self._leases.pop(model_id, None)
+            if lease is None:
+                return False
+            self._metrics["lost"] += 1
+            self._emit(
+                "model.lost",
+                {"model_id": model_id, "reason": reason, "task_id": lease.task_id},
+            )
+            return True
+
+    def reconcile(self, running: dict[str, int]) -> tuple[list[str], list[str]]:
+        """Align leases with what the backend reports as loaded.
+
+        Returns ``(missing, orphans)``: leased models the backend lost, and
+        models Kivi loaded earlier that now have no lease.
+        """
+        with self._lock:
+            missing = [model_id for model_id in self._leases if model_id not in running]
+            for model_id in missing:
+                self.forget(model_id)
+
+            orphans = [
+                model_id
+                for model_id in running
+                if model_id not in self._leases and model_id in self._managed
+            ]
+            for model_id in orphans:
+                self._unload_orphan(model_id)
+            return missing, orphans
+
+    def _unload_orphan(self, model_id: str) -> None:
+        try:
+            self.backend.unload(model_id)
+        except BackendError as exc:
+            self._metrics["failures"] += 1
+            self._emit(
+                "model.unload_failed",
+                {"model_id": model_id, "reason": "orphan", "error": str(exc)},
+            )
+            return
+        self._metrics["orphan_unloads"] += 1
+        self._emit("model.orphan_unloaded", {"model_id": model_id})
 
     def expire(self) -> list[str]:
         """Unload leases whose TTL has elapsed; return the evicted ids."""

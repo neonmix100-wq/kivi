@@ -26,7 +26,7 @@ class FakeBackend:
         return ["small", "heavy", "pinned"]
 
     def running(self) -> dict[str, int]:
-        return {}
+        return {model_id: 0 for model_id in self.loaded}
 
     def load(self, model_id: str, keep_alive: str = "5m") -> None:
         self.calls.append(("load", model_id))
@@ -200,6 +200,42 @@ def test_events_and_metrics_are_recorded() -> None:
     metrics = gateway.metrics()
     assert metrics["loads"] == 1
     assert metrics["unloads"] == 1
+
+
+def test_reconcile_forgets_lease_lost_by_backend() -> None:
+    gateway, backend, _, _ = make_gateway()
+    gateway.acquire("small")
+    backend.loaded.clear()
+
+    missing, orphans = gateway.reconcile({})
+
+    assert missing == ["small"]
+    assert orphans == []
+    assert gateway.loaded() == {}
+    assert gateway.metrics()["lost"] == 1
+
+
+def test_reconcile_unloads_managed_orphan() -> None:
+    gateway, backend, _, _ = make_gateway()
+    gateway.acquire("small")
+    gateway.forget("small")
+    assert backend.loaded == {"small"}
+
+    missing, orphans = gateway.reconcile({"small": 3000})
+
+    assert missing == []
+    assert orphans == ["small"]
+    assert backend.loaded == set()
+    assert gateway.metrics()["orphan_unloads"] == 1
+
+
+def test_status_reports_leases_and_vram() -> None:
+    gateway, _, _, _ = make_gateway()
+    gateway.acquire("small", task_id="tsk_1")
+    status = gateway.status()
+    assert status["leases"][0]["model_id"] == "small"
+    assert status["managed"] == ["small"]
+    assert status["vram"]["total_mb"] == 8192
 
 
 def test_close_unloads_everything() -> None:

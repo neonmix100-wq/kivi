@@ -79,16 +79,21 @@
 - [x] Lease Manager: приоритеты, TTL, эксклюзивность (очередь — позже).
 - [x] Eviction + проверка освобождения VRAM (базовая).
 - [ ] Fallback: контекст → offload → CPU → облако.
-- [ ] Watchdog, метрики, benchmark 20 переключений.
+- [x] Watchdog, метрики, сверка с backend (`/api/ps`).
+- [ ] Benchmark 20 переключений; harness готов: `scripts/bench_gateway.py`.
 - [x] CLI-срез: `kivi ask "..."` через Gateway.
 
 **Сделано в первом срезе:** registry, Ollama backend, `kivi models` с VRAM и каталогом,
 `kivi ask`, бюджет `free + evictable ≥ footprint + margin`, отказ при активной shared-памяти,
 события `model.loaded/unloaded/unload_failed`, счётчики loads/evictions/failures.
-**Осталось до приёмки:** NVML, стриминг, очередь, fallback, watchdog, benchmark.
+**Сделано во втором срезе:** `GatewayWatchdog` (expire + reconcile), `model.lost` /
+`model.orphan_unloaded`, `gateway.status()`, колонка Loaded в `kivi models`,
+benchmark-стенд с fake- и real-режимами.
+**Осталось до приёмки:** NVML, стриминг, очередь, fallback, реальные 20 переключений.
 
 **Приёмка:** 20 циклов «чат → кодер → эмбеддинги → чат» без OOM; простой 10 мин → VRAM 0;
-искусственный OOM → понятный fallback; реальные цифры в отчёте.
+искусственный OOM → понятный fallback; реальные цифры в отчёте
+(`data/bench/gateway-*.json`).
 
 ---
 

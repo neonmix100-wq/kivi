@@ -18,12 +18,14 @@ from kivi.models.registry import (
     load_registry,
 )
 from kivi.models.vram import VramSnapshot, parse_smi_output, query_vram
+from kivi.models.watchdog import GatewayWatchdog, WatchdogResult
 
 __all__ = [
     "DEFAULT_MODELS",
     "BackendError",
     "BackendUnavailable",
     "GatewayError",
+    "GatewayWatchdog",
     "InsufficientVram",
     "Lease",
     "ModelBackend",
@@ -34,6 +36,7 @@ __all__ = [
     "OllamaBackend",
     "RegistryError",
     "VramSnapshot",
+    "WatchdogResult",
     "gateway_from_config",
     "load_registry",
     "parse_smi_output",
