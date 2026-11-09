@@ -3,7 +3,8 @@
 > **Статус:** этап 2 — Model Gateway, второй срез (v0.6). Работают `kivi doctor`,
 > `kivi models`, `kivi ask` (локальная модель через Ollama), реестр моделей,
 > VRAM-бюджет, lease/eviction, watchdog, SQLite, Event Bus, аудит и Policy Engine.
-> Осталось: NVML/shared-метрики, streaming, очередь, fallback и реальный benchmark.
+> Осталось: NVML/shared-метрики, streaming, очередь, fallback и embedding-цикл
+> в benchmark; 20 переключений chat/code уже пройдены (`docs/BENCH-GATEWAY.md`).
 
 ## Быстрый старт
 

@@ -80,7 +80,7 @@
 - [x] Eviction + проверка освобождения VRAM (базовая).
 - [ ] Fallback: контекст → offload → CPU → облако.
 - [x] Watchdog, метрики, сверка с backend (`/api/ps`).
-- [ ] Benchmark 20 переключений; harness готов: `scripts/bench_gateway.py`.
+- [x] Benchmark 20 переключений: `docs/BENCH-GATEWAY.md` (chat/code; embeddings — после `bge-m3`).
 - [x] CLI-срез: `kivi ask "..."` через Gateway.
 
 **Сделано в первом срезе:** registry, Ollama backend, `kivi models` с VRAM и каталогом,
@@ -89,11 +89,12 @@
 **Сделано во втором срезе:** `GatewayWatchdog` (expire + reconcile), `model.lost` /
 `model.orphan_unloaded`, `gateway.status()`, колонка Loaded в `kivi models`,
 benchmark-стенд с fake- и real-режимами.
-**Осталось до приёмки:** NVML, стриминг, очередь, fallback, реальные 20 переключений.
+**Осталось до приёмки:** NVML, стриминг, очередь, fallback, embedding-модель
+в цикле переключений.
 
 **Приёмка:** 20 циклов «чат → кодер → эмбеддинги → чат» без OOM; простой 10 мин → VRAM 0;
 искусственный OOM → понятный fallback; реальные цифры в отчёте
-(`data/bench/gateway-*.json`).
+(`docs/BENCH-GATEWAY.md`, сырые данные — `data/bench/gateway-*.json`).
 
 ---
 
