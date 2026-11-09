@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from types import SimpleNamespace
 
 from kivi.models import vram
@@ -45,6 +46,7 @@ def test_negative_values_are_rejected() -> None:
 
 
 def test_query_vram_parses_nvidia_smi(monkeypatch) -> None:
+    monkeypatch.setattr(vram, "_query_nvml", lambda: None)
     monkeypatch.setattr(
         vram.subprocess,
         "run",
@@ -54,8 +56,53 @@ def test_query_vram_parses_nvidia_smi(monkeypatch) -> None:
 
 
 def test_query_vram_without_nvidia_smi(monkeypatch) -> None:
+    monkeypatch.setattr(vram, "_query_nvml", lambda: None)
+
     def missing(*args, **kwargs):
         raise FileNotFoundError
 
     monkeypatch.setattr(vram.subprocess, "run", missing)
     assert query_vram() is None
+
+
+def test_query_vram_prefers_nvml(monkeypatch) -> None:
+    class FakeInfo:
+        total = 8 * 1024**3
+        used = 2 * 1024**3
+        free = 6 * 1024**3
+
+    class FakeNvml:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def nvmlInit(self) -> None:
+            pass
+
+        def nvmlShutdown(self) -> None:
+            self.closed = True
+
+        def nvmlDeviceGetHandleByIndex(self, index: int):
+            assert index == 0
+            return object()
+
+        def nvmlDeviceGetMemoryInfo(self, handle):
+            return FakeInfo()
+
+    fake = FakeNvml()
+    monkeypatch.setitem(sys.modules, "pynvml", fake)
+    assert query_vram() == VramSnapshot(total_mb=8192, used_mb=2048, free_mb=6144)
+    assert fake.closed
+
+
+def test_nvml_failure_falls_back_to_smi(monkeypatch) -> None:
+    class BrokenNvml:
+        def nvmlInit(self) -> None:
+            raise RuntimeError("driver gone")
+
+    monkeypatch.setitem(sys.modules, "pynvml", BrokenNvml())
+    monkeypatch.setattr(
+        vram.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout="8192, 1000, 7192\n"),
+    )
+    assert query_vram() == VramSnapshot(8192, 1000, 7192)

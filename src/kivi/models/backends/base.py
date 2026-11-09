@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any, Protocol, runtime_checkable
 
 
@@ -35,3 +36,13 @@ class ModelBackend(Protocol):
         keep_alive: str = "5m",
         options: dict[str, Any] | None = None,
     ) -> str: ...
+
+    def chat_stream(
+        self,
+        model_id: str,
+        messages: list[dict[str, str]],
+        *,
+        keep_alive: str = "5m",
+        options: dict[str, Any] | None = None,
+    ) -> Iterator[str]:
+        """Yield answer chunks as the backend produces them."""

@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -355,6 +355,37 @@ class ModelGateway:
         with self._lock:
             lease.touch(self._clock())
         return answer
+
+    def chat_stream(
+        self,
+        model_id: str,
+        messages: list[dict[str, str]],
+        *,
+        task_id: str = "",
+        priority: int = 5,
+        keep_alive: str = "5m",
+        options: dict[str, Any] | None = None,
+    ) -> Iterator[str]:
+        """Stream answer chunks, keeping the lease warm until the last chunk."""
+        lease = self.acquire(
+            model_id,
+            task_id=task_id,
+            priority=priority,
+            ttl_s=max(1, int(self._ttl_from_keep_alive(keep_alive))),
+        )
+        try:
+            yield from self.backend.chat_stream(
+                model_id,
+                messages,
+                keep_alive=keep_alive,
+                options=options,
+            )
+        except BackendError:
+            self._metrics["failures"] += 1
+            raise
+        finally:
+            with self._lock:
+                lease.touch(self._clock())
 
     @staticmethod
     def _ttl_from_keep_alive(keep_alive: str) -> float:

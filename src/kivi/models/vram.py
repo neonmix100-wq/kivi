@@ -69,8 +69,40 @@ def parse_smi_output(stdout: str) -> VramSnapshot | None:
     return None
 
 
+def _query_nvml() -> VramSnapshot | None:
+    """Read the first GPU through NVML when the driver is available.
+
+    NVML is preferred over ``nvidia-smi`` because it avoids spawning a process
+    on every watchdog tick. It reports the same WDDM numbers, not the shared
+    system-memory overflow, so the safety margin still applies.
+    """
+    try:
+        import pynvml
+    except ImportError:
+        return None
+    try:
+        pynvml.nvmlInit()
+        try:
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+        finally:
+            pynvml.nvmlShutdown()
+    except Exception:
+        return None
+    mib = 1024 * 1024
+    snapshot = VramSnapshot(
+        total_mb=int(info.total // mib),
+        used_mb=int(info.used // mib),
+        free_mb=int(info.free // mib),
+    )
+    return snapshot if snapshot.total_mb > 0 else None
+
+
 def query_vram(timeout: float = 5.0) -> VramSnapshot | None:
-    """Return current GPU memory, or ``None`` when no NVIDIA GPU is present."""
+    """Return current GPU memory, preferring NVML over nvidia-smi."""
+    snapshot = _query_nvml()
+    if snapshot is not None:
+        return snapshot
     try:
         result = subprocess.run(
             ["nvidia-smi", f"--query-gpu={_SMI_QUERY}", "--format=csv,noheader,nounits"],

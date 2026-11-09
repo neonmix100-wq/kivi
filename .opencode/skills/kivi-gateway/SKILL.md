@@ -17,13 +17,15 @@ Files: `src/kivi/models/{registry,gateway,vram,watchdog}.py`,
 `scripts/bench_gateway.py`.
 
 Invariants:
-- Only `ModelGateway` loads/unloads models; tools call `gateway.chat`.
-- Budget = observed free VRAM (nvidia-smi), not the 8 GB passport.
+- Only `ModelGateway` loads/unloads models; tools call `gateway.chat` or
+  `gateway.chat_stream`.
+- Budget = observed free VRAM (NVML, then nvidia-smi), not the 8 GB passport.
 - Tier 0 (router) may coexist; tier 1 heavy is exclusive and evicts tier 0/2.
 - Pinned models (ASR/TTS) are never evicted automatically.
 - If shared GPU memory is active, refuse heavy loads instead of OOM.
 - Every load/unload emits `model.*` events and increments metrics.
 - A missing GPU snapshot must not crash the gateway; degrade explicitly.
+- Streaming keeps the lease until the generator finishes or is closed.
 - `GatewayWatchdog.tick()` expires leases and reconciles `/api/ps`; a lease
   missing from the backend is forgotten, a managed orphan is unloaded.
 - `gateway.status()` is the only serialisable snapshot for CLI/API.

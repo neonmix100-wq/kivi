@@ -40,6 +40,11 @@ class FakeBackend:
         self.calls.append(("chat", model_id))
         return f"echo:{messages[-1]['content']}"
 
+    def chat_stream(self, model_id, messages, *, keep_alive="5m", options=None):
+        self.calls.append(("stream", model_id))
+        yield "echo:"
+        yield messages[-1]["content"]
+
 
 class FakeVram:
     def __init__(
@@ -184,6 +189,14 @@ def test_keep_alive_parsing() -> None:
     assert ModelGateway._ttl_from_keep_alive("5m") == 300
     assert ModelGateway._ttl_from_keep_alive("2h") == 7200
     assert ModelGateway._ttl_from_keep_alive("garbage") == 300
+
+
+def test_stream_keeps_lease_and_returns_chunks() -> None:
+    gateway, backend, _, _ = make_gateway()
+    chunks = list(gateway.chat_stream("small", [{"role": "user", "content": "hi"}]))
+    assert chunks == ["echo:", "hi"]
+    assert backend.calls == [("load", "small"), ("stream", "small")]
+    assert "small" in gateway.loaded()
 
 
 def test_events_and_metrics_are_recorded() -> None:

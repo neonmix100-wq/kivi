@@ -7,6 +7,8 @@ kernel's first slices are synchronous; streaming arrives with the UI.
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
@@ -115,3 +117,48 @@ class OllamaBackend:
         if not isinstance(message, dict) or not isinstance(message.get("content"), str):
             raise BackendError("Ollama response has no message.content")
         return message["content"]
+
+    def chat_stream(
+        self,
+        model_id: str,
+        messages: list[dict[str, str]],
+        *,
+        keep_alive: str = "5m",
+        options: dict[str, Any] | None = None,
+    ) -> Iterator[str]:
+        body: dict[str, Any] = {
+            "model": model_id,
+            "messages": messages,
+            "stream": True,
+            "keep_alive": keep_alive,
+        }
+        if options:
+            body["options"] = options
+        try:
+            with self._client.stream("POST", "/api/chat", json=body) as response:
+                if response.status_code >= 400:
+                    response.read()
+                    detail = response.text.strip()[:500]
+                    raise BackendError(f"Ollama HTTP {response.status_code}: {detail}")
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        payload = json.loads(line)
+                    except ValueError as exc:
+                        raise BackendError("Ollama returned invalid stream JSON") from exc
+                    if not isinstance(payload, dict):
+                        raise BackendError("Ollama returned an unexpected stream payload")
+                    if payload.get("error"):
+                        raise BackendError(f"Ollama stream error: {payload['error']}")
+                    message = payload.get("message")
+                    if isinstance(message, dict):
+                        content = message.get("content")
+                        if isinstance(content, str) and content:
+                            yield content
+                    if payload.get("done"):
+                        break
+        except httpx.ConnectError as exc:
+            raise BackendUnavailable(f"Ollama is not running at {self.base_url}") from exc
+        except httpx.HTTPError as exc:
+            raise BackendError(f"Ollama stream failed: {exc}") from exc

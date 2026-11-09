@@ -213,13 +213,30 @@ def cmd_ask(args: argparse.Namespace) -> int:
                     safety_margin_mb=config.model_gateway.safety_margin_mb,
                     events=bus,
                 )
-                answer = gateway.chat(
-                    spec.id,
-                    messages,
-                    task_id=task_id,
-                    priority=0,
-                    keep_alive=args.keep_alive,
-                )
+                if args.stream:
+                    console.print(f"[cyan]Kivi[/cyan] · [dim]{spec.id}[/dim]")
+                    chunks: list[str] = []
+                    for chunk in gateway.chat_stream(
+                        spec.id,
+                        messages,
+                        task_id=task_id,
+                        priority=0,
+                        keep_alive=args.keep_alive,
+                    ):
+                        chunks.append(chunk)
+                        sys.stdout.write(chunk)
+                        sys.stdout.flush()
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    answer = "".join(chunks)
+                else:
+                    answer = gateway.chat(
+                        spec.id,
+                        messages,
+                        task_id=task_id,
+                        priority=0,
+                        keep_alive=args.keep_alive,
+                    )
                 metrics = gateway.metrics()
         except (GatewayError, BackendError) as exc:
             db.update_task(task_id, "failed", {"error": str(exc)})
@@ -235,8 +252,9 @@ def cmd_ask(args: argparse.Namespace) -> int:
             payload={"model": spec.id, "chars": len(answer)},
         )
 
-    console.print(f"[cyan]Kivi[/cyan] · [dim]{spec.id}[/dim]")
-    console.print(answer or "(empty answer)")
+    if not args.stream:
+        console.print(f"[cyan]Kivi[/cyan] · [dim]{spec.id}[/dim]")
+        console.print(answer or "(empty answer)")
     console.print(
         f"[dim]loads={metrics['loads']} evictions={metrics['evictions']} "
         f"last_load={metrics['last_load_ms']} ms[/dim]"
@@ -328,6 +346,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("-m", "--model", default=None, help="model id from config/models.yaml")
     ask.add_argument("--keep-alive", default="5m", help="Ollama keep_alive after the answer")
     ask.add_argument("--timeout", type=float, default=180.0, help="HTTP timeout in seconds")
+    ask.add_argument("--stream", action="store_true", help="print answer chunks as they arrive")
     ask.set_defaults(func=cmd_ask)
 
     events = sub.add_parser("events", help="show recent events")

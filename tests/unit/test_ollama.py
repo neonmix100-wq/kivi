@@ -63,6 +63,38 @@ def test_chat_returns_content() -> None:
     assert answer == "привет"
 
 
+def test_chat_stream_yields_chunks() -> None:
+    bodies: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(request.read().decode())
+        lines = (
+            '{"message":{"content":"Hel"},"done":false}\n{"message":{"content":"lo"},"done":true}\n'
+        )
+        return httpx.Response(200, content=lines.encode())
+
+    with make_backend(handler) as backend:
+        chunks = list(backend.chat_stream("m", [{"role": "user", "content": "hi"}]))
+    assert chunks == ["Hel", "lo"]
+    assert '"stream":true' in bodies[0]
+
+
+def test_chat_stream_error_payload_is_wrapped() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b'{"error":"boom"}\n')
+
+    with make_backend(handler) as backend, pytest.raises(BackendError, match="boom"):
+        list(backend.chat_stream("m", [{"role": "user", "content": "hi"}]))
+
+
+def test_chat_stream_http_error_is_wrapped() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="boom")
+
+    with make_backend(handler) as backend, pytest.raises(BackendError, match="500"):
+        list(backend.chat_stream("m", [{"role": "user", "content": "hi"}]))
+
+
 def test_http_error_becomes_backend_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(404, text="model not found")
@@ -75,9 +107,7 @@ def test_unreachable_backend() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("refused", request=request)
 
-    with make_backend(handler) as backend, pytest.raises(
-        BackendUnavailable, match="not running"
-    ):
+    with make_backend(handler) as backend, pytest.raises(BackendUnavailable, match="not running"):
         backend.list_models()
 
 

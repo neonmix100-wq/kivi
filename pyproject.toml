@@ -23,6 +23,9 @@ dev = [
     "pytest>=8.2",
     "ruff>=0.5",
 ]
+gpu = [
+    "nvidia-ml-py>=12.0",
+]
 
 [project.scripts]
 kivi = "kivi.interfaces.cli:main"

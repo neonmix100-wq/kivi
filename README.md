@@ -1,19 +1,21 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этап 2 — Model Gateway, второй срез (v0.6). Работают `kivi doctor`,
-> `kivi models`, `kivi ask` (локальная модель через Ollama), реестр моделей,
-> VRAM-бюджет, lease/eviction, watchdog, SQLite, Event Bus, аудит и Policy Engine.
-> Осталось: NVML/shared-метрики, streaming, очередь, fallback и embedding-цикл
-> в benchmark; 20 переключений chat/code уже пройдены (`docs/BENCH-GATEWAY.md`).
+> **Статус:** этап 2 — Model Gateway, третий срез (v0.7). Работают `kivi doctor`,
+> `kivi models`, `kivi ask` (обычный и `--stream`), реестр моделей,
+> VRAM-бюджет (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite,
+> Event Bus, аудит и Policy Engine.
+> Осталось: очередь, fallback и embedding-цикл; 20 переключений chat/code
+> уже пройдены (`docs/BENCH-GATEWAY.md`).
 
 ## Быстрый старт
 
 ```powershell
 py -3.12 -m venv .venv
-.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.venv\Scripts\python.exe -m pip install -e ".[dev,gpu]"
 .venv\Scripts\kivi.exe doctor
 .venv\Scripts\kivi.exe config check
 .venv\Scripts\kivi.exe ask "привет, кто ты?" --keep-alive 0
+.venv\Scripts\kivi.exe ask "объясни коротко" --stream --keep-alive 0
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
 ```

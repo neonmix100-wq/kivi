@@ -75,7 +75,7 @@
 
 - [x] Registry моделей + стартовые footprint'ы (`config/models.yaml`).
 - [x] Ollama-адаптер: загрузка, `keep_alive`, выгрузка (стриминг — позже).
-- [ ] NVML-монитор: total/used/free/shared (сейчас nvidia-smi + эвристика shared).
+- [x] NVML total/used/free (shared — эвристика: отдельного поля у WDDM/NVML нет).
 - [x] Lease Manager: приоритеты, TTL, эксклюзивность (очередь — позже).
 - [x] Eviction + проверка освобождения VRAM (базовая).
 - [ ] Fallback: контекст → offload → CPU → облако.
@@ -89,8 +89,9 @@
 **Сделано во втором срезе:** `GatewayWatchdog` (expire + reconcile), `model.lost` /
 `model.orphan_unloaded`, `gateway.status()`, колонка Loaded в `kivi models`,
 benchmark-стенд с fake- и real-режимами.
-**Осталось до приёмки:** NVML, стриминг, очередь, fallback, embedding-модель
-в цикле переключений.
+**Сделано в третьем срезе:** NVML с fallback на nvidia-smi, стриминг Ollama
+(`kivi ask --stream`), benchmark 20 переключений.
+**Осталось до приёмки:** очередь, fallback, embedding-модель в цикле переключений.
 
 **Приёмка:** 20 циклов «чат → кодер → эмбеддинги → чат» без OOM; простой 10 мин → VRAM 0;
 искусственный OOM → понятный fallback; реальные цифры в отчёте
