@@ -14,7 +14,7 @@ generated: true
 | --- | ---: | --- |
 | `src.kivi.__init__` | 3 | Kivi - local-first AI assistant. |
 | `src.kivi.__main__` | 8 | Allow ``python -m kivi``. |
-| `src.kivi.config` | 204 | Typed configuration for Kivi. |
+| `src.kivi.config` | 205 | Typed configuration for Kivi. |
 | `src.kivi.doctor` | 208 | Environment diagnostics for ``kivi doctor``. |
 | `src.kivi.paths` | 68 | Filesystem layout for Kivi runtime data. |
 
@@ -29,7 +29,7 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 1 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.cli` | 469 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 471 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -54,7 +54,7 @@ generated: true
 | `src.kivi.models.backends.__init__` | 10 | Model backends: Ollama first, others follow in later stages. |
 | `src.kivi.models.backends.base` | 65 | Backend protocol shared by Ollama, llama.cpp, ComfyUI and cloud workers. |
 | `src.kivi.models.backends.ollama` | 216 | Ollama backend. |
-| `src.kivi.models.gateway` | 515 | Model Gateway: budget checks, leases and eviction. |
+| `src.kivi.models.gateway` | 546 | Model Gateway: budget checks, leases and eviction. |
 | `src.kivi.models.registry` | 205 | Model registry: what can be loaded, how much it costs and who may use it. |
 | `src.kivi.models.vram` | 116 | VRAM accounting via ``nvidia-smi``. |
 | `src.kivi.models.watchdog` | 141 | Background watchdog for the Model Gateway. |

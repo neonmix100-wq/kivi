@@ -46,6 +46,7 @@ class Lease:
     created_at: float
     last_used: float
     pinned: bool = False
+    cpu: bool = False
 
     def touch(self, now: float) -> None:
         self.last_used = now
@@ -64,6 +65,7 @@ class Lease:
             "created_at": self.created_at,
             "last_used": self.last_used,
             "pinned": self.pinned,
+            "cpu": self.cpu,
         }
 
 
@@ -79,6 +81,7 @@ class ModelGateway:
         vram_source: VramSource = query_vram,
         clock: Callable[[], float] = time.monotonic,
         events: Any = None,
+        allow_cpu_fallback: bool = False,
     ) -> None:
         if vram_total_mb <= 0:
             raise ValueError("vram_total_mb must be positive")
@@ -92,6 +95,7 @@ class ModelGateway:
         self._vram_source = vram_source
         self._clock = clock
         self._events = events
+        self.allow_cpu_fallback = allow_cpu_fallback
         self._leases: dict[str, Lease] = {}
         self._managed: set[str] = set()
         self._lock = threading.RLock()
@@ -102,6 +106,7 @@ class ModelGateway:
             "evictions": 0,
             "failures": 0,
             "waits": 0,
+            "cpu_fallbacks": 0,
             "lost": 0,
             "orphan_unloads": 0,
             "last_load_ms": 0.0,
@@ -212,31 +217,41 @@ class ModelGateway:
             if spec.exclusive:
                 victims = [lease for lease in self._leases.values() if not lease.pinned]
 
+            cpu_fallback = False
             snapshot = self.vram()
             if snapshot is not None:
                 if snapshot.overcommitted and spec.vram_mb >= 4000:
-                    self._metrics["failures"] += 1
-                    raise InsufficientVram(
-                        "shared GPU memory is active; heavy loads are refused until "
-                        f"VRAM is free (used {snapshot.used_mb} MB, free {snapshot.free_mb} MB)"
-                    )
-                required = self._required_mb(spec)
-                available = snapshot.free_mb + sum(lease.vram_mb for lease in victims)
-                if available < required:
-                    for lease in self._eviction_order():
-                        if lease in victims:
-                            continue
-                        victims.append(lease)
-                        available += lease.vram_mb
-                        if available >= required:
-                            break
-                if available < required:
-                    self._metrics["failures"] += 1
-                    raise InsufficientVram(
-                        f"{model_id} needs {required} MB, "
-                        f"only {available} MB can be freed "
-                        f"(free {snapshot.free_mb} MB, total {snapshot.total_mb} MB)"
-                    )
+                    if self.allow_cpu_fallback:
+                        cpu_fallback = True
+                    else:
+                        self._metrics["failures"] += 1
+                        raise InsufficientVram(
+                            "shared GPU memory is active; heavy loads are refused until "
+                            f"VRAM is free (used {snapshot.used_mb} MB, "
+                            f"free {snapshot.free_mb} MB)"
+                        )
+                if not cpu_fallback:
+                    required = self._required_mb(spec)
+                    available = snapshot.free_mb + sum(lease.vram_mb for lease in victims)
+                    if available < required:
+                        for lease in self._eviction_order():
+                            if lease in victims:
+                                continue
+                            victims.append(lease)
+                            available += lease.vram_mb
+                            if available >= required:
+                                break
+                    if available < required:
+                        if self.allow_cpu_fallback:
+                            cpu_fallback = True
+                        else:
+                            self._metrics["failures"] += 1
+                            raise InsufficientVram(
+                                f"{model_id} needs {required} MB, "
+                                f"only {available} MB can be freed "
+                                f"(free {snapshot.free_mb} MB, "
+                                f"total {snapshot.total_mb} MB)"
+                            )
 
             for victim in victims:
                 self._evict(victim, reason="budget")
@@ -245,7 +260,7 @@ class ModelGateway:
             try:
                 self.backend.load(
                     model_id,
-                    options=self._load_options(spec),
+                    options=self._load_options(spec, cpu=cpu_fallback),
                     embedding=spec.role == "embedding",
                 )
             except BackendError:
@@ -262,11 +277,22 @@ class ModelGateway:
                 created_at=now,
                 last_used=now,
                 pinned=spec.pinned,
+                cpu=cpu_fallback,
             )
             self._leases[model_id] = lease
             self._managed.add(model_id)
             self._metrics["loads"] += 1
             self._metrics["last_load_ms"] = round(elapsed_ms, 1)
+            if cpu_fallback:
+                self._metrics["cpu_fallbacks"] += 1
+                self._emit(
+                    "model.fallback_cpu",
+                    {
+                        "model_id": model_id,
+                        "task_id": task_id,
+                        "reason": "insufficient_vram",
+                    },
+                )
             self._emit(
                 "model.loaded",
                 {
@@ -275,6 +301,7 @@ class ModelGateway:
                     "vram_mb": spec.vram_mb,
                     "load_ms": round(elapsed_ms, 1),
                     "evicted": [victim.model_id for victim in victims],
+                    "cpu": cpu_fallback,
                 },
             )
             return lease
@@ -463,15 +490,19 @@ class ModelGateway:
                 lease.touch(self._clock())
 
     @staticmethod
-    def _load_options(spec: ModelSpec) -> dict[str, Any] | None:
+    def _load_options(spec: ModelSpec, *, cpu: bool = False) -> dict[str, Any] | None:
         """Pin the registry context at load time.
 
         Ollama otherwise falls back to the model's advertised maximum (up to
         262k tokens for Qwen), which overflows 8 GB VRAM and spills to CPU.
+        A CPU fallback additionally forces every layer off the GPU.
         """
+        options: dict[str, Any] = {}
         if spec.context > 0:
-            return {"num_ctx": spec.context}
-        return None
+            options["num_ctx"] = spec.context
+        if cpu:
+            options["num_gpu"] = 0
+        return options or None
 
     @staticmethod
     def _ttl_from_keep_alive(keep_alive: str) -> float:
@@ -500,7 +531,7 @@ def gateway_from_config(config: Any, backend: ModelBackend, **kwargs: Any) -> Mo
         backend,
         vram_total_mb=settings.vram_total_mb,
         safety_margin_mb=settings.safety_margin_mb,
-        **kwargs,
+        **{"allow_cpu_fallback": settings.cpu_fallback, **kwargs},
     )
 
 

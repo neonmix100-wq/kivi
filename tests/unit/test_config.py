@@ -18,6 +18,7 @@ def test_repository_config_is_valid() -> None:
     assert config.voice.sample_rate == 48000
     assert config.mail.drafts_only is True
     assert config.mail.auto_send is False
+    assert config.model_gateway.cpu_fallback is True
 
 
 def test_invalid_yaml_raises(tmp_path: Path) -> None:
@@ -55,10 +56,7 @@ def test_drafts_only_rejects_auto_send(tmp_path: Path) -> None:
 def test_drafts_only_requires_send_denies(tmp_path: Path) -> None:
     path = tmp_path / "kivi.yaml"
     path.write_text(
-        "mail:\n"
-        "  drafts_only: true\n"
-        "  auto_send: false\n"
-        "  denied_methods: [users.messages.send]\n",
+        "mail:\n  drafts_only: true\n  auto_send: false\n  denied_methods: [users.messages.send]\n",
         encoding="utf-8",
     )
     with pytest.raises(ConfigError, match="deny"):
@@ -99,3 +97,4 @@ def test_defaults_are_safe() -> None:
     assert config.voice.clone.enabled is False
     assert config.mail.auto_send is False
     assert config.shell.explorer_fallback is True
+    assert config.model_gateway.cpu_fallback is True

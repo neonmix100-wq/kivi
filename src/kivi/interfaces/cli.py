@@ -215,6 +215,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
                     backend,
                     vram_total_mb=config.model_gateway.vram_total_mb,
                     safety_margin_mb=config.model_gateway.safety_margin_mb,
+                    allow_cpu_fallback=config.model_gateway.cpu_fallback,
                     events=bus,
                 )
                 if args.stream:
@@ -296,6 +297,7 @@ def cmd_embed(args: argparse.Namespace) -> int:
                     backend,
                     vram_total_mb=config.model_gateway.vram_total_mb,
                     safety_margin_mb=config.model_gateway.safety_margin_mb,
+                    allow_cpu_fallback=config.model_gateway.cpu_fallback,
                     events=bus,
                 )
                 vectors = gateway.embed(

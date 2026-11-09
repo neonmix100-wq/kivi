@@ -23,7 +23,8 @@ Invariants:
 - Tier 0 (router) may coexist; tier 1 heavy is exclusive and evicts tier 0/2.
 - Pinned models (ASR/TTS) are never evicted automatically; an exclusive load
   waits up to `wait_s` (`kivi ask --wait`) before raising `ModelBusy`.
-- If shared GPU memory is active, refuse heavy loads instead of OOM.
+- If shared GPU memory is active or the budget is short, load on CPU
+  (`num_gpu=0`) when `cpu_fallback` is on; emit `model.fallback_cpu`.
 - Every load/unload emits `model.*` events and increments metrics.
 - A missing GPU snapshot must not crash the gateway; degrade explicitly.
 - Streaming keeps the lease until the generator finishes or is closed.

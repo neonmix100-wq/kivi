@@ -48,6 +48,7 @@ class ModelGatewaySettings(BaseModel):
     cloud: CloudSettings = Field(default_factory=CloudSettings)
     watchdog_enabled: bool = True
     watchdog_interval_s: float = Field(default=30.0, ge=1.0)
+    cpu_fallback: bool = True
 
 
 class VoiceFallback(BaseModel):

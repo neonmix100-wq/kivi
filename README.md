@@ -4,7 +4,7 @@
 > `kivi models`, `kivi ask` (обычный и `--stream`), `kivi embed`, реестр моделей,
 > VRAM-бюджет (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite,
 > Event Bus, аудит и Policy Engine.
-> Осталось: fallback CPU → облако; benchmark полного цикла
+> Осталось: облачный fallback (этап 3); этап 2 закрыт — benchmark полного цикла
 > chat → code → embedding → chat пройден (`docs/BENCH-GATEWAY.md`).
 
 ## Быстрый старт

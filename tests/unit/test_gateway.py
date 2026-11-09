@@ -102,6 +102,7 @@ def make_gateway(
     used_mb: int | None = None,
     models: tuple[ModelSpec, ...] = (SMALL, HEAVY, PINNED),
     events: FakeEvents | None = None,
+    allow_cpu_fallback: bool = False,
 ) -> tuple[ModelGateway, FakeBackend, FakeVram, FakeClock]:
     backend = FakeBackend()
     vram = FakeVram(free_mb, used_mb=used_mb)
@@ -114,6 +115,7 @@ def make_gateway(
         vram_source=vram,
         clock=clock,
         events=events,
+        allow_cpu_fallback=allow_cpu_fallback,
     )
     return gateway, backend, vram, clock
 
@@ -145,6 +147,31 @@ def test_insufficient_vram_refuses_before_loading() -> None:
         gateway.acquire("heavy")
     assert backend.calls == []
     assert gateway.metrics()["failures"] == 1
+
+
+def test_cpu_fallback_replaces_insufficient_vram() -> None:
+    events = FakeEvents()
+    gateway, backend, _, _ = make_gateway(
+        free_mb=1000,
+        events=events,
+        allow_cpu_fallback=True,
+    )
+    lease = gateway.acquire("heavy")
+    assert lease.cpu is True
+    assert backend.load_options["heavy"] == {"num_ctx": 4096, "num_gpu": 0}
+    assert gateway.metrics()["cpu_fallbacks"] == 1
+    assert any(name == "model.fallback_cpu" for name, _ in events.events)
+
+
+def test_cpu_fallback_on_shared_memory() -> None:
+    gateway, backend, _, _ = make_gateway(
+        free_mb=500,
+        used_mb=7300,
+        allow_cpu_fallback=True,
+    )
+    lease = gateway.acquire("heavy")
+    assert lease.cpu is True
+    assert backend.load_options["heavy"]["num_gpu"] == 0
 
 
 def test_shared_memory_refuses_heavy_load() -> None:

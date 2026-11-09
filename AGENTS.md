@@ -39,6 +39,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe embed "text" --keep-alive 0
 ```
 
+`cpu_fallback: true` в `config/kivi.yaml` разрешает CPU-загрузку, когда VRAM не хватает.
+
 Для проверки используй `verify` (он пишет полный лог в `data/logs/`), а не
 полные прогоны на каждый шаг. Перед коммитом — полный `pytest -q` и `ruff`.
 
