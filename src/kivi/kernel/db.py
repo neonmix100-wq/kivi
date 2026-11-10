@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 MIGRATIONS: dict[int, list[str]] = {
     1: [
@@ -69,6 +69,19 @@ MIGRATIONS: dict[int, list[str]] = {
         "CREATE INDEX IF NOT EXISTS idx_events_ts ON events (ts)",
         "CREATE INDEX IF NOT EXISTS idx_events_task ON events (task_id)",
         "CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit (ts)",
+    ],
+    2: [
+        """
+        CREATE TABLE IF NOT EXISTS cloud_usage (
+            provider TEXT NOT NULL,
+            day      TEXT NOT NULL,
+            requests INTEGER NOT NULL DEFAULT 0,
+            tokens   INTEGER NOT NULL DEFAULT 0,
+            cost_usd REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (provider, day)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_cloud_usage_day ON cloud_usage (day)",
     ],
 }
 
@@ -234,3 +247,49 @@ class Database:
             "SELECT * FROM audit ORDER BY id DESC LIMIT ?", (limit,)
         ).fetchall()
         return [dict(row) for row in rows]
+
+    # -- cloud quota -----------------------------------------------------
+    def add_cloud_usage(
+        self,
+        provider: str,
+        day: str,
+        *,
+        requests: int = 1,
+        tokens: int = 0,
+        cost_usd: float = 0.0,
+    ) -> None:
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO cloud_usage (provider, day, requests, tokens, cost_usd) "
+                "VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(provider, day) DO UPDATE SET "
+                "requests = requests + excluded.requests, "
+                "tokens = tokens + excluded.tokens, "
+                "cost_usd = cost_usd + excluded.cost_usd",
+                (provider, day, requests, tokens, cost_usd),
+            )
+
+    def cloud_usage(self, provider: str, day: str) -> dict[str, Any]:
+        row = self._conn.execute(
+            "SELECT provider, day, requests, tokens, cost_usd "
+            "FROM cloud_usage WHERE provider = ? AND day = ?",
+            (provider, day),
+        ).fetchone()
+        if row is None:
+            return {
+                "provider": provider,
+                "day": day,
+                "requests": 0,
+                "tokens": 0,
+                "cost_usd": 0.0,
+            }
+        return dict(row)
+
+    def cloud_usage_all(self, day: str) -> list[dict[str, Any]]:
+        rows = self._conn.execute(
+            "SELECT provider, day, requests, tokens, cost_usd "
+            "FROM cloud_usage WHERE day = ? ORDER BY provider",
+            (day,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+

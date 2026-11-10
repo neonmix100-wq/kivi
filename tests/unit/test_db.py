@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from kivi.kernel.db import SCHEMA_VERSION, Database
 
 
@@ -67,6 +69,17 @@ def test_events_are_persisted_newest_first(tmp_path: Path) -> None:
         assert [row["type"] for row in rows] == ["chat.done", "chat.request"]
         assert rows[1]["payload"] == '{"n":1}'
         assert rows[1]["source"] == "cli"
+
+
+def test_cloud_usage_accumulates(tmp_path: Path) -> None:
+    with make_db(tmp_path) as db:
+        db.add_cloud_usage("groq", "2026-11-10", requests=1, tokens=10, cost_usd=0.0)
+        db.add_cloud_usage("groq", "2026-11-10", requests=2, tokens=5, cost_usd=0.01)
+        usage = db.cloud_usage("groq", "2026-11-10")
+        assert usage["requests"] == 3
+        assert usage["tokens"] == 15
+        assert usage["cost_usd"] == pytest.approx(0.01)
+        assert db.cloud_usage("groq", "2026-11-11")["requests"] == 0
 
 
 def test_audit_entries(tmp_path: Path) -> None:

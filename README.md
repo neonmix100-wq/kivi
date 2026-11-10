@@ -1,7 +1,7 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этап 2 — Model Gateway, третий срез (v0.7). Работают `kivi doctor`,
-> `kivi models`, `kivi ask` (обычный и `--stream`), `kivi embed`, реестр моделей,
+> **Статус:** этап 3 — Cloud Broker, первый срез (v0.8). Работают `kivi doctor`,
+> `kivi models`, `kivi ask`, `kivi embed`, `kivi cloud status`, реестр моделей,
 > VRAM-бюджет (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite,
 > Event Bus, аудит и Policy Engine.
 > Осталось: облачный fallback (этап 3); этап 2 закрыт — benchmark полного цикла
@@ -17,6 +17,7 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe ask "привет, кто ты?" --keep-alive 0
 .venv\Scripts\kivi.exe ask "объясни коротко" --stream --keep-alive 0
 .venv\Scripts\kivi.exe embed "local assistant" --keep-alive 0
+.venv\Scripts\kivi.exe cloud status
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
 ```

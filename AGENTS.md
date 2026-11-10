@@ -37,7 +37,10 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe models
 .venv\Scripts\kivi.exe ask "вопрос" --keep-alive 0
 .venv\Scripts\kivi.exe embed "text" --keep-alive 0
+.venv\Scripts\kivi.exe cloud status
 ```
+
+`cloud mode auto_free`: только бесплатные провайдеры и общедоступные данные.
 
 `cpu_fallback: true` в `config/kivi.yaml` разрешает CPU-загрузку, когда VRAM не хватает.
 
@@ -98,5 +101,5 @@ powershell -ExecutionPolicy Bypass -File scripts\publish_github.ps1
 
 ## Skills
 
-`kivi-core`, `kivi-verify`, `kivi-gateway`, `kivi-security`, `kivi-docs`,
-`kivi-obsidian`, `kivi-module`, `kivi-context`.
+`kivi-core`, `kivi-verify`, `kivi-gateway`, `kivi-cloud`, `kivi-security`,
+`kivi-docs`, `kivi-obsidian`, `kivi-module`, `kivi-context`.

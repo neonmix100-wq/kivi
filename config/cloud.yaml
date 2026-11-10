@@ -1,0 +1,27 @@
+# Cloud providers for the Cloud Broker (stage 3).
+# Keys are NEVER stored here: each entry names the environment variable that
+# holds the key. Nothing is sent anywhere until a call passes policy + quota.
+#
+# data policy: all providers here are "public only" by default. Do not set
+# allows_private_data without a separate data-processing agreement.
+
+providers:
+  - id: openrouter
+    kind: openai
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    default_model: ""
+    free_requests_per_day: 50
+    free_tokens_per_day: null
+    allows_private_data: false
+    notes: "Free models must carry the :free suffix; limits are conservative."
+
+  - id: groq
+    kind: openai
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    default_model: ""
+    free_requests_per_day: 100
+    free_tokens_per_day: null
+    allows_private_data: false
+    notes: "Free tier; set the model explicitly in the call."

@@ -28,6 +28,11 @@ def test_audit_on_empty_database(tmp_path: Path, monkeypatch) -> None:
     assert main(["audit"]) == 0
 
 
+def test_cloud_status(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("KIVI_HOME", str(tmp_path / "profile"))
+    assert main(["cloud", "status"]) == 0
+
+
 def test_module_entrypoint_delegates(monkeypatch) -> None:
     import kivi.__main__ as entry
 

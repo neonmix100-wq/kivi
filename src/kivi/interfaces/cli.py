@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from rich.console import Console
 from rich.table import Table
 
+from kivi.cloud import CloudBroker, CloudRegistryError, load_cloud_registry
 from kivi.config import ConfigError, KiviConfig, load_config
 from kivi.doctor import ollama_models, run_checks, summary
 from kivi.kernel.db import Database
@@ -334,6 +335,52 @@ def cmd_embed(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cloud_status(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    try:
+        registry = load_cloud_registry(paths.root / "config" / "cloud.yaml")
+    except CloudRegistryError as exc:
+        console.print(f"[red]cloud registry error:[/red] {exc}")
+        return 2
+
+    settings = config.model_gateway.cloud
+    console.print(
+        f"cloud mode [bold]{settings.mode}[/bold], cost limit ${settings.cost_limit_usd:.2f}"
+    )
+    with _state(paths) as (db, bus):
+        broker = CloudBroker(db, settings, registry, events=bus)
+        try:
+            rows = broker.status()
+        finally:
+            broker.close()
+
+    table = Table(title="Cloud providers")
+    table.add_column("Provider")
+    table.add_column("Kind")
+    table.add_column("Key")
+    table.add_column("Data")
+    table.add_column("Requests today", justify="right")
+    table.add_column("Tokens today", justify="right")
+    table.add_column("Free limit", overflow="fold")
+    for row in rows:
+        limit = (
+            None if row.remaining_requests is None else row.requests_today + row.remaining_requests
+        )
+        free = "unlimited" if limit is None else f"{limit}/day"
+        table.add_row(
+            row.provider,
+            row.kind,
+            "yes" if row.key_configured else "-",
+            row.data_class,
+            f"{row.requests_today}/{limit}" if limit is not None else str(row.requests_today),
+            str(row.tokens_today),
+            free,
+        )
+    console.print(table)
+    return 0
+
+
 def cmd_events(args: argparse.Namespace) -> int:
     paths = get_paths()
     with _state(paths) as (db, _):
@@ -440,6 +487,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="seconds to wait behind a pinned model instead of failing",
     )
     embed.set_defaults(func=cmd_embed)
+
+    cloud = sub.add_parser("cloud", help="cloud providers, quotas and policy")
+    cloud_sub = cloud.add_subparsers(dest="cloud_command")
+    cloud_status = cloud_sub.add_parser("status", help="provider quota and key status")
+    cloud_status.set_defaults(func=cmd_cloud_status)
+    cloud.set_defaults(func=cmd_cloud_status)
 
     events = sub.add_parser("events", help="show recent events")
     events.add_argument("-n", "--limit", type=int, default=20)
