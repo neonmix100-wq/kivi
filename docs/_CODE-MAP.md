@@ -23,7 +23,13 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.brain.__init__` | 1 | Brain: request routing, planning, execution and verification. |
+| `src.kivi.brain.__init__` | 26 | Brain: request routing, planning, execution and verification. |
+| `src.kivi.brain.core` | 185 | KiviBrain: fast path first, then plan -> execute -> verify. |
+| `src.kivi.brain.executor` | 359 | Plan executor: run a validated DAG through the ToolExecutor. |
+| `src.kivi.brain.fastpath` | 98 | Fast path: one deterministic tool call for simple, unambiguous commands. |
+| `src.kivi.brain.plan` | 247 | Plan model, JSON parser and structural validator for the deep path. |
+| `src.kivi.brain.planner` | 119 | LLM planner: turn a goal into a validated plan DAG, never execute it. |
+| `src.kivi.brain.verifier` | 160 | Plan verifier: deterministic checks first, LLM criteria second. |
 
 ## cloud
 
@@ -38,8 +44,10 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.interfaces.__init__` | 1 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.cli` | 1730 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.__init__` | 21 | User-facing interfaces: CLI, API, voice, tray, avatar. |
+| `src.kivi.interfaces.api` | 320 | Local-only HTTP API for Kivi chat. |
+| `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
+| `src.kivi.interfaces.cli` | 2099 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -100,7 +108,8 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.senses.__init__` | 1 | Senses: voice, hearing, vision and text input. |
+| `src.kivi.senses.__init__` | 21 | Senses: voice, hearing, vision and text input. |
+| `src.kivi.senses.tts` | 485 | Local text-to-speech engines and the sentence streaming pipeline. |
 
 ## tools
 
@@ -119,11 +128,15 @@ generated: true
 
 ## Тесты
 
-Всего файлов: **33**.
+Всего файлов: **38**.
 
+- `tests/scenarios/test_m1_scenarios.py`
 - `tests/security/test_injection.py`
 - `tests/unit/test_admin_cli.py`
+- `tests/unit/test_api.py`
+- `tests/unit/test_avatar2d.py`
 - `tests/unit/test_bench_gateway.py`
+- `tests/unit/test_brain.py`
 - `tests/unit/test_cli.py`
 - `tests/unit/test_clipboard.py`
 - `tests/unit/test_cloud.py`
@@ -149,6 +162,7 @@ generated: true
 - `tests/unit/test_registry.py`
 - `tests/unit/test_screen.py`
 - `tests/unit/test_tools.py`
+- `tests/unit/test_tts.py`
 - `tests/unit/test_vector_index.py`
 - `tests/unit/test_vram.py`
 - `tests/unit/test_watchdog.py`

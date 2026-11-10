@@ -15,8 +15,9 @@
   импорт, суммаризация, TTL, approvals API и LanceDB-индекс готовы.
   Автоподключение approvals к PermissionEngine — отдельный backlog.
 - **Этап 0** закрыт: baseline §5 заполнен (SDXL/whisper отмечены как n/a).
-- **Этапы 6–13 не начаты:** planner/M1, Coder, Operator, Communicator,
-  Voice & Avatar, Work CRM, Cloud Media, Kivi Shell.
+- **Этап 6 (M1) закрыт:** planner DAG, fast/deep path, `kivi chat`, `kivi serve`,
+  Silero TTS, 2D-аватар и 22 сценарных теста. p50 fastpath — 0.84 с.
+- **Этап 7 (Coder) не начат** — следующий крупный срез.
 
 ## 2. Этапы
 
@@ -28,7 +29,7 @@
 | 3. Cloud Broker | ✅ готово | провайдеры, квоты, `QuotaExhausted`, handoff, Scout, `cloud ask/scout/handoff` | живой ключ (внешнее) |
 | 4. Tools + safety | ✅ готово | Tool contract, разрешения R0–R4, зоны, MAC-манифест, trust/sanitizer, fs/shell/http/proc/clipboard/screen, kill switch, hotkey, elevated broker, injection-корпус | OCR/PDF — backlog |
 | 5. Память и контекст | ✅ готово | messages/facts/preferences/artifacts, FTS5, embeddings, RRF hybrid, Context Builder, импорт, суммаризация, TTL, approvals, LanceDB, CLI | автоподключение approvals — backlog |
-| 6. M1: Core Kivi | ⬜ не начат | — | planner DAG, fast/deep path, CLI-чат/API, Silero TTS, 2D-аватар, 20 сценариев |
+| 6. M1: Core Kivi | ✅ готово | planner DAG, fastpath, chat, API, Silero/TTS, 2D-аватар, 22 сценария | — |
 | 7. M2: Coder | ⬜ не начат | — | sandbox, code.run, патчи/диффы, git, цикл тестов |
 | 8. M3: Operator | ⬜ не начат | — | управление ПК, браузер, UIA/OCR |
 | 9. M4: Communicator | ⬜ не начат | — | Gmail-черновики, Telegram-бот |
@@ -72,9 +73,9 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 
 Сейчас проект стоит на границе **этапа 5 → этапа 6 (M1)**:
 
-- этапы 0, 1–5 закрыты;
-- прикладной слой инструментов, безопасности и памяти готов для planner'а;
-- следующий крупный вертикальный срез — M1: Core Kivi.
+- этапы 0–6 закрыты;
+- прикладной слой инструментов, безопасности, памяти и M1 готов;
+- следующий крупный вертикальный срез — M2: Coder.
 
 Формальный трекер `kivi_context.py stage` показывает этап 0, потому что
 единственный открытый чекбокс — baseline. Это не отражает реальный прогресс;
@@ -94,12 +95,12 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 | 5.2 | TTL и очистка | ✅ сообщения/эмбеддинги/approvals | сделано |
 | 5.3 | Approvals API | ✅ grant/check/revoke/cleanup | сделано |
 | 5.4 | LanceDB/ANN | ✅ LanceDB 0.41 + pyarrow, sync/rebuild | сделано |
-| 6.1 | Planner DAG | план, validator, executor, verifier, replan | 2 дня | 4.x, 5.x |
-| 6.2 | Fast/deep path | выбор модели и глубины под задачу | 1 день | 6.1 |
-| 6.3 | CLI-чат/API | диалог вместо заглушки, история из памяти | 1 день | 6.1 |
-| 6.4 | Silero TTS | `baya`, 48 кГц, потоковая озвучка | 1–2 дня | — |
-| 6.5 | 2D-аватар | липсинк и состояния | 2 дня | 6.4 |
-| 6.6 | 20 сценариев | M1-демо и приёмка | 1–2 дня | 6.1–6.5 |
+| 6.1 | Planner DAG | ✅ validator/executor/verifier/replan | сделано |
+| 6.2 | Fast/deep path | ✅ fastpath + planner | сделано |
+| 6.3 | CLI-чат/API | ✅ `kivi chat`, `kivi serve` | сделано |
+| 6.4 | Silero TTS | ✅ `baya`, 48 кГц, fallback Piper | сделано |
+| 6.5 | 2D-аватар | ✅ липсинк и состояния | сделано |
+| 6.6 | 20 сценариев | ✅ 22 сценария, fastpath 0.84 с | сделано |
 
 ### ✅ P0 — закрыто (этапы 0, 4, 5)
 
@@ -115,41 +116,42 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 Остался отдельный backlog: OCR/PDF-читатели и автоподключение approvals
 к PermissionEngine; они не блокируют закрытие этапов 0/4/5.
 
-### P1 — M1: Core Kivi (7–10 дней)
+### ✅ P1 — M1: Core Kivi закрыт
 
-5. **Planner DAG + validator + executor + verifier + replan.**
-6. **Fast path / deep path** и выбор модели через Gateway.
-7. **CLI-чат + локальный API** вместо заглушки `kivi chat`.
-8. **Silero `baya` TTS** 48 кГц, потоковая озвучка, fallback Piper.
-9. **2D-аватар** с липсинком и состояниями `idle/listening/thinking/speaking/error`.
-10. **20 сценарных тестов** и M1-демо (поиск договора → выжимка → скрипт → запуск).
+Planner DAG, fast/deep path, `kivi chat`, `kivi serve`, Silero TTS, 2D-аватар
+и 22 сценарных теста готовы. p50 fastpath — 0.84 с.
 
-### P2 — далее по ROADMAP
+### P2 — этап 7 (M2: Coder) и далее
 
-11. Coder: sandbox, патчи, тесты, git.
-12. Operator: управление ПК и браузер.
-13. Communicator: Gmail-черновики и Telegram.
-14. Voice & Avatar: wake-word, STT, 3D-VRM.
-15. Work CRM, Cloud Media, Kivi Shell.
+7. **Coder:** `code.run` в песочнице, монтирование workspace, сеть off,
+   лимиты CPU/RAM/времени, патчи/диффы, git и цикл тестов.
+8. Operator: управление ПК и браузер.
+9. Communicator: Gmail-черновики и Telegram.
+10. Voice & Avatar: wake-word, STT, 3D-VRM.
+11. Work CRM, Cloud Media, Kivi Shell.
 
-## 6. Критический путь на 2 недели
+## 6. Следующий шаг
 
 ```
-baseline §5 ─┐
-             ├─► закрыть этап 0
-elevated ────┴─► закрыть этап 4 ─► planner DAG ─► CLI-чат ─► TTS ─► 2D-аватар ─► M1
-memory TTL/summary ─► закрыть этап 5 ─┘
+этапы 0–6 ✅
+   │
+   ├─► M2 Coder: sandbox ─► code.run ─► патчи/диффы ─► git ─► тесты
+   │
+   └─► backlog: OCR/PDF, approvals → PermissionEngine
 ```
+
+M1 закрыт: planner/executor/verifier, fastpath, `kivi chat`, `kivi serve`,
+Silero TTS, 2D-аватар и 22 сценария. Следующий срез — **M2: Coder**. 
 
 ## 7. Риски
 
 | Риск | Влияние | Мера |
 |---|---|---|
-| baseline нельзя снять при открытых приложениях | этап 0 висит | согласовать окно замера |
-| elevated broker требует UAC и отдельного процесса | этап 4 не закрыт | начать с allowlist и аудита, UAC-запуск отдельным срезом |
-| LanceDB тянет pyarrow и место на диске | задержка этапа 5 | оставить SQLite fallback, ANN — опционально |
+| песочница Coder без сети/изоляции | утечка или запись вне workspace | WSL2/Windows Sandbox, монтирование только workspace, лимиты |
 | planner начнёт обходить Policy Engine | безопасность | все tools только через `ToolExecutor`, тесты на обход |
-| VRAM 8 ГБ при 8B + аватар + браузер | M1 демо | квантование, выгрузка, CPU fallback |
+| VRAM 8 ГБ при 8B + аватар + браузер | M1/Coder демо | квантование, выгрузка, CPU fallback |
+| elevated allowlist слишком узкий | admin-задачи | расширять только ревью и тестами |
+| OCR/PDF-библиотеки тянут зависимости | backlog | ставить optional extra, не в ядро |
 
 ## 8. Проверка
 

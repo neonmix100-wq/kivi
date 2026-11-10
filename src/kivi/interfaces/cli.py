@@ -9,16 +9,20 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 import time
 import uuid
+import wave
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
+from kivi.brain import KiviBrain
 from kivi.cloud import (
     CloudBroker,
     CloudError,
@@ -35,6 +39,12 @@ from kivi.cloud import (
 )
 from kivi.config import ConfigError, KiviConfig, load_config
 from kivi.doctor import ollama_models, run_checks, summary
+from kivi.interfaces.api import LocalApi
+from kivi.interfaces.avatar2d import (
+    AvatarController,
+    AvatarError,
+    TkAvatarRenderer,
+)
 from kivi.kernel.db import Database
 from kivi.kernel.events import EventBus
 from kivi.kernel.logs import JsonlLogger
@@ -88,6 +98,12 @@ from kivi.safety.zone_manifest import (
 )
 from kivi.safety.zone_manifest import (
     status as zone_manifest_status,
+)
+from kivi.senses import (
+    PiperTts,
+    SileroTts,
+    SpeechPipeline,
+    TtsError,
 )
 from kivi.tools import ToolExecutor, build_registry
 
@@ -255,28 +271,357 @@ def cmd_models(args: argparse.Namespace) -> int:
     return 0
 
 
+def _speech_pipeline(config: KiviConfig) -> SpeechPipeline:
+    if config.voice.provider == "piper":
+        return SpeechPipeline(
+            PiperTts(),
+            fallback=None,
+            enable_fallback=False,
+            speaker=config.voice.speaker,
+            sample_rate=config.voice.sample_rate,
+        )
+    return SpeechPipeline(
+        SileroTts(),
+        fallback=PiperTts(),
+        enable_fallback=True,
+        speaker=config.voice.speaker,
+        sample_rate=config.voice.sample_rate,
+    )
+
+
+def _feed_avatar(path: Path, avatar: AvatarController, renderer: Any, play: bool) -> None:
+    try:
+        with wave.open(str(path), "rb") as handle:
+            if (
+                handle.getnchannels() == 1
+                and handle.getsampwidth() == 2
+                and handle.getframerate() == 48000
+            ):
+                avatar.update_pcm(handle.readframes(handle.getnframes()))
+                renderer.render(avatar.state, avatar.openness)
+    except (OSError, wave.Error):
+        pass
+    if play:
+        try:
+            import winsound
+
+            winsound.PlaySound(str(path), winsound.SND_FILENAME)
+        except Exception:  # noqa: BLE001 - audio is best effort
+            pass
+
+
+def _speak(
+    text: str,
+    pipeline: SpeechPipeline | None,
+    *,
+    cache: Path,
+    avatar: AvatarController | None = None,
+    renderer: Any = None,
+    play: bool = False,
+) -> None:
+    if pipeline is None or not text.strip():
+        return
+    if avatar is not None:
+        avatar.on_speech_start()
+        if renderer is not None:
+            renderer.render(avatar.state, avatar.openness)
+    try:
+        results = pipeline.synthesize(text, cache)
+        for result in results:
+            if avatar is not None and renderer is not None:
+                _feed_avatar(result.path, avatar, renderer, play)
+    except TtsError as exc:
+        console.print(f"[yellow]TTS:[/yellow] {_plain(str(exc))}")
+    finally:
+        if avatar is not None:
+            avatar.on_speech_end()
+            if renderer is not None:
+                renderer.render(avatar.state, avatar.openness)
+
+
 def cmd_chat(args: argparse.Namespace) -> int:
     paths = get_paths()
     config = _config(paths)
-    prompt = args.prompt or ""
-    if not prompt:
-        console.print("Interactive chat arrives with the Web-UI (stage 6).")
-        console.print('For a real local answer use: [bold]kivi ask "привет"[/bold]')
+    if not args.prompt and not sys.stdin.isatty():
+        console.print('Interactive chat needs a terminal; use: kivi chat "вопрос"')
         return 0
+    try:
+        spec = (
+            _registry(paths).require(args.model)
+            if args.model
+            else _registry(paths).default_for("router")
+        )
+    except RegistryError as exc:
+        console.print(f"[red]model error:[/red] {exc}")
+        return 2
 
+    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
     task_id = f"tsk_{uuid.uuid4().hex[:12]}"
-    with _state(paths) as (db, bus):
-        db.create_task(task_id, "chat", {"prompt": prompt})
-        _memory(paths, db).add_message("user", prompt, task_id=task_id)
-        bus.emit("chat.request", task_id=task_id, source="cli", payload={"prompt": prompt})
-        db.update_task(task_id, "done")
+    avatar: AvatarController | None = None
+    renderer: Any = None
+    if args.avatar:
+        try:
+            avatar = AvatarController()
+            renderer = TkAvatarRenderer(
+                show=True,
+                always_on_top=config.avatar.always_on_top,
+            )
+            renderer.start()
+        except AvatarError as exc:
+            console.print(f"[yellow]avatar unavailable:[/yellow] {_plain(str(exc))}")
+            avatar = None
+            renderer = None
+    pipeline = _speech_pipeline(config) if args.speak else None
 
-    console.print(f"[cyan]Kivi[/cyan] (gateway stub, task {task_id}):")
-    console.print(f"Принято: {prompt}")
-    console.print(
-        f"[dim]voice={config.voice.provider}/{config.voice.speaker}, "
-        f"autonomy={config.autonomy}[/dim]"
-    )
+    with _state(paths) as (db, bus):
+        try:
+            extra_zones = _zones_extra(paths)
+        except ZoneManifestError as exc:
+            console.print(f"[red]protected zones error:[/red] {exc}")
+            return 1
+        zones = ProtectedZones(paths.root, extra_rules=extra_zones)
+        permissions = PermissionEngine(
+            db,
+            autonomy=config.autonomy,
+            workspace=str(paths.root),
+            events=bus,
+        )
+        executor = ToolExecutor(
+            registry,
+            db,
+            permissions,
+            zones,
+            workspace=paths.root,
+            events=bus,
+            killswitch=_kill_switch(paths, db, bus),
+        )
+        store = _memory(paths, db)
+        builder = ContextBuilder(store)
+        cache = paths.cache / "tts"
+
+        def approve(step: Any) -> bool:
+            tool = registry.get(step.tool)
+            risk = tool.risk if tool is not None else "?"
+            console.print(
+                f"[yellow]Требуется подтверждение:[/yellow] {step.tool} ({risk})"
+            )
+            if args.yes:
+                return True
+            try:
+                answer = input("Разрешить? [y/N] ").strip().lower()
+            except EOFError:
+                return False
+            return answer in {"y", "yes", "д", "да"}
+
+        try:
+            with OllamaBackend(timeout=args.timeout) as backend:
+                gateway = ModelGateway(
+                    registry,
+                    backend,
+                    vram_total_mb=config.model_gateway.vram_total_mb,
+                    safety_margin_mb=config.model_gateway.safety_margin_mb,
+                    allow_cpu_fallback=config.model_gateway.cpu_fallback,
+                    events=bus,
+                )
+
+                def llm(messages: list[dict[str, str]]) -> str:
+                    options: dict[str, int] = {"num_predict": args.num_predict}
+                    if spec.context > 0:
+                        options["num_ctx"] = spec.context
+                    return gateway.chat(
+                        spec.id,
+                        messages,
+                        keep_alive=args.keep_alive,
+                        options=options,
+                        wait_s=args.wait,
+                    )
+
+                brain = KiviBrain(llm, registry, executor, permissions)
+
+                def process(prompt: str) -> None:
+                    context = builder.build(prompt, task_id=task_id)
+                    store.add_message("user", prompt, task_id=task_id)
+                    result = brain.ask(
+                        prompt,
+                        context=context.text,
+                        task_id=task_id,
+                        approve=approve,
+                    )
+                    console.print(f"[cyan]Kivi:[/cyan] {_plain(result.answer)}")
+                    store.add_message(
+                        "assistant",
+                        result.answer,
+                        trust="untrusted:tool",
+                        task_id=task_id,
+                    )
+                    _speak(
+                        result.answer,
+                        pipeline,
+                        cache=cache,
+                        avatar=avatar,
+                        renderer=renderer,
+                        play=args.play,
+                    )
+                    if not args.prompt and result.ok:
+                        try:
+                            more = input("Подробнее? [d/N] ").strip().lower()
+                        except EOFError:
+                            more = ""
+                        if more in {"d", "да", "подробнее", "more"}:
+                            detail = brain.ask(
+                                f"{prompt}\nОбъясни подробнее и назови шаги.",
+                                context=context.text,
+                                task_id=task_id,
+                                approve=approve,
+                            )
+                            console.print(f"[cyan]Kivi:[/cyan] {_plain(detail.answer)}")
+                            store.add_message(
+                                "assistant",
+                                detail.answer,
+                                trust="untrusted:tool",
+                                task_id=task_id,
+                            )
+                            _speak(
+                                detail.answer,
+                                pipeline,
+                                cache=cache,
+                                avatar=avatar,
+                                renderer=renderer,
+                                play=args.play,
+                            )
+
+                if args.prompt:
+                    process(args.prompt)
+                    return 0
+                console.print("Kivi готова. /exit — выход.")
+                while True:
+                    try:
+                        prompt = input("Вы: ").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        console.print("")
+                        break
+                    if prompt.lower() in {"/exit", "/quit", "exit", "выход"}:
+                        break
+                    if prompt:
+                        process(prompt)
+        except (BackendError, GatewayError) as exc:
+            console.print(f"[red]model error:[/red] {_plain(str(exc))}")
+            return 1
+    if renderer is not None:
+        renderer.stop()
+    return 0
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    try:
+        spec = (
+            _registry(paths).require(args.model)
+            if args.model
+            else _registry(paths).default_for("router")
+        )
+    except RegistryError as exc:
+        console.print(f"[red]model error:[/red] {exc}")
+        return 2
+    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
+
+    def answer(message: str) -> str:
+        with _state(paths) as (db, bus):
+            try:
+                extra = _zones_extra(paths)
+            except ZoneManifestError as exc:
+                raise RuntimeError(str(exc)) from exc
+            zones = ProtectedZones(paths.root, extra_rules=extra)
+            permissions = PermissionEngine(
+                db,
+                autonomy=config.autonomy,
+                workspace=str(paths.root),
+                events=bus,
+            )
+            executor = ToolExecutor(
+                registry,
+                db,
+                permissions,
+                zones,
+                workspace=paths.root,
+                events=bus,
+                killswitch=_kill_switch(paths, db, bus),
+            )
+            store = _memory(paths, db)
+            context = ContextBuilder(store).build(message)
+            task_id = f"api-{uuid.uuid4().hex[:12]}"
+            store.add_message("user", message, task_id=task_id)
+            with OllamaBackend(timeout=args.timeout) as backend:
+                gateway = ModelGateway(
+                    registry,
+                    backend,
+                    vram_total_mb=config.model_gateway.vram_total_mb,
+                    safety_margin_mb=config.model_gateway.safety_margin_mb,
+                    allow_cpu_fallback=config.model_gateway.cpu_fallback,
+                    events=bus,
+                )
+
+                def llm(messages: list[dict[str, str]]) -> str:
+                    options: dict[str, int] = {"num_predict": args.num_predict}
+                    if spec.context > 0:
+                        options["num_ctx"] = spec.context
+                    return gateway.chat(
+                        spec.id,
+                        messages,
+                        keep_alive=args.keep_alive,
+                        options=options,
+                    )
+
+                result = KiviBrain(llm, registry, executor, permissions).ask(
+                    message,
+                    context=context.text,
+                    task_id=task_id,
+                )
+                store.add_message(
+                    "assistant",
+                    result.answer,
+                    trust="untrusted:tool",
+                    task_id=task_id,
+                )
+                return result.answer
+
+    api = LocalApi(answer, host=args.host, port=args.port)
+    try:
+        api.start()
+    except OSError as exc:
+        console.print(f"[red]api error:[/red] {_plain(str(exc))}")
+        return 1
+    console.print(f"Kivi API: [bold]{api.url}[/bold] (Ctrl+C чтобы остановить)")
+    try:
+        threading.Event().wait()
+    except KeyboardInterrupt:
+        console.print("\nОстанавливаю API.")
+    finally:
+        api.stop()
+    return 0
+
+
+def cmd_say(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    target = Path(args.out) if args.out else paths.cache / "tts"
+    pipeline = _speech_pipeline(config)
+    try:
+        results = pipeline.synthesize(args.text, target)
+    except TtsError as exc:
+        console.print(f"[red]tts error:[/red] {_plain(str(exc))}")
+        return 1
+    for result in results:
+        console.print(f"{result.engine}: {result.path} ({result.duration_s:.2f}s)")
+    if args.play:
+        try:
+            import winsound
+
+            for result in results:
+                winsound.PlaySound(str(result.path), winsound.SND_FILENAME)
+        except Exception as exc:  # noqa: BLE001 - audio is best effort
+            console.print(f"[yellow]playback unavailable:[/yellow] {_plain(str(exc))}")
     return 0
 
 
@@ -1459,9 +1804,33 @@ def build_parser() -> argparse.ArgumentParser:
     models = sub.add_parser("models", help="show model gateway settings and installed models")
     models.set_defaults(func=cmd_models)
 
-    chat = sub.add_parser("chat", help="chat placeholder (real answers: kivi ask)")
-    chat.add_argument("prompt", nargs="?", default="", help="prompt text")
+    chat = sub.add_parser("chat", help="local Kivi chat with planner and tools")
+    chat.add_argument("prompt", nargs="?", default="", help="prompt text; empty starts REPL")
+    chat.add_argument("-m", "--model", default=None, help="model id from config/models.yaml")
+    chat.add_argument("--keep-alive", default="5m", help="Ollama keep_alive after the answer")
+    chat.add_argument("--timeout", type=float, default=180.0, help="HTTP timeout in seconds")
+    chat.add_argument("--num-predict", type=int, default=512)
+    chat.add_argument("--wait", type=float, default=0.0, help="seconds to wait for a pinned model")
+    chat.add_argument("--speak", action="store_true", help="synthesize answers with TTS")
+    chat.add_argument("--play", action="store_true", help="play synthesized WAV files")
+    chat.add_argument("--avatar", action="store_true", help="open the 2D avatar window")
+    chat.add_argument("--yes", action="store_true", help="auto-approve R2/R3 tool steps")
     chat.set_defaults(func=cmd_chat)
+
+    serve = sub.add_parser("serve", help="run the local JSON chat API")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument("-m", "--model", default=None)
+    serve.add_argument("--keep-alive", default="5m")
+    serve.add_argument("--timeout", type=float, default=180.0)
+    serve.add_argument("--num-predict", type=int, default=512)
+    serve.set_defaults(func=cmd_serve)
+
+    say = sub.add_parser("say", help="synthesize text with Silero/Piper")
+    say.add_argument("text")
+    say.add_argument("--out", default="")
+    say.add_argument("--play", action="store_true")
+    say.set_defaults(func=cmd_say)
 
     ask = sub.add_parser("ask", help="ask a local model through the Model Gateway")
     ask.add_argument("prompt", help="prompt text")

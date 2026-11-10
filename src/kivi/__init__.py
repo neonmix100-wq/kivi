@@ -1,3 +1,3 @@
 """Kivi - local-first AI assistant."""
 
-__version__ = "0.1.0"
+__version__ = "0.14.0"

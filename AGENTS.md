@@ -50,6 +50,9 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe memory index -m bge-m3
 .venv\Scripts\kivi.exe memory similar "тёплый город" -m bge-m3
 .venv\Scripts\kivi.exe memory vector-sync -m bge-m3
+.venv\Scripts\kivi.exe chat "прочитай README.md"
+.venv\Scripts\kivi.exe say "Привет, это Киви."
+.venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\kivi.exe zones status
 ```
 
@@ -77,8 +80,10 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 - `src/kivi/memory/` — SQLite-память (messages/facts/preferences/artifacts,
   FTS5), эмбеддинги + hybrid-search (RRF), LanceDB-индекс, retention/суммаризация/TTL,
   approvals, content-addressed артефакты и Context Builder с бюджетом.
-- `src/kivi/brain/` — планировщик и исполнение (этапы 4–5).
-- `src/kivi/senses/`, `tools/`, `memory/`, `modules/`, `interfaces/`.
+- `src/kivi/brain/` — planner DAG, validator, executor с approvals/replan,
+  verifier, fastpath и `KiviBrain`.
+- `src/kivi/senses/` — Silero/Piper TTS и WAV; `src/kivi/interfaces/` — CLI,
+  локальный API и 2D-аватар.
 - `tests/unit/` — быстрые тесты без Ollama и сети.
 
 ## Инварианты

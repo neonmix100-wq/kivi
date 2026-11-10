@@ -54,10 +54,11 @@
 | 3 | ✅ закрыт | живой ключ (внешнее) |
 | 4 | ✅ закрыт | OCR/PDF — отдельный backlog |
 | 5 | 🟡 ~70% | LanceDB/ANN, суммаризация/TTL, approvals API |
-| 6–13 | ⬜ не начаты | см. этапы 6–13 |
+| 6 | ✅ закрыт | — |
+| 7–13 | ⬜ не начаты | см. этапы 7–13 |
 
-Текущая точка: **этап 4 закрыт → этап 5**. Следующий крупный срез — **M1: Core Kivi**
-(planner DAG, CLI-чат, TTS, 2D-аватар), после завершения LanceDB/ANN в памяти.
+Текущая точка: **этапы 0–6 закрыты → этап 7 (M2: Coder)**. Следующий крупный
+срез — песочница `code.run`, патчи/диффы, git и цикл тестов.
 
 ---
 
@@ -283,13 +284,18 @@ embedder'а, CLI `kivi memory index` и `memory similar` через Ollama/bge-m
 
 **Цель:** первый живой Kivi — текст, файлы, shell, память, голосовой вывод и анимация.
 
-- [ ] Fast path / deep path.
-- [ ] Planner DAG + validator + executor + verifier + replan.
-- [ ] CLI-чат + локальный API.
-- [ ] TTS **Silero `baya`** (`v5_ru`, 48 кГц), потоковая озвучка; fallback Piper `irina`.
-- [ ] **2D-аватар-заглушка** с липсинком по амплитуде и состояниями `idle/listening/thinking/speaking/error`.
-- [ ] Адаптивная подробность: кратко → «подробнее?».
-- [ ] 20 сценарных тестов.
+- [x] Fast path / deep path.
+- [x] Planner DAG + validator + executor + verifier + replan.
+- [x] CLI-чат + локальный API.
+- [x] TTS **Silero `baya`** (`v5_ru`, 48 кГц), потоковая озвучка по предложениям; fallback Piper `irina`.
+- [x] **2D-аватар-заглушка** с липсинком по амплитуде и состояниями `idle/listening/thinking/speaking/error`.
+- [x] Адаптивная подробность: кратко → «подробнее?».
+- [x] 20 сценарных тестов (22 теста).
+
+**Статус:** ✅ закрыт. Planner/executor/verifier/fastpath, `kivi chat`, `kivi serve`,
+Silero/Piper TTS, 2D-аватар и сценарный набор готовы. p50 fastpath — **0.84 с**,
+Silero синтезирует «Привет, это Киви.» за 1.46 с. Детали:
+[PLANNER](PLANNER.md), [VOICE-AVATAR](VOICE-AVATAR.md), [API](API.md).
 
 **M1-демо:**
 

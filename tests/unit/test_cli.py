@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 from kivi.interfaces import cli as cli_module
 from kivi.interfaces.cli import main
-from kivi.paths import Paths
+from kivi.paths import Paths, project_root
 
 CANDIDATES_YAML = """\
 candidates:
@@ -129,6 +131,7 @@ def make_tools_profile(tmp_path: Path) -> Paths:
     root = tmp_path / "repo"
     (root / "config").mkdir(parents=True)
     (root / "config" / "kivi.yaml").write_text("version: 1\n", encoding="utf-8")
+    shutil.copy(project_root() / "config" / "models.yaml", root / "config" / "models.yaml")
     (root / "notes.txt").write_text("hello world", encoding="utf-8")
     return Paths(root=root, home=tmp_path / "profile")
 
@@ -186,6 +189,29 @@ def test_tools_run_rejects_bad_json(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
 
     assert main(["tools", "run", "fs.read", "--args", "not-json"]) == 2
+
+
+def test_chat_uses_the_fast_path(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+    assert main(["chat", "прочитай notes.txt"]) == 0
+
+
+def test_say_uses_the_tts_pipeline(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+    target = tmp_path / "speech"
+    target.mkdir()
+
+    class FakePipeline:
+        def synthesize(self, text, output):
+            path = output / "speech_000.wav"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"RIFF")
+            return [SimpleNamespace(path=path, duration_s=0.1, engine="fake")]
+
+    monkeypatch.setattr(cli_module, "_speech_pipeline", lambda config: FakePipeline())
+    assert main(["say", "привет", "--out", str(target)]) == 0
 
 
 def test_module_entrypoint_delegates(monkeypatch) -> None:

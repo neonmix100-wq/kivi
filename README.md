@@ -1,14 +1,14 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–5 закрыты (v0.13). Работают `kivi doctor`, `kivi models`,
-> `kivi ask`, `kivi embed`, `kivi cloud status/ask/scout/handoff`,
-> `kivi tools list/run`, `kivi memory`, `kivi elevated`, `kivi killswitch`,
-> `kivi hotkey`, `kivi zones`, реестр моделей, VRAM-бюджет
-> (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite, Event Bus,
-> аудит, Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
-> санитайзер, kill switch, подписанный манифест зон, elevated broker и память
-> с FTS5, гибридным поиском, суммаризацией, TTL, approvals и LanceDB.
-> Осталось: M1 (planner/TTS/2D-аватар), OCR/PDF-читатели, живой облачный вызов.
+> **Статус:** этапы 0–6 закрыты (v0.14). Работают `kivi doctor`, `kivi models`,
+> `kivi ask`, `kivi chat`, `kivi serve`, `kivi say`, `kivi embed`,
+> `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`, `kivi memory`,
+> `kivi elevated`, `kivi killswitch`, `kivi hotkey`, `kivi zones`, реестр
+> моделей, VRAM-бюджет (NVML + nvidia-smi fallback), lease/eviction, watchdog,
+> SQLite, Event Bus, аудит, Policy Engine, Protected Zones, risk-политика R0–R4,
+> trust labels, санитайзер, kill switch, подписанный манифест зон, elevated
+> broker, память с FTS5/hybrid/LanceDB и M1 planner + TTS + 2D-аватар.
+> Осталось: M2 Coder, OCR/PDF-читатели, живой облачный вызов.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Быстрый старт
@@ -32,6 +32,9 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe memory context Новосибирск
 .venv\Scripts\kivi.exe memory stats
 .venv\Scripts\kivi.exe memory vector-sync -m bge-m3
+.venv\Scripts\kivi.exe chat "прочитай README.md"
+.venv\Scripts\kivi.exe say "Привет, это Киви." --play
+.venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
 ```
@@ -135,6 +138,9 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/MEMORY.md`](docs/MEMORY.md) | Память: сообщения, факты, артефакты, FTS5 и Context Builder |
 | [`docs/LIFECYCLE.md`](docs/LIFECYCLE.md) | Retention, суммаризация, TTL и durable approvals |
 | [`docs/VECTOR.md`](docs/VECTOR.md) | LanceDB-индекс, sync/rebuild и ANN-поиск |
+| [`docs/PLANNER.md`](docs/PLANNER.md) | Planner DAG, executor, verifier, replan и fastpath |
+| [`docs/VOICE-AVATAR.md`](docs/VOICE-AVATAR.md) | Silero/Piper TTS, WAV и 2D-аватар с липсинком |
+| [`docs/API.md`](docs/API.md) | Локальный JSON API `/health` и `/chat` |
 | [`docs/SHELL.md`](docs/SHELL.md) | Kivi Shell: замена Explorer, паритет, fail-safe |
 | [`docs/PERSONA.md`](docs/PERSONA.md) | Kivi: характер, голос, аватар, одежда, липсинк |
 | [`docs/VOICE-CLONING.md`](docs/VOICE-CLONING.md) | Улучшение Silero, согласие, датасет и пайплайн клонирования голоса |
