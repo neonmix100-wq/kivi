@@ -43,6 +43,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe tools run shell.exec --args '{"argv":["python","-V"]}' --dry-run
 .venv\Scripts\kivi.exe killswitch status
 .venv\Scripts\kivi.exe hotkey --check
+.venv\Scripts\kivi.exe memory stats
 .venv\Scripts\kivi.exe zones status
 ```
 
@@ -66,6 +67,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
   `fs.*`, `shell.exec`, `http.get`, `proc.*`, `clipboard.*`, `screen.capture`.
   Каждый вызов идёт через executor и пишется в аудит.
 - `src/kivi/models/` — registry, Ollama backend, VRAM budget, lease/eviction.
+- `src/kivi/memory/` — SQLite-память (messages/facts/preferences/artifacts,
+  FTS5), content-addressed артефакты и Context Builder с бюджетом.
 - `src/kivi/brain/` — планировщик и исполнение (этапы 4–5).
 - `src/kivi/senses/`, `tools/`, `memory/`, `modules/`, `interfaces/`.
 - `tests/unit/` — быстрые тесты без Ollama и сети.

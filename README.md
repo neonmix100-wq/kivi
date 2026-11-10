@@ -1,13 +1,14 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этап 4 — инструменты и безопасность, второй срез (v0.11).
+> **Статус:** этап 5 — память и контекст, первый срез (v0.12).
 > Работают `kivi doctor`, `kivi models`, `kivi ask`, `kivi embed`,
-> `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`, реестр моделей,
-> VRAM-бюджет (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite,
-> Event Bus, аудит, Policy Engine, Protected Zones, risk-политика R0–R4,
-> trust labels, санитайзер недоверенного контента, kill switch и подписанный
-> манифест Protected Zones.
-> Осталось: elevated broker, OCR/PDF-читатели; живой облачный вызов с ключом.
+> `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`, `kivi memory`,
+> `kivi killswitch`, `kivi hotkey`, `kivi zones`, реестр моделей, VRAM-бюджет
+> (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite, Event Bus,
+> аудит, Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
+> санитайзер, kill switch и подписанный манифест зон.
+> Осталось: LanceDB + bge-m3, elevated broker, OCR/PDF-читатели;
+> живой облачный вызов с ключом.
 
 ## Быстрый старт
 
@@ -25,6 +26,9 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe tools list
 .venv\Scripts\kivi.exe tools run fs.read --args '{"path":"README.md"}'
 .venv\Scripts\kivi.exe killswitch status
+.venv\Scripts\kivi.exe memory remember city Новосибирск --source user
+.venv\Scripts\kivi.exe memory context Новосибирск
+.venv\Scripts\kivi.exe memory stats
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
 ```
@@ -123,6 +127,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Модель угроз, prompt injection, egress, тесты |
 | [`docs/TOOLS.md`](docs/TOOLS.md) | Контракт Tool, Permission Engine, Protected Zones, риски R0–R4 |
 | [`docs/TRUST.md`](docs/TRUST.md) | Trust labels, envelope, санитайзер и injection-корпус |
+| [`docs/MEMORY.md`](docs/MEMORY.md) | Память: сообщения, факты, артефакты, FTS5 и Context Builder |
 | [`docs/SHELL.md`](docs/SHELL.md) | Kivi Shell: замена Explorer, паритет, fail-safe |
 | [`docs/PERSONA.md`](docs/PERSONA.md) | Kivi: характер, голос, аватар, одежда, липсинк |
 | [`docs/VOICE-CLONING.md`](docs/VOICE-CLONING.md) | Улучшение Silero, согласие, датасет и пайплайн клонирования голоса |

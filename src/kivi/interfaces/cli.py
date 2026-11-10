@@ -12,6 +12,7 @@ import sys
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
@@ -35,6 +36,7 @@ from kivi.doctor import ollama_models, run_checks, summary
 from kivi.kernel.db import Database
 from kivi.kernel.events import EventBus
 from kivi.kernel.logs import JsonlLogger
+from kivi.memory import ContextBuilder, MemoryStore
 from kivi.models import (
     BackendError,
     GatewayError,
@@ -241,6 +243,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     task_id = f"tsk_{uuid.uuid4().hex[:12]}"
     with _state(paths) as (db, bus):
         db.create_task(task_id, "chat", {"prompt": prompt})
+        _memory(paths, db).add_message("user", prompt, task_id=task_id)
         bus.emit("chat.request", task_id=task_id, source="cli", payload={"prompt": prompt})
         db.update_task(task_id, "done")
 
@@ -890,6 +893,160 @@ def cmd_hotkey(args: argparse.Namespace) -> int:
     return 0
 
 
+def _memory(paths: Paths, db: Database) -> MemoryStore:
+    return MemoryStore(db, paths.artifacts)
+
+
+def cmd_memory_add(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        try:
+            message_id = _memory(paths, db).add_message(
+                args.role,
+                args.content,
+                trust=args.trust,
+                task_id=args.task_id,
+            )
+        except ValueError as exc:
+            console.print(f"[red]memory error:[/red] {exc}")
+            return 1
+    console.print(f"stored message #{message_id}")
+    return 0
+
+
+def cmd_memory_search(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        store = _memory(paths, db)
+        facts = store.search_facts(args.query, args.limit)
+        messages = store.search_messages(args.query, args.limit)
+    if not facts and not messages:
+        console.print("Nothing found.")
+        return 0
+    if facts:
+        table = Table(title="Facts")
+        table.add_column("Key", style="bold")
+        table.add_column("Value", overflow="fold")
+        table.add_column("Trust")
+        table.add_column("Source", overflow="fold")
+        for fact in facts:
+            table.add_row(
+                fact["key"],
+                _safe_text(str(fact["value"])),
+                fact["trust"],
+                _safe_text(str(fact["source"] or "-")),
+            )
+        console.print(table)
+    if messages:
+        table = Table(title="Messages")
+        table.add_column("ID", justify="right")
+        table.add_column("Role")
+        table.add_column("Trust")
+        table.add_column("Snippet", overflow="fold")
+        for message in messages:
+            table.add_row(
+                str(message["id"]),
+                message["role"],
+                message["trust"],
+                _safe_text(str(message["snippet"] or message["content"])),
+            )
+        console.print(table)
+    return 0
+
+
+def cmd_memory_recent(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        rows = _memory(paths, db).recent_messages(args.limit)
+    if not rows:
+        console.print("Memory is empty.")
+        return 0
+    table = Table(title=f"Last {len(rows)} messages")
+    table.add_column("ID", justify="right")
+    table.add_column("Role")
+    table.add_column("Trust")
+    table.add_column("Content", overflow="fold")
+    for row in rows:
+        table.add_row(
+            str(row["id"]),
+            row["role"],
+            row["trust"],
+            _safe_text(str(row["content"])),
+        )
+    console.print(table)
+    return 0
+
+
+def cmd_memory_remember(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        try:
+            fact_id = _memory(paths, db).remember(
+                args.key,
+                args.value,
+                source=args.source,
+                trust=args.trust,
+                confidence=args.confidence,
+            )
+        except ValueError as exc:
+            console.print(f"[red]memory error:[/red] {exc}")
+            return 1
+    console.print(f"remembered {args.key} (#{fact_id})")
+    return 0
+
+
+def cmd_memory_forget(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        removed = _memory(paths, db).forget(args.key)
+    if not removed:
+        console.print(f"no fact named {args.key}")
+        return 1
+    console.print(f"forgot {args.key}")
+    return 0
+
+
+def cmd_memory_stats(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        stats = _memory(paths, db).stats()
+    table = Table(title="Kivi memory")
+    table.add_column("Store")
+    table.add_column("Rows", justify="right")
+    for name, count in stats.items():
+        table.add_row(name, str(count))
+    console.print(table)
+    return 0
+
+
+def cmd_memory_export(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        payload = _memory(paths, db).export_json()
+    if args.out:
+        target = Path(args.out)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(payload, encoding="utf-8")
+        console.print(f"exported to {target}")
+    else:
+        console.print(_safe_text(payload))
+    return 0
+
+
+def cmd_memory_context(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        builder = ContextBuilder(_memory(paths, db), max_chars=args.max_chars)
+        context = builder.build(args.query, task_id=args.task_id)
+    if context.empty:
+        console.print("Context is empty.")
+        return 0
+    console.print(_safe_text(context.text))
+    if context.truncated:
+        console.print("[yellow]context truncated to budget[/yellow]")
+    return 0
+
+
 def cmd_audit(args: argparse.Namespace) -> int:
     paths = get_paths()
     with _state(paths) as (db, _):
@@ -1083,6 +1240,47 @@ def build_parser() -> argparse.ArgumentParser:
     hotkey.add_argument("--once", action="store_true", help="stop after the first press")
     hotkey.add_argument("--check", action="store_true", help="validate the hotkey and exit")
     hotkey.set_defaults(func=cmd_hotkey)
+
+    memory = sub.add_parser("memory", help="messages, facts, preferences and artifacts")
+    memory_sub = memory.add_subparsers(dest="memory_command")
+    memory_add = memory_sub.add_parser("add", help="store a message")
+    memory_add.add_argument("content")
+    memory_add.add_argument(
+        "--role",
+        choices=("user", "assistant", "system", "tool"),
+        default="user",
+    )
+    memory_add.add_argument("--trust", default="trusted:user")
+    memory_add.add_argument("--task-id", default="")
+    memory_add.set_defaults(func=cmd_memory_add)
+    memory_search = memory_sub.add_parser("search", help="search facts and messages")
+    memory_search.add_argument("query")
+    memory_search.add_argument("-n", "--limit", type=int, default=10)
+    memory_search.set_defaults(func=cmd_memory_search)
+    memory_recent = memory_sub.add_parser("recent", help="show recent messages")
+    memory_recent.add_argument("-n", "--limit", type=int, default=20)
+    memory_recent.set_defaults(func=cmd_memory_recent)
+    memory_remember = memory_sub.add_parser("remember", help="store or update a fact")
+    memory_remember.add_argument("key")
+    memory_remember.add_argument("value")
+    memory_remember.add_argument("--source", default="")
+    memory_remember.add_argument("--trust", default="trusted:user")
+    memory_remember.add_argument("--confidence", type=float, default=1.0)
+    memory_remember.set_defaults(func=cmd_memory_remember)
+    memory_forget = memory_sub.add_parser("forget", help="delete a fact")
+    memory_forget.add_argument("key")
+    memory_forget.set_defaults(func=cmd_memory_forget)
+    memory_stats = memory_sub.add_parser("stats", help="show row counts")
+    memory_stats.set_defaults(func=cmd_memory_stats)
+    memory_export = memory_sub.add_parser("export", help="export memory as JSON")
+    memory_export.add_argument("--out", default="")
+    memory_export.set_defaults(func=cmd_memory_export)
+    memory_context = memory_sub.add_parser("context", help="build a context window")
+    memory_context.add_argument("query")
+    memory_context.add_argument("--task-id", default="")
+    memory_context.add_argument("--max-chars", type=int, default=6000)
+    memory_context.set_defaults(func=cmd_memory_context)
+    memory.set_defaults(func=cmd_memory_stats)
 
     events = sub.add_parser("events", help="show recent events")
     events.add_argument("-n", "--limit", type=int, default=20)

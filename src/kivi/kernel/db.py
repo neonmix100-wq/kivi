@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 MIGRATIONS: dict[int, list[str]] = {
     1: [
@@ -95,6 +95,112 @@ MIGRATIONS: dict[int, list[str]] = {
         )
         """,
         "CREATE INDEX IF NOT EXISTS idx_handoffs_created ON handoffs (created_at)",
+    ],
+    4: [
+        """
+        CREATE TABLE IF NOT EXISTS messages (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id    TEXT,
+            role       TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system', 'tool')),
+            content    TEXT NOT NULL,
+            trust      TEXT NOT NULL DEFAULT 'untrusted:tool',
+            created_at TEXT NOT NULL
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_messages_task ON messages (task_id)",
+        "CREATE INDEX IF NOT EXISTS idx_messages_created ON messages (created_at)",
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+            content,
+            content='messages',
+            content_rowid='id'
+        )
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+            INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
+        END
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+            INSERT INTO messages_fts(messages_fts, rowid, content)
+            VALUES ('delete', old.id, old.content);
+        END
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+            INSERT INTO messages_fts(messages_fts, rowid, content)
+            VALUES ('delete', old.id, old.content);
+            INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
+        END
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS facts (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            key        TEXT NOT NULL UNIQUE,
+            value      TEXT NOT NULL,
+            source     TEXT NOT NULL DEFAULT '',
+            trust      TEXT NOT NULL DEFAULT 'trusted:user',
+            confidence REAL NOT NULL DEFAULT 1.0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_facts_updated ON facts (updated_at)",
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts USING fts5(
+            key,
+            value,
+            content='facts',
+            content_rowid='id'
+        )
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS facts_ai AFTER INSERT ON facts BEGIN
+            INSERT INTO facts_fts(rowid, key, value) VALUES (new.id, new.key, new.value);
+        END
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS facts_ad AFTER DELETE ON facts BEGIN
+            INSERT INTO facts_fts(facts_fts, rowid, key, value)
+            VALUES ('delete', old.id, old.key, old.value);
+        END
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS facts_au AFTER UPDATE ON facts BEGIN
+            INSERT INTO facts_fts(facts_fts, rowid, key, value)
+            VALUES ('delete', old.id, old.key, old.value);
+            INSERT INTO facts_fts(rowid, key, value) VALUES (new.id, new.key, new.value);
+        END
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS preferences (
+            key        TEXT PRIMARY KEY,
+            value      TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS artifacts (
+            sha256     TEXT PRIMARY KEY,
+            path       TEXT NOT NULL,
+            mime       TEXT NOT NULL DEFAULT '',
+            bytes      INTEGER NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS approvals (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id    TEXT NOT NULL,
+            action     TEXT NOT NULL,
+            scope      TEXT NOT NULL DEFAULT '',
+            granted_at TEXT NOT NULL,
+            expires_at TEXT,
+            revoked_at TEXT
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_approvals_task ON approvals (task_id)",
     ],
 }
 

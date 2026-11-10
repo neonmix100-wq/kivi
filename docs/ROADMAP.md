@@ -213,14 +213,22 @@ workspace-cwd, минимальный env, detached-процесс); 6 тест�
 
 ## 8. Этап 5 — память и контекст (5–7 дней)
 
-- [ ] SQLite: messages, facts, artifacts, preferences, approvals.
-- [ ] Артефакты content-addressed.
+- [x] SQLite: messages, facts, artifacts, preferences, approvals (approvals — схема).
+- [x] Артефакты content-addressed.
 - [ ] LanceDB + bge-m3 на CPU.
 - [ ] Гибридный поиск FTS5 + вектор + свежесть.
-- [ ] Профиль и правила.
-- [ ] Context Builder с бюджетом и суммаризацией.
+- [x] Профиль и правила (preferences + facts).
+- [x] Context Builder с бюджетом (суммаризация — позже).
 - [ ] Импорт `D:\AI-base` read-only.
-- [ ] `kivi memory search/forget/export`.
+- [x] `kivi memory add/search/recent/remember/forget/stats/export/context`.
+
+**Сделано в первом срезе:** миграция 4 (messages, facts, preferences,
+artifacts, approvals) с FTS5 и триггерами; `MemoryStore` (upsert фактов,
+поиск, артефакты по SHA-256, export/stats); `ContextBuilder` с trust-envelope,
+санитайзером и бюджетом; CLI `kivi memory ...`; `kivi chat` пишет сообщение
+пользователя в память; 15 тестов.
+**Осталось:** LanceDB + bge-m3, гибридный поиск со свежестью, суммаризация
+старых сообщений, импорт `D:\AI-base`, API approvals.
 
 **Приёмка:** 10 фактов находятся после перезапуска; 20 запросов к базе дают релевантные источники;
 «забудь X» удаляет запись и векторы; секреты не индексируются.
