@@ -28,23 +28,24 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.cloud.__init__` | 39 | Cloud Broker: policy, quotas and local handoff. |
-| `src.kivi.cloud.broker` | 440 | Cloud Broker: policy, quotas, audited calls and local handoff. |
+| `src.kivi.cloud.__init__` | 61 | Cloud Broker: policy, quotas and local handoff. |
+| `src.kivi.cloud.broker` | 506 | Cloud Broker: policy, quotas, audited calls and local handoff. |
 | `src.kivi.cloud.providers` | 121 | Cloud providers: metadata only, never secrets. |
+| `src.kivi.cloud.scout` | 545 | Cloud Scout: free-provider discovery, cards and manual confirmation. |
 
 ## interfaces
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 1 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.cli` | 524 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 790 | Command-line interface (stage 1). |
 
 ## kernel
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.kernel.__init__` | 1 | Kernel primitives: storage, events and audit. |
-| `src.kivi.kernel.db` | 295 | SQLite storage with forward-only migrations. |
+| `src.kivi.kernel.db` | 343 | SQLite storage with forward-only migrations. |
 | `src.kivi.kernel.events` | 75 | In-process event bus. |
 | `src.kivi.kernel.logs` | 43 | Append-only JSONL logs. |
 
@@ -94,12 +95,13 @@ generated: true
 
 ## Тесты
 
-Всего файлов: **16**.
+Всего файлов: **17**.
 
 - `tests/unit/test_bench_gateway.py`
 - `tests/unit/test_cli.py`
 - `tests/unit/test_cloud.py`
 - `tests/unit/test_cloud_providers.py`
+- `tests/unit/test_cloud_scout.py`
 - `tests/unit/test_config.py`
 - `tests/unit/test_db.py`
 - `tests/unit/test_doctor.py`

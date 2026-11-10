@@ -15,7 +15,20 @@ from contextlib import contextmanager
 from rich.console import Console
 from rich.table import Table
 
-from kivi.cloud import CloudBroker, CloudRegistryError, load_cloud_registry
+from kivi.cloud import (
+    CloudBroker,
+    CloudError,
+    CloudRegistryError,
+    CloudScout,
+    QuotaExhausted,
+    ScoutError,
+    ScoutQuery,
+    build_handoff,
+    load_cloud_registry,
+    load_handoff,
+    load_scout_registry,
+    save_handoff,
+)
 from kivi.config import ConfigError, KiviConfig, load_config
 from kivi.doctor import ollama_models, run_checks, summary
 from kivi.kernel.db import Database
@@ -403,6 +416,204 @@ def cmd_events(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cloud_scout(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    candidates_path = paths.root / "config" / "cloud-candidates.yaml"
+    registry_path = paths.root / "config" / "cloud.yaml"
+    try:
+        candidates = load_scout_registry(candidates_path)
+        registry = load_cloud_registry(registry_path)
+    except (CloudRegistryError, ScoutError) as exc:
+        console.print(f"[red]cloud scout error:[/red] {exc}")
+        return 1
+
+    with _state(paths) as (db, events):
+        scout = CloudScout(db, registry, candidates, events=events)
+        if args.approve:
+            try:
+                provider = scout.approve(args.approve, registry_path)
+            except ScoutError as exc:
+                console.print(f"[red]cloud scout error:[/red] {exc}")
+                return 1
+            console.print(
+                f"[green]approved[/green] {provider.id} in config/cloud.yaml "
+                f"(key env: {provider.api_key_env or 'none'})"
+            )
+            console.print("Set the environment variable, then check `kivi cloud status`.")
+            return 0
+
+        try:
+            query = ScoutQuery(
+                capability=args.capability,
+                data_class=args.data_class,
+                allow_training_data=args.allow_training
+                or config.model_gateway.cloud.allow_data_for_training,
+                allow_watermark=args.allow_watermark,
+                include_configured=args.include_configured,
+                limit=args.limit,
+            )
+        except ScoutError as exc:
+            console.print(f"[red]cloud scout error:[/red] {exc}")
+            return 1
+
+        if args.goal:
+            outcome = scout.on_exhausted(
+                query,
+                goal=args.goal,
+                reason=args.reason or "no free provider matched",
+                next_step=args.next_step,
+            )
+            cards = outcome.cards
+        else:
+            outcome = None
+            cards = scout.recommend(query)
+
+    if not cards:
+        console.print("No matching free provider in the Scout catalog.")
+        if outcome is not None and outcome.handoff is not None:
+            console.print(f"Local handoff saved as #{outcome.handoff_id}:")
+            console.print(outcome.handoff.to_prompt())
+        else:
+            console.print("Pass --goal to save a local handoff, or run a local model directly.")
+        return 0
+    for index, card in enumerate(cards):
+        if index:
+            console.print("")
+        console.print(card.to_text())
+    if outcome is not None:
+        console.print("\nUser confirmation is required: re-run with --approve <id>.")
+    return 0
+
+
+def _handoff_after_quota(
+    paths: Paths,
+    db: Database,
+    events: EventBus,
+    config: KiviConfig,
+    args: argparse.Namespace,
+    reason: str,
+) -> int:
+    """Checkpoint the task, then run Cloud Scout before giving up on the cloud."""
+    goal = args.goal or args.prompt
+    if config.model_gateway.cloud.scout_on_quota_exhausted:
+        try:
+            candidates = load_scout_registry(paths.root / "config" / "cloud-candidates.yaml")
+            registry = load_cloud_registry(paths.root / "config" / "cloud.yaml")
+        except (CloudRegistryError, ScoutError) as exc:
+            console.print(f"[yellow]Cloud Scout unavailable:[/yellow] {exc}")
+        else:
+            scout = CloudScout(db, registry, candidates, events=events)
+            outcome = scout.on_exhausted(
+                ScoutQuery(
+                    data_class=args.data_class,
+                    allow_training_data=config.model_gateway.cloud.allow_data_for_training,
+                    allow_watermark=args.allow_watermark,
+                ),
+                goal=goal,
+                reason=reason,
+                next_step=args.next_step,
+                task_id=args.task_id,
+            )
+            console.print(f"[yellow]quota exhausted:[/yellow] {reason}")
+            console.print(f"Checkpoint saved as handoff #{outcome.handoff_id}.")
+            if outcome.found:
+                console.print("Cloud Scout found replacement providers:")
+                for index, card in enumerate(outcome.cards):
+                    if index:
+                        console.print("")
+                    console.print(card.to_text())
+                console.print("\nConfirm one with: kivi cloud scout --approve <id>")
+            else:
+                console.print("No free provider matched; continue locally from the handoff:")
+                console.print(outcome.handoff.to_prompt() if outcome.handoff else "")
+            return 1
+
+    pack = build_handoff(goal, reason, next_step=args.next_step, task_id=args.task_id)
+    handoff_id = save_handoff(db, pack)
+    console.print(f"[yellow]quota exhausted:[/yellow] {reason}")
+    console.print(f"Local handoff saved as #{handoff_id}:")
+    console.print(pack.to_prompt())
+    return 1
+
+
+def cmd_cloud_ask(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    try:
+        registry = load_cloud_registry(paths.root / "config" / "cloud.yaml")
+    except CloudRegistryError as exc:
+        console.print(f"[red]cloud error:[/red] {exc}")
+        return 1
+
+    with _state(paths) as (db, events):
+        broker = CloudBroker(db, config.model_gateway.cloud, registry, events=events)
+        try:
+            provider_id = args.provider or next(
+                (status.provider for status in broker.status() if status.key_configured),
+                "",
+            )
+            if not provider_id:
+                console.print("[yellow]No cloud provider has a key configured.[/yellow]")
+                console.print("Set an api_key_env variable from config/cloud.yaml.")
+                return 1
+            result = broker.complete(
+                provider_id,
+                [{"role": "user", "content": args.prompt}],
+                model=args.model,
+                data_class=args.data_class,
+                max_tokens=args.max_tokens,
+                task_id=args.task_id,
+            )
+        except QuotaExhausted as exc:
+            return _handoff_after_quota(paths, db, events, config, args, str(exc))
+        except CloudError as exc:
+            console.print(f"[red]cloud error:[/red] {exc}")
+            return 1
+        finally:
+            broker.close()
+
+    console.print(result.text)
+    console.print(
+        f"[dim]{result.provider}/{result.model}: {result.tokens} tokens, "
+        f"${result.cost_usd:.4f}[/dim]"
+    )
+    return 0
+
+
+def cmd_cloud_handoffs(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        if args.show is not None:
+            pack = load_handoff(db, args.show)
+            if pack is None:
+                console.print(f"[red]unknown handoff:[/red] {args.show}")
+                return 1
+            console.print(pack.to_prompt())
+            return 0
+        rows = db.recent_handoffs(args.limit)
+    if not rows:
+        console.print("No saved handoffs.")
+        return 0
+    table = Table(title=f"Last {len(rows)} handoffs")
+    table.add_column("ID", justify="right")
+    table.add_column("Time")
+    table.add_column("Task", overflow="fold")
+    table.add_column("Goal", overflow="fold")
+    table.add_column("Reason", overflow="fold")
+    for row in rows:
+        table.add_row(
+            str(row["id"]),
+            row["created_at"],
+            row["task_id"] or "-",
+            row["goal"],
+            row["reason"],
+        )
+    console.print(table)
+    console.print("Show one with: kivi cloud handoff --show <id>")
+    return 0
+
+
 def cmd_audit(args: argparse.Namespace) -> int:
     paths = get_paths()
     with _state(paths) as (db, _):
@@ -492,6 +703,61 @@ def build_parser() -> argparse.ArgumentParser:
     cloud_sub = cloud.add_subparsers(dest="cloud_command")
     cloud_status = cloud_sub.add_parser("status", help="provider quota and key status")
     cloud_status.set_defaults(func=cmd_cloud_status)
+
+    cloud_scout = cloud_sub.add_parser("scout", help="find and approve a free provider")
+    cloud_scout.add_argument(
+        "-c",
+        "--capability",
+        choices=["llm", "image", "video", "embedding"],
+        default="llm",
+    )
+    cloud_scout.add_argument("--data-class", default="public")
+    cloud_scout.add_argument(
+        "--allow-training",
+        action="store_true",
+        help="permit candidates whose free tier may train on data",
+    )
+    cloud_scout.add_argument(
+        "--allow-watermark",
+        action="store_true",
+        help="permit candidates that always watermark output",
+    )
+    cloud_scout.add_argument("--include-configured", action="store_true")
+    cloud_scout.add_argument("-n", "--limit", type=int, default=3)
+    cloud_scout.add_argument("--approve", metavar="ID", help="append this candidate to cloud.yaml")
+    cloud_scout.add_argument("--goal", default="", help="save a handoff if nothing matches")
+    cloud_scout.add_argument("--reason", default="", help="handoff reason")
+    cloud_scout.add_argument("--next-step", default="", help="handoff next step")
+    cloud_scout.set_defaults(func=cmd_cloud_scout)
+
+    cloud_ask = cloud_sub.add_parser(
+        "ask",
+        help="call a free cloud provider; on quota exhaustion checkpoint and scout",
+    )
+    cloud_ask.add_argument("prompt")
+    cloud_ask.add_argument("-p", "--provider", default="", help="provider id from cloud.yaml")
+    cloud_ask.add_argument("-m", "--model", default="", help="model id; provider default if empty")
+    cloud_ask.add_argument(
+        "--data-class",
+        default="private",
+        choices=["public", "internal", "private", "secret"],
+    )
+    cloud_ask.add_argument("--max-tokens", type=int, default=512)
+    cloud_ask.add_argument("--task-id", default="")
+    cloud_ask.add_argument("--goal", default="", help="handoff goal; defaults to the prompt")
+    cloud_ask.add_argument("--next-step", default="", help="handoff next step")
+    cloud_ask.add_argument(
+        "--allow-watermark",
+        action="store_true",
+        help="permit Scout candidates that watermark output",
+    )
+    cloud_ask.set_defaults(func=cmd_cloud_ask)
+
+    cloud_handoff = cloud_sub.add_parser("handoff", help="list or show saved handoffs")
+    cloud_handoff.add_argument("-n", "--limit", type=int, default=20)
+    cloud_handoff.add_argument("--show", type=int, default=None, metavar="ID")
+    cloud_handoff.set_defaults(func=cmd_cloud_handoffs)
+
     cloud.set_defaults(func=cmd_cloud_status)
 
     events = sub.add_parser("events", help="show recent events")

@@ -1,11 +1,11 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этап 3 — Cloud Broker, первый срез (v0.8). Работают `kivi doctor`,
-> `kivi models`, `kivi ask`, `kivi embed`, `kivi cloud status`, реестр моделей,
-> VRAM-бюджет (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite,
-> Event Bus, аудит и Policy Engine.
-> Осталось: облачный fallback (этап 3); этап 2 закрыт — benchmark полного цикла
-> chat → code → embedding → chat пройден (`docs/BENCH-GATEWAY.md`).
+> **Статус:** этап 3 — Cloud Broker, второй срез (v0.9). Работают `kivi doctor`,
+> `kivi models`, `kivi ask`, `kivi embed`, `kivi cloud status`, `kivi cloud ask`,
+> `kivi cloud scout`, `kivi cloud handoff`, реестр моделей, VRAM-бюджет
+> (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite, Event Bus,
+> аудит и Policy Engine.
+> Осталось: живой вызов с ключом, denylist/redaction перед облаком (этап 4).
 
 ## Быстрый старт
 
@@ -18,6 +18,8 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe ask "объясни коротко" --stream --keep-alive 0
 .venv\Scripts\kivi.exe embed "local assistant" --keep-alive 0
 .venv\Scripts\kivi.exe cloud status
+.venv\Scripts\kivi.exe cloud scout
+.venv\Scripts\kivi.exe cloud handoff
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
 ```
@@ -152,8 +154,12 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
    `kivi ask`, nvidia-smi-бюджет, lease/eviction, события `model.*`.
 6. ~~Watchdog и метрики.~~ Сделано: `GatewayWatchdog`, сверка с `/api/ps`,
    `gateway.status()`, benchmark-стенд `scripts/bench_gateway.py`.
-7. Довести Gateway: NVML и shared-метрики, streaming, очередь, fallback CPU → облако,
-   реальные 20 переключений; затем Cloud Broker (этап 3) и Permission Engine (этап 4).
+7. ~~Cloud Broker (этап 3): реестр, квоты, Scout, handoff.~~ Сделано: `config/cloud.yaml`,
+   `config/cloud-candidates.yaml`, `QuotaExhausted` + SQLite-чекпойнты,
+   `kivi cloud ask/scout/handoff`.
+8. Этап 4: контракт `Tool`, Permission Engine, Protected Zones, Trust labels,
+   Capability Broker, denylist/redaction перед облаком.
+9. Живой облачный вызов с ключом из env и проверка провайдера.
 
 ## 10. Разработка и база знаний
 

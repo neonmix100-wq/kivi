@@ -1,0 +1,134 @@
+# Candidate free providers for Cloud Scout (stage 3).
+# Metadata only: no keys, no accounts. `verified_at: null` means the limits and
+# terms were NOT checked against the provider's live page — always re-check
+# before approving. Approval copies an entry into `config/cloud.yaml`; the key
+# itself is still supplied through the named environment variable.
+#
+# Cloud Scout never creates accounts, bypasses CAPTCHA or accepts terms for you.
+
+candidates:
+  - id: openrouter
+    name: OpenRouter free models
+    type: llm
+    capabilities: [llm]
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    default_model: ""
+    free_requests_per_day: 50
+    free_tokens_per_day: null
+    rate_limit_per_min: null
+    free_quota_note: "only models with the :free suffix; request limits vary by model"
+    reset_at: "provider-defined"
+    data_policy: public_only
+    trains_on_data: true
+    watermark: none
+    max_size: "model context window"
+    source_url: https://openrouter.ai/docs
+    verified_at: null
+    enabled: true
+    notes: "Already approved in cloud.yaml; keep limits conservative."
+
+  - id: groq
+    name: Groq Cloud free tier
+    type: llm
+    capabilities: [llm]
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    default_model: ""
+    free_requests_per_day: 100
+    free_tokens_per_day: null
+    rate_limit_per_min: 30
+    free_quota_note: "per-model daily request and token caps"
+    reset_at: "daily"
+    data_policy: public_only
+    trains_on_data: false
+    watermark: none
+    max_size: "model context window"
+    source_url: https://console.groq.com/docs/rate-limits
+    verified_at: null
+    enabled: true
+    notes: "Already approved in cloud.yaml; very low latency."
+
+  - id: google_ai_studio
+    name: Google AI Studio (Gemini API)
+    type: llm
+    capabilities: [llm, embedding]
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
+    api_key_env: GEMINI_API_KEY
+    default_model: ""
+    free_requests_per_day: 50
+    free_tokens_per_day: null
+    rate_limit_per_min: 10
+    free_quota_note: "free tier is model- and region-dependent"
+    reset_at: "daily"
+    data_policy: public_only
+    trains_on_data: true
+    watermark: none
+    max_size: "model context window"
+    source_url: https://ai.google.dev/gemini-api/docs/pricing
+    verified_at: null
+    enabled: true
+    notes: "OpenAI-compatible endpoint; free-tier data may be used to improve products."
+
+  - id: mistral
+    name: Mistral La Plateforme free tier
+    type: llm
+    capabilities: [llm, embedding]
+    base_url: https://api.mistral.ai/v1
+    api_key_env: MISTRAL_API_KEY
+    default_model: ""
+    free_requests_per_day: 100
+    free_tokens_per_day: null
+    rate_limit_per_min: 5
+    free_quota_note: "free experiment tier; monthly reset"
+    reset_at: "monthly"
+    data_policy: public_only
+    trains_on_data: true
+    watermark: none
+    max_size: "model context window"
+    source_url: https://docs.mistral.ai/deployment/laplateforme/tier/
+    verified_at: null
+    enabled: true
+    notes: "Free tier may be used for training unless opted out."
+
+  - id: cerebras
+    name: Cerebras Inference free tier
+    type: llm
+    capabilities: [llm]
+    base_url: https://api.cerebras.ai/v1
+    api_key_env: CEREBRAS_API_KEY
+    default_model: ""
+    free_requests_per_day: 100
+    free_tokens_per_day: null
+    rate_limit_per_min: 30
+    free_quota_note: "developer free tier; model-dependent limits"
+    reset_at: "daily"
+    data_policy: public_only
+    trains_on_data: true
+    watermark: none
+    max_size: "model context window"
+    source_url: https://inference-docs.cerebras.ai/support/pricing
+    verified_at: null
+    enabled: true
+    notes: "Very fast inference; check current free-tier terms."
+
+  - id: huggingface
+    name: Hugging Face Inference Providers
+    type: llm
+    capabilities: [llm, embedding]
+    base_url: https://router.huggingface.co/v1
+    api_key_env: HF_TOKEN
+    default_model: ""
+    free_requests_per_day: 50
+    free_tokens_per_day: null
+    rate_limit_per_min: null
+    free_quota_note: "small monthly free credit; provider-dependent"
+    reset_at: "monthly"
+    data_policy: public_only
+    trains_on_data: true
+    watermark: none
+    max_size: "model context window"
+    source_url: https://huggingface.co/docs/inference-providers
+    verified_at: null
+    enabled: true
+    notes: "Routes to third-party providers; data policy varies by model."

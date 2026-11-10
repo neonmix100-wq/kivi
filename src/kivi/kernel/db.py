@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 MIGRATIONS: dict[int, list[str]] = {
     1: [
@@ -82,6 +82,19 @@ MIGRATIONS: dict[int, list[str]] = {
         )
         """,
         "CREATE INDEX IF NOT EXISTS idx_cloud_usage_day ON cloud_usage (day)",
+    ],
+    3: [
+        """
+        CREATE TABLE IF NOT EXISTS handoffs (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id    TEXT,
+            goal       TEXT NOT NULL,
+            reason     TEXT NOT NULL,
+            pack       TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_handoffs_created ON handoffs (created_at)",
     ],
 }
 
@@ -293,3 +306,38 @@ class Database:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    # -- local handoff ---------------------------------------------------
+    def save_handoff(
+        self,
+        *,
+        goal: str,
+        reason: str,
+        pack: dict[str, Any],
+        task_id: str = "",
+    ) -> int:
+        """Persist a handoff pack so a task survives a cloud failure."""
+        with self._conn:
+            cursor = self._conn.execute(
+                "INSERT INTO handoffs (task_id, goal, reason, pack, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (task_id or None, goal, reason, _json(pack), utc_now()),
+            )
+            return int(cursor.lastrowid)
+
+    def get_handoff(self, handoff_id: int) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            "SELECT id, task_id, goal, reason, pack, created_at FROM handoffs WHERE id = ?",
+            (handoff_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        result = dict(row)
+        result["pack"] = json.loads(result["pack"]) if result["pack"] else {}
+        return result
+
+    def recent_handoffs(self, limit: int = 20) -> list[dict[str, Any]]:
+        rows = self._conn.execute(
+            "SELECT id, task_id, goal, reason, created_at FROM handoffs ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]

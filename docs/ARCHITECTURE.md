@@ -964,11 +964,10 @@ shell:
   taskbar: bottom
   avatar_position: right
 cloud:
-  mode: auto_free      # never | auto_free | allow_paid
-  monthly_budget_usd: 0
-  handoff_on_quota: true
-  scout_on_quota: true
-  scout_requires_approval: true
+  mode: auto_free      # off | manual | auto_free
+  cost_limit_usd: 0
+  allow_data_for_training: false
+  scout_on_quota_exhausted: true
 privacy:
   excluded_paths:
     - "C:\\Windows\\**"

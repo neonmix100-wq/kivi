@@ -76,8 +76,13 @@ class HandoffPack:
     goal: str
     reason: str
     plan: list[str] = field(default_factory=list)
+    completed_steps: list[str] = field(default_factory=list)
     artifacts: list[str] = field(default_factory=list)
     summary: str = ""
+    criteria: list[str] = field(default_factory=list)
+    constraints: list[str] = field(default_factory=list)
+    next_step: str = ""
+    task_id: str = ""
 
     def to_prompt(self) -> str:
         lines = [
@@ -87,12 +92,23 @@ class HandoffPack:
         ]
         if self.summary:
             lines.append(f"Summary: {self.summary}")
+        if self.criteria:
+            lines.append("Done when:")
+            lines.extend(f"- {item}" for item in self.criteria)
+        if self.completed_steps:
+            lines.append("Completed steps:")
+            lines.extend(f"- {step}" for step in self.completed_steps)
         if self.plan:
             lines.append("Plan:")
             lines.extend(f"- {step}" for step in self.plan)
         if self.artifacts:
             lines.append("Artifacts:")
             lines.extend(f"- {path}" for path in self.artifacts)
+        if self.constraints:
+            lines.append("Constraints:")
+            lines.extend(f"- {item}" for item in self.constraints)
+        if self.next_step:
+            lines.append(f"Next step: {self.next_step}")
         return "\n".join(lines)
 
     def as_dict(self) -> dict[str, Any]:
@@ -100,9 +116,29 @@ class HandoffPack:
             "goal": self.goal,
             "reason": self.reason,
             "plan": list(self.plan),
+            "completed_steps": list(self.completed_steps),
             "artifacts": list(self.artifacts),
             "summary": self.summary,
+            "criteria": list(self.criteria),
+            "constraints": list(self.constraints),
+            "next_step": self.next_step,
+            "task_id": self.task_id,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> HandoffPack:
+        return cls(
+            goal=str(data.get("goal") or ""),
+            reason=str(data.get("reason") or ""),
+            plan=list(data.get("plan") or []),
+            completed_steps=list(data.get("completed_steps") or []),
+            artifacts=list(data.get("artifacts") or []),
+            summary=str(data.get("summary") or ""),
+            criteria=list(data.get("criteria") or []),
+            constraints=list(data.get("constraints") or []),
+            next_step=str(data.get("next_step") or ""),
+            task_id=str(data.get("task_id") or ""),
+        )
 
 
 def _today() -> str:
@@ -413,16 +449,44 @@ def build_handoff(
     reason: str,
     *,
     plan: list[str] | None = None,
+    completed_steps: list[str] | None = None,
     artifacts: list[str] | None = None,
     summary: str = "",
+    criteria: list[str] | None = None,
+    constraints: list[str] | None = None,
+    next_step: str = "",
+    task_id: str = "",
 ) -> HandoffPack:
     return HandoffPack(
         goal=goal,
         reason=reason,
         plan=list(plan or []),
+        completed_steps=list(completed_steps or []),
         artifacts=list(artifacts or []),
         summary=summary,
+        criteria=list(criteria or []),
+        constraints=list(constraints or []),
+        next_step=next_step,
+        task_id=task_id,
     )
+
+
+def save_handoff(db: Database, pack: HandoffPack, *, task_id: str = "") -> int:
+    """Persist a handoff pack and return its checkpoint id."""
+    return db.save_handoff(
+        goal=pack.goal,
+        reason=pack.reason,
+        pack=pack.as_dict(),
+        task_id=task_id or pack.task_id,
+    )
+
+
+def load_handoff(db: Database, handoff_id: int) -> HandoffPack | None:
+    """Load a persisted handoff pack, or ``None`` when the id is unknown."""
+    row = db.get_handoff(handoff_id)
+    if row is None:
+        return None
+    return HandoffPack.from_dict(row["pack"])
 
 
 __all__ = [
@@ -437,4 +501,6 @@ __all__ = [
     "ProviderUnavailable",
     "QuotaExhausted",
     "build_handoff",
+    "load_handoff",
+    "save_handoff",
 ]

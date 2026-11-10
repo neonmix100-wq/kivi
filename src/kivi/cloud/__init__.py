@@ -12,12 +12,24 @@ from kivi.cloud.broker import (
     ProviderUnavailable,
     QuotaExhausted,
     build_handoff,
+    load_handoff,
+    save_handoff,
 )
 from kivi.cloud.providers import (
     CloudProvider,
     CloudRegistry,
     CloudRegistryError,
     load_cloud_registry,
+)
+from kivi.cloud.scout import (
+    CandidateProvider,
+    CloudScout,
+    ScoutCard,
+    ScoutError,
+    ScoutOutcome,
+    ScoutQuery,
+    ScoutRegistry,
+    load_scout_registry,
 )
 
 __all__ = [
@@ -34,6 +46,16 @@ __all__ = [
     "HandoffPack",
     "ProviderUnavailable",
     "QuotaExhausted",
+    "CandidateProvider",
+    "CloudScout",
+    "ScoutCard",
+    "ScoutError",
+    "ScoutOutcome",
+    "ScoutQuery",
+    "ScoutRegistry",
     "build_handoff",
     "load_cloud_registry",
+    "load_handoff",
+    "load_scout_registry",
+    "save_handoff",
 ]
