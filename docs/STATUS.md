@@ -8,12 +8,12 @@
 - **Этап 0 закрыт:** baseline моделей снят 11.11.2026 (Chrome/Broadcast закрыты),
   цифры в `docs/BASELINE.md` §5. SDXL/whisper — n/a: нет чекпойнта/пакета.
 - **Этапы 1–3 закрыты:** ядро, Model Gateway и Cloud Broker.
-- **Этап 4 почти закрыт:** инструменты, Permission Engine, Protected Zones,
-  trust labels, санитайзер, kill switch, hotkey и injection-корпус готовы.
-  Остался один пункт — **elevated broker** (admin/UAC).
-- **Этап 5 почти закрыт (~85%):** память, FTS5, эмбеддинги, hybrid-search,
-  Context Builder, импорт, суммаризация, TTL и approvals API готовы.
-  Осталось: **LanceDB/ANN и автоподключение approvals к PermissionEngine**.
+- **Этап 4 закрыт:** инструменты, Permission Engine, Protected Zones,
+  trust labels, санитайзер, kill switch, hotkey, elevated broker и
+  injection-корпус готовы. OCR/PDF-читатели — отдельный backlog.
+- **Этап 5 закрыт:** память, FTS5, эмбеддинги, hybrid-search, Context Builder,
+  импорт, суммаризация, TTL, approvals API и LanceDB-индекс готовы.
+  Автоподключение approvals к PermissionEngine — отдельный backlog.
 - **Этап 0** закрыт: baseline §5 заполнен (SDXL/whisper отмечены как n/a).
 - **Этапы 6–13 не начаты:** planner/M1, Coder, Operator, Communicator,
   Voice & Avatar, Work CRM, Cloud Media, Kivi Shell.
@@ -26,8 +26,8 @@
 | 1. Скелет ядра | ✅ готово | конфиг, SQLite/миграции, Event Bus, JSONL, CLI, `doctor` | — |
 | 2. Model Gateway | ✅ готово | registry, Ollama, NVML, lease/eviction, watchdog, CPU fallback, benchmark 20 переключений | — |
 | 3. Cloud Broker | ✅ готово | провайдеры, квоты, `QuotaExhausted`, handoff, Scout, `cloud ask/scout/handoff` | живой ключ (внешнее) |
-| 4. Tools + safety | 🟡 ~90% | Tool contract, разрешения R0–R4, зоны, MAC-манифест, trust/sanitizer, fs/shell/http/proc/clipboard/screen, kill switch, hotkey, injection-корпус | elevated broker; OCR/PDF-читатели |
-| 5. Память и контекст | 🟡 ~85% | messages/facts/preferences/artifacts, FTS5, embeddings, RRF hybrid, Context Builder, импорт, суммаризация, TTL, approvals, CLI | LanceDB/ANN, автоподключение approvals |
+| 4. Tools + safety | ✅ готово | Tool contract, разрешения R0–R4, зоны, MAC-манифест, trust/sanitizer, fs/shell/http/proc/clipboard/screen, kill switch, hotkey, elevated broker, injection-корпус | OCR/PDF — backlog |
+| 5. Память и контекст | ✅ готово | messages/facts/preferences/artifacts, FTS5, embeddings, RRF hybrid, Context Builder, импорт, суммаризация, TTL, approvals, LanceDB, CLI | автоподключение approvals — backlog |
 | 6. M1: Core Kivi | ⬜ не начат | — | planner DAG, fast/deep path, CLI-чат/API, Silero TTS, 2D-аватар, 20 сценариев |
 | 7. M2: Coder | ⬜ не начат | — | sandbox, code.run, патчи/диффы, git, цикл тестов |
 | 8. M3: Operator | ⬜ не начат | — | управление ПК, браузер, UIA/OCR |
@@ -70,12 +70,11 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 
 ## 4. Где мы находимся
 
-Сейчас проект стоит на границе **этапа 4 → этапа 5**:
+Сейчас проект стоит на границе **этапа 5 → этапа 6 (M1)**:
 
-- прикладной слой инструментов и безопасности уже пригоден для planner'а;
-- память уже хранит и ищет, но ещё не является «умной» (нет суммаризации,
-  ANN-индекса и API approvals);
-- planner/M1 ещё не начат — это следующий крупный вертикальный срез.
+- этапы 0, 1–5 закрыты;
+- прикладной слой инструментов, безопасности и памяти готов для planner'а;
+- следующий крупный вертикальный срез — M1: Core Kivi.
 
 Формальный трекер `kivi_context.py stage` показывает этап 0, потому что
 единственный открытый чекбокс — baseline. Это не отражает реальный прогресс;
@@ -88,13 +87,13 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 | # | Задача | Результат | Оценка | Зависит от |
 |---|---|---|---:|---|
 | 0.1 | Baseline §5 | цифры load/tokens/s/VRAM в `BASELINE.md` | 0.5 дня | закрытые Chrome/Telegram/Broadcast |
-| 4.1 | Elevated broker: allowlist | список разрешённых admin-операций + тесты | 1 день | — |
-| 4.2 | Elevated broker: UAC | отдельный процесс, `runas`, аудит, отказ при ошибке | 1–2 дня | 4.1 |
+| 4.1 | Elevated broker: allowlist | ✅ `dns.flush`, `service.query/restart` + 34 теста | сделано |
+| 4.2 | Elevated broker: UAC | ✅ helper, `runas`, аудит, `--wait` | сделано |
 | 4.3 | OCR/PDF reader | текст из PDF/картинки с `untrusted:file/vision` | 2–3 дня | библиотеки OCR/PDF |
-| 5.1 | Суммаризация | сжатие старых сообщений с сохранением фактов | 1–2 дня | Gateway |
-| 5.2 | TTL и очистка | удаление просроченных сообщений/векторов | 0.5 дня | 5.1 |
-| 5.3 | Approvals API | TTL-подтверждения в SQLite + интеграция с Permission Engine | 1 день | — |
-| 5.4 | LanceDB/ANN | быстрый векторный поиск для больших баз | 1–2 дня | pyarrow/LanceDB |
+| 5.1 | Суммаризация | ✅ extractive/injected summary | сделано |
+| 5.2 | TTL и очистка | ✅ сообщения/эмбеддинги/approvals | сделано |
+| 5.3 | Approvals API | ✅ grant/check/revoke/cleanup | сделано |
+| 5.4 | LanceDB/ANN | ✅ LanceDB 0.41 + pyarrow, sync/rebuild | сделано |
 | 6.1 | Planner DAG | план, validator, executor, verifier, replan | 2 дня | 4.x, 5.x |
 | 6.2 | Fast/deep path | выбор модели и глубины под задачу | 1 день | 6.1 |
 | 6.3 | CLI-чат/API | диалог вместо заглушки, история из памяти | 1 день | 6.1 |
@@ -102,20 +101,19 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 | 6.5 | 2D-аватар | липсинк и состояния | 2 дня | 6.4 |
 | 6.6 | 20 сценариев | M1-демо и приёмка | 1–2 дня | 6.1–6.5 |
 
-### P0 — закрыть этапы 0, 4, 5 (3–5 дней)
+### ✅ P0 — закрыто (этапы 0, 4, 5)
 
-1. **Baseline §5.** Закрыть Chrome/Telegram/Broadcast, 5 минут простоя,
-   замерить load time / tokens/s / peak VRAM для 4B/7B/8B и SDXL/whisper.
-   Результат: заполненный `docs/BASELINE.md` §5, этап 0 закрыт.
-   Блокер: пользовательские приложения.
-2. **Elevated broker.** Отдельный процесс, узкий allowlist admin-операций,
-   UAC-запуск, подтверждение, аудит, запрет произвольного PowerShell.
-   Результат: этап 4 закрыт; тесты на allowlist/отказ.
-3. **Память: суммаризация + TTL.** Сжимать старые сообщения, удалять
-   просроченные, не индексировать секреты; API `approvals` (TTL, отзыв).
-   Результат: этап 5 закрыт по acceptance.
-4. **LanceDB/ANN.** Заменить cosine-перебор SQLite на ANN для больших баз;
-   hybrid-search API не меняется. Результат: этап 5 производительность.
+1. **Baseline §5.** Снят 11.11.2026 при закрытых Chrome/Broadcast: пять моделей,
+   load/tokens/s/peak VRAM; SDXL/whisper — n/a. Этап 0 закрыт.
+2. **Elevated broker.** Allowlist, отдельный helper, UAC, аудит, `--wait`;
+   34 теста. Этап 4 закрыт.
+3. **Память: суммаризация + TTL.** Summaries, TTL-очистка, approvals API;
+   этап 5 закрыт по acceptance.
+4. **LanceDB/ANN.** LanceDB 0.41 + pyarrow, `vector-sync`, `memory similar --ann`;
+   SQLite остаётся fallback.
+
+Остался отдельный backlog: OCR/PDF-читатели и автоподключение approvals
+к PermissionEngine; они не блокируют закрытие этапов 0/4/5.
 
 ### P1 — M1: Core Kivi (7–10 дней)
 

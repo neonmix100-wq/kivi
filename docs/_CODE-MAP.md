@@ -16,6 +16,7 @@ generated: true
 | `src.kivi.__main__` | 8 | Allow ``python -m kivi``. |
 | `src.kivi.config` | 220 | Typed configuration for Kivi. |
 | `src.kivi.doctor` | 208 | Environment diagnostics for ``kivi doctor``. |
+| `src.kivi.elevated_helper` | 255 | Elevated helper: execute exactly one allowlisted operation. |
 | `src.kivi.paths` | 68 | Filesystem layout for Kivi runtime data. |
 
 ## brain
@@ -29,7 +30,7 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.cloud.__init__` | 61 | Cloud Broker: policy, quotas and local handoff. |
-| `src.kivi.cloud.broker` | 520 | Cloud Broker: policy, quotas, audited calls and local handoff. |
+| `src.kivi.cloud.broker` | 543 | Cloud Broker: policy, quotas, audited calls and local handoff. |
 | `src.kivi.cloud.providers` | 121 | Cloud providers: metadata only, never secrets. |
 | `src.kivi.cloud.scout` | 545 | Cloud Scout: free-provider discovery, cards and manual confirmation. |
 
@@ -38,7 +39,7 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 1 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.cli` | 1479 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 1730 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -53,11 +54,13 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.memory.__init__` | 18 | Memory: working, episodic, semantic, profile and artifacts. |
+| `src.kivi.memory.__init__` | 32 | Memory: working, episodic, semantic, profile and artifacts. |
 | `src.kivi.memory.context` | 193 | Context builder: profile, relevant memory and recent messages within budget. |
 | `src.kivi.memory.importer` | 148 | Read-only import of text knowledge bases into memory. |
-| `src.kivi.memory.search` | 194 | Hybrid memory search: FTS5 and embeddings fused with reciprocal rank. |
+| `src.kivi.memory.lifecycle` | 352 | Memory lifecycle: summarization, TTL retention and durable approvals. |
+| `src.kivi.memory.search` | 201 | Hybrid memory search: FTS5 and embeddings fused with reciprocal rank. |
 | `src.kivi.memory.store` | 381 | Durable memory: messages, facts, preferences and content-addressed artifacts. |
+| `src.kivi.memory.vector_index` | 247 | Optional LanceDB ANN index for memory embeddings. |
 
 ## models
 
@@ -82,7 +85,8 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.safety.__init__` | 63 | Safety layer: policy, protected zones, approvals and trust labels. |
+| `src.kivi.safety.__init__` | 71 | Safety layer: policy, protected zones, approvals and trust labels. |
+| `src.kivi.safety.elevated` | 616 | Elevated broker: a narrow allowlist of admin operations behind UAC. |
 | `src.kivi.safety.hotkey` | 218 | Global kill-switch hotkey. |
 | `src.kivi.safety.killswitch` | 157 | Kill switch: one durable flag that stops tools and cloud calls. |
 | `src.kivi.safety.permissions` | 224 | Permission Engine: task grants, risk levels and allow/confirm/deny. |
@@ -115,9 +119,10 @@ generated: true
 
 ## Тесты
 
-Всего файлов: **29**.
+Всего файлов: **33**.
 
 - `tests/security/test_injection.py`
+- `tests/unit/test_admin_cli.py`
 - `tests/unit/test_bench_gateway.py`
 - `tests/unit/test_cli.py`
 - `tests/unit/test_clipboard.py`
@@ -127,12 +132,14 @@ generated: true
 - `tests/unit/test_config.py`
 - `tests/unit/test_db.py`
 - `tests/unit/test_doctor.py`
+- `tests/unit/test_elevated.py`
 - `tests/unit/test_events.py`
 - `tests/unit/test_gateway.py`
 - `tests/unit/test_hotkey.py`
 - `tests/unit/test_http_tool.py`
 - `tests/unit/test_killswitch.py`
 - `tests/unit/test_knowledge.py`
+- `tests/unit/test_lifecycle.py`
 - `tests/unit/test_memory.py`
 - `tests/unit/test_ollama.py`
 - `tests/unit/test_paths.py`
@@ -142,6 +149,7 @@ generated: true
 - `tests/unit/test_registry.py`
 - `tests/unit/test_screen.py`
 - `tests/unit/test_tools.py`
+- `tests/unit/test_vector_index.py`
 - `tests/unit/test_vram.py`
 - `tests/unit/test_watchdog.py`
 - `tests/unit/test_zone_manifest.py`

@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from kivi.memory.store import MemoryStore
 
@@ -43,6 +44,7 @@ class HybridSearch:
         rrf_k: int = 60,
         recency_weight: float = 0.1,
         clock: Callable[[], datetime] | None = None,
+        ann: Any = None,
     ) -> None:
         if rrf_k < 1:
             raise ValueError("rrf_k must be positive")
@@ -52,6 +54,7 @@ class HybridSearch:
         self.rrf_k = rrf_k
         self.recency_weight = recency_weight
         self._clock = clock or (lambda: datetime.now(UTC))
+        self.ann = ann
 
     def _recency(self, timestamp: str) -> float:
         if not timestamp:
@@ -94,8 +97,12 @@ class HybridSearch:
     def _vector_hits(
         self, query_vector: Sequence[float], model: str, limit: int
     ) -> list[SearchHit]:
+        if self.ann is not None:
+            rows = self.ann.search(list(query_vector), model, limit)
+        else:
+            rows = self.store.search_embeddings(list(query_vector), model, limit)
         hits: list[SearchHit] = []
-        for row in self.store.search_embeddings(list(query_vector), model, limit):
+        for row in rows:
             owner_type = str(row["owner_type"])
             owner_id = int(row["owner_id"])
             if owner_type == "message":

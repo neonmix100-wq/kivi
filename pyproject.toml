@@ -26,6 +26,10 @@ dev = [
 gpu = [
     "nvidia-ml-py>=12.0",
 ]
+vector = [
+    "lancedb>=0.41",
+    "pyarrow>=26.0",
+]
 
 [project.scripts]
 kivi = "kivi.interfaces.cli:main"

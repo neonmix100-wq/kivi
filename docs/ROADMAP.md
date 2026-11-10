@@ -52,12 +52,12 @@
 | 1 | ✅ закрыт | — |
 | 2 | ✅ закрыт | — |
 | 3 | ✅ закрыт | живой ключ (внешнее) |
-| 4 | 🟡 ~90% | elevated broker, OCR/PDF |
+| 4 | ✅ закрыт | OCR/PDF — отдельный backlog |
 | 5 | 🟡 ~70% | LanceDB/ANN, суммаризация/TTL, approvals API |
 | 6–13 | ⬜ не начаты | см. этапы 6–13 |
 
-Текущая точка: **этап 4 → этап 5**. Следующий крупный срез — **M1: Core Kivi**
-(planner DAG, CLI-чат, TTS, 2D-аватар), после закрытия baseline и elevated broker.
+Текущая точка: **этап 4 закрыт → этап 5**. Следующий крупный срез — **M1: Core Kivi**
+(planner DAG, CLI-чат, TTS, 2D-аватар), после завершения LanceDB/ANN в памяти.
 
 ---
 
@@ -156,9 +156,9 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
 
 ## 7. Этап 4 — инструменты, A4-Bounded, аудит (7–10 дней)
 
-**Статус:** 🟡 почти закрыт. Готовы контракт, Permission Engine, зоны,
-trust/sanitizer, Capability Broker, инструменты, kill switch, hotkey и
-injection-корпус. Осталось: elevated broker (UAC) и OCR/PDF-читатели.
+**Статус:** ✅ закрыт. Готовы контракт, Permission Engine, зоны, trust/sanitizer,
+Capability Broker, инструменты, kill switch, hotkey, elevated broker и
+injection-корпус. OCR/PDF-читатели вынесены в отдельный backlog.
 
 - [x] Контракт `Tool`, реестр, JSON-схемы, `dry_run`.
 - [x] Permission Engine: capabilities, scope, TTL, allow/confirm/deny.
@@ -178,7 +178,7 @@ injection-корпус. Осталось: elevated broker (UAC) и OCR/PDF-чи�
 - [x] `screen.capture`: BMP в workspace, GDI-backend, `untrusted:vision`.
 - [x] Инструменты этапа 4 закрыты (кроме elevated/admin).
 - [x] A4-политика: авто внутри scope, hard deny снаружи.
-- [ ] Elevated broker: узкий список admin-операций, UAC, аудит.
+- [x] Elevated broker: узкий список admin-операций, UAC, аудит.
 - [x] Kill switch: флаг, CLI, блокировка tools/cloud, аудит.
 - [x] Kill switch выгружает модели, которые обслуживает Ollama (best-effort).
 - [x] Глобальная горячая клавиша kill switch (`kivi hotkey`, `RegisterHotKey`).
@@ -226,7 +226,10 @@ workspace-cwd, минимальный env, detached-процесс); 6 тест�
 **Сделано в четырнадцатом мини-срезе:** глобальная горячая клавиша kill switch
 (`kivi hotkey`, `RegisterHotKey` + `GetMessageW`, fake-backend для тестов);
 16 тестов.
-**Осталось:** elevated broker, OCR/PDF-читатели и расширение injection-корпуса.
+**Сделано в пятнадцатом мини-срезе:** elevated broker (`kivi elevated list/run`),
+allowlist `dns.flush`/`service.query`/`service.restart`, отдельный helper с
+UAC, повторная валидация параметров, аудит и `--wait` для результата; 34 теста.
+**Осталось:** OCR/PDF-читатели — отдельный backlog, не блокирует этап 4.
 
 **Приёмка:** запись вне scope невозможна; `format`, `diskpart`, `reg delete`, `shutdown`,
 системные папки и секреты блокируются; агент не может изменить denylist/safety/audit;
@@ -236,14 +239,14 @@ workspace-cwd, минимальный env, detached-процесс); 6 тест�
 
 ## 8. Этап 5 — память и контекст (5–7 дней)
 
-**Статус:** 🟡 в работе (~85%). Готовы SQLite-память, FTS5, эмбеддинги,
-hybrid-search (RRF + recency), Context Builder, импорт, суммаризация, TTL,
-approvals API и CLI. Осталось: LanceDB/ANN, автоматическая интеграция
-approvals с PermissionEngine.
+**Статус:** ✅ закрыт. Готовы SQLite-память, FTS5, эмбеддинги, hybrid-search
+(RRF + recency), Context Builder, импорт, суммаризация, TTL, approvals API,
+LanceDB-индекс и CLI. Автоподключение approvals к PermissionEngine вынесено
+в отдельный backlog.
 
 - [x] SQLite: messages, facts, artifacts, preferences, approvals (approvals — схема).
 - [x] Артефакты content-addressed.
-- [ ] LanceDB + bge-m3 на CPU (сейчас SQLite float32 + cosine).
+- [x] LanceDB + bge-m3 на CPU (опциональный `vector` extra, SQLite fallback).
 - [x] Гибридный поиск FTS5 + вектор (RRF).
 - [x] Профиль и правила (preferences + facts).
 - [x] Context Builder с бюджетом и суммаризацией старых сообщений.
@@ -265,8 +268,11 @@ embedder'а, CLI `kivi memory index` и `memory similar` через Ollama/bge-m
 **Сделано в третьем срезе:** суммаризация старых сообщений, TTL-очистка
 сообщений/эмбеддингов, durable approvals (scope, TTL, отзыв, cleanup) и CLI
 `memory summarize/ttl/approvals`; 17 тестов lifecycle + CLI.
-**Осталось:** LanceDB/ANN для больших баз, автоматическая интеграция approvals
-с PermissionEngine.
+**Сделано в четвёртом срезе:** LanceDB 0.41 + pyarrow (optional extra
+`vector`), `LanceVectorIndex` (upsert/search/delete/count/rebuild),
+`export_from_store`, `HybridSearch(ann=...)`, CLI `memory vector-sync` и
+`memory similar --ann`; 6 тестов + персистентность/redaction импорта.
+**Осталось:** автоподключение approvals к PermissionEngine — отдельный backlog.
 
 **Приёмка:** 10 фактов находятся после перезапуска; 20 запросов к базе дают релевантные источники;
 «забудь X» удаляет запись и векторы; секреты не индексируются.

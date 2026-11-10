@@ -430,6 +430,26 @@ def test_hybrid_search_without_embedder_is_fts_only(tmp_path: Path) -> None:
     assert hits[0].sources == ("fts",)
 
 
+def test_hybrid_search_can_use_an_ann_index(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        message_id = store.add_message("user", "alpha text")
+
+        class FakeAnn:
+            def search(self, vector, model, limit):
+                return [{"owner_type": "message", "owner_id": message_id, "score": 0.99}]
+
+        hits = HybridSearch(store, ann=FakeAnn()).search(
+            "alpha",
+            embedder=lambda texts: [[1.0, 0.0]],
+            model="m",
+        )
+    finally:
+        db.close()
+    assert hits[0].owner_id == message_id
+    assert "vector" in hits[0].sources
+
+
 def test_hybrid_search_skips_missing_owner(tmp_path: Path) -> None:
     store, db = make_store(tmp_path)
     try:
@@ -449,6 +469,43 @@ def make_cli_profile(tmp_path: Path) -> Paths:
     (root / "config").mkdir(parents=True)
     (root / "config" / "kivi.yaml").write_text("version: 1\n", encoding="utf-8")
     return Paths(root=root, home=tmp_path / "profile")
+
+
+def test_memory_survives_reopen(tmp_path: Path) -> None:
+    db = Database(tmp_path / "kivi.db")
+    store = MemoryStore(db, tmp_path / "artifacts")
+    try:
+        store.add_message("user", "persisted")
+        store.remember("city", "Novosibirsk")
+        artifact = store.write_artifact(b"persisted bytes")
+        db.close()
+        reopened = Database(tmp_path / "kivi.db")
+        try:
+            again = MemoryStore(reopened, tmp_path / "artifacts")
+            assert again.recent_messages()[0]["content"] == "persisted"
+            assert again.get_fact("city")["value"] == "Novosibirsk"
+            assert Path(again.get_artifact(artifact["sha256"])["path"]).is_file()
+        finally:
+            reopened.close()
+    finally:
+        pass
+
+
+def test_import_redacts_secrets(tmp_path: Path) -> None:
+    source = tmp_path / "base"
+    source.mkdir()
+    (source / "leak.md").write_text(
+        "token sk-canary12345678901234567890", encoding="utf-8"
+    )
+    store, db = make_store(tmp_path)
+    try:
+        import_directory(store, source)
+        messages = store.recent_messages(10)
+    finally:
+        db.close()
+    assert messages
+    assert "sk-canary" not in messages[0]["content"]
+    assert "[REDACTED]" in messages[0]["content"]
 
 
 def test_cli_memory_flow(tmp_path: Path, monkeypatch) -> None:

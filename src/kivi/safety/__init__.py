@@ -1,5 +1,10 @@
 """Safety layer: policy, protected zones, approvals and trust labels."""
 
+from kivi.safety.elevated import (
+    ALLOWED_OPERATIONS,
+    ElevatedBroker,
+    ElevatedError,
+)
 from kivi.safety.hotkey import (
     HotkeyError,
     HotkeyListener,
@@ -33,7 +38,10 @@ from kivi.safety.zones import (
 )
 
 __all__ = [
+    "ALLOWED_OPERATIONS",
     "Decision",
+    "ElevatedBroker",
+    "ElevatedError",
     "Grant",
     "HotkeyError",
     "HotkeyListener",

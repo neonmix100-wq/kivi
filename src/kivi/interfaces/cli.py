@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -46,6 +47,12 @@ from kivi.memory import (
     import_directory,
     summarize_messages,
 )
+from kivi.memory.vector_index import (
+    LanceVectorIndex,
+    VectorIndexError,
+    export_from_store,
+    rebuild_index,
+)
 from kivi.models import (
     BackendError,
     GatewayError,
@@ -58,6 +65,13 @@ from kivi.models import (
 )
 from kivi.paths import Paths, get_paths
 from kivi.safety import KillSwitch, PermissionEngine, ProtectedZones
+from kivi.safety.elevated import (
+    ALLOWED_OPERATIONS,
+    OPERATIONS,
+    ElevatedBroker,
+    ElevatedError,
+    read_result,
+)
 from kivi.safety.hotkey import (
     HotkeyError,
     HotkeyListener,
@@ -1150,7 +1164,8 @@ def cmd_memory_similar(args: argparse.Namespace) -> int:
                     allow_cpu_fallback=config.model_gateway.cpu_fallback,
                     events=bus,
                 )
-                hits = HybridSearch(store).search(
+                ann = LanceVectorIndex(Path(args.ann)) if args.ann else None
+                hits = HybridSearch(store, ann=ann).search(
                     args.query,
                     embedder=lambda texts: gateway.embed(
                         spec.id,
@@ -1162,7 +1177,7 @@ def cmd_memory_similar(args: argparse.Namespace) -> int:
                     model=spec.id,
                     limit=args.limit,
                 )
-        except (GatewayError, BackendError) as exc:
+        except (GatewayError, BackendError, VectorIndexError) as exc:
             console.print(f"[red]search error:[/red] {exc}")
             return 1
     if not hits:
@@ -1185,6 +1200,25 @@ def cmd_memory_similar(args: argparse.Namespace) -> int:
             _plain(hit.text),
         )
     console.print(table)
+    return 0
+
+
+def cmd_memory_vector_sync(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    target = Path(args.path) if args.path else paths.data / "vector"
+    with _state(paths) as (db, _):
+        store = _memory(paths, db)
+        try:
+            if args.rebuild:
+                index = rebuild_index(target, store, args.model)
+                copied = index.count()
+            else:
+                index = LanceVectorIndex(target)
+                copied = export_from_store(store, index, args.model)
+        except VectorIndexError as exc:
+            console.print(f"[red]vector index error:[/red] {exc}")
+            return 1
+    console.print(f"synced {copied} embedding(s) for {args.model} -> {target}")
     return 0
 
 
@@ -1299,6 +1333,77 @@ def cmd_memory_approvals_cleanup(args: argparse.Namespace) -> int:
         deleted = ApprovalStore(_memory(paths, db)).cleanup()
     console.print(f"cleaned up {deleted} approval(s)")
     return 0
+
+
+def cmd_elevated(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    if args.action == "run" and not args.operation:
+        console.print("[red]usage: kivi elevated run <operation>[/red]")
+        return 2
+    if args.action == "list":
+        table = Table(title="Elevated operations")
+        table.add_column("Operation", style="bold")
+        table.add_column("Params")
+        table.add_column("Description", overflow="fold")
+        for name in sorted(ALLOWED_OPERATIONS):
+            spec = OPERATIONS[name]
+            table.add_row(
+                spec.name,
+                ", ".join(spec.param_names) or "-",
+                _plain(spec.description),
+            )
+        console.print(table)
+        console.print("Run one with: kivi elevated run <operation> --approve")
+        return 0
+
+    with _state(paths) as (db, events):
+        switch = _kill_switch(paths, db, events)
+        broker = ElevatedBroker(
+            db,
+            request_dir=paths.data / "elevated",
+            killswitch=switch,
+        )
+        params: dict[str, str] = {}
+        for item in args.param:
+            key, separator, value = item.partition("=")
+            if not separator or not key.strip():
+                console.print(f"[red]invalid --param:[/red] {item} (expected key=value)")
+                return 2
+            params[key.strip()] = value
+        try:
+            result = broker.request(args.operation, params, approved=args.approve)
+        except ElevatedError as exc:
+            console.print(f"[red]elevated error:[/red] {exc}")
+            return 1
+
+        if not result.ok:
+            console.print(f"[red]elevated {result.status}:[/red] {result.message}")
+            return 1
+        console.print(f"[green]{result.status}[/green] {result.operation}")
+        if result.request_path:
+            console.print(f"request: {result.request_path}")
+        if not args.wait or not result.result_path:
+            return 0
+        deadline = time.monotonic() + args.wait
+        while time.monotonic() < deadline:
+            if result.result_path.is_file():
+                try:
+                    payload = read_result(result.result_path)
+                except ElevatedError as exc:
+                    console.print(f"[red]result error:[/red] {exc}")
+                    return 1
+                console.print(
+                    f"result: ok={payload['ok']} rc={payload['returncode']} "
+                    f"finished={payload['finished_at']}"
+                )
+                if payload["stdout"]:
+                    console.print(_plain(payload["stdout"]))
+                if payload["stderr"]:
+                    console.print(f"[yellow]{_plain(payload['stderr'])}[/yellow]")
+                return 0 if payload["ok"] else 1
+            time.sleep(0.5)
+        console.print(f"[yellow]result not ready after {args.wait:.0f}s[/yellow]")
+        return 1
 
 
 def cmd_audit(args: argparse.Namespace) -> int:
@@ -1485,6 +1590,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     zones.set_defaults(func=cmd_zones)
 
+    elevated = sub.add_parser("elevated", help="allowlisted UAC admin operations")
+    elevated.add_argument("action", nargs="?", choices=("list", "run"), default="list")
+    elevated.add_argument("operation", nargs="?", default="")
+    elevated.add_argument("--param", action="append", default=[], metavar="KEY=VALUE")
+    elevated.add_argument("--approve", action="store_true")
+    elevated.add_argument("--wait", type=float, default=0.0, metavar="SECONDS")
+    elevated.set_defaults(func=cmd_elevated)
+
     hotkey = sub.add_parser("hotkey", help="listen for the global kill-switch hotkey")
     hotkey.add_argument(
         "--hotkey",
@@ -1548,7 +1661,13 @@ def build_parser() -> argparse.ArgumentParser:
     memory_similar.add_argument("-n", "--limit", type=int, default=10)
     memory_similar.add_argument("--timeout", type=float, default=120.0)
     memory_similar.add_argument("--keep-alive", default="0")
+    memory_similar.add_argument("--ann", default="", help="path to a LanceDB index")
     memory_similar.set_defaults(func=cmd_memory_similar)
+    memory_vector = memory_sub.add_parser("vector-sync", help="sync SQLite embeddings to LanceDB")
+    memory_vector.add_argument("-m", "--model", default="bge-m3")
+    memory_vector.add_argument("--path", default="")
+    memory_vector.add_argument("--rebuild", action="store_true")
+    memory_vector.set_defaults(func=cmd_memory_vector_sync)
     memory_summarize = memory_sub.add_parser("summarize", help="summarize old messages")
     memory_summarize.add_argument("--older-than-days", type=int, default=7)
     memory_summarize.add_argument("--max-messages", type=int, default=200)

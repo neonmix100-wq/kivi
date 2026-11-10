@@ -1,15 +1,14 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этап 5 — память и контекст, первый срез (v0.12).
-> Работают `kivi doctor`, `kivi models`, `kivi ask`, `kivi embed`,
-> `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`, `kivi memory`,
-> `kivi killswitch`, `kivi hotkey`, `kivi zones`, реестр моделей, VRAM-бюджет
+> **Статус:** этапы 0–5 закрыты (v0.13). Работают `kivi doctor`, `kivi models`,
+> `kivi ask`, `kivi embed`, `kivi cloud status/ask/scout/handoff`,
+> `kivi tools list/run`, `kivi memory`, `kivi elevated`, `kivi killswitch`,
+> `kivi hotkey`, `kivi zones`, реестр моделей, VRAM-бюджет
 > (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite, Event Bus,
 > аудит, Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
-> санитайзер, kill switch, подписанный манифест зон и память с FTS5 +
-> гибридным поиском, суммаризацией, TTL и approvals.
-> Осталось: LanceDB/ANN, elevated broker, OCR/PDF-читатели;
-> живой облачный вызов с ключом.
+> санитайзер, kill switch, подписанный манифест зон, elevated broker и память
+> с FTS5, гибридным поиском, суммаризацией, TTL, approvals и LanceDB.
+> Осталось: M1 (planner/TTS/2D-аватар), OCR/PDF-читатели, живой облачный вызов.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Быстрый старт
@@ -28,9 +27,11 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe tools list
 .venv\Scripts\kivi.exe tools run fs.read --args '{"path":"README.md"}'
 .venv\Scripts\kivi.exe killswitch status
+.venv\Scripts\kivi.exe elevated list
 .venv\Scripts\kivi.exe memory remember city Новосибирск --source user
 .venv\Scripts\kivi.exe memory context Новосибирск
 .venv\Scripts\kivi.exe memory stats
+.venv\Scripts\kivi.exe memory vector-sync -m bge-m3
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
 ```
@@ -129,9 +130,11 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Принятые решения, A4-Bounded, admin, облако, приоритеты |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Модель угроз, prompt injection, egress, тесты |
 | [`docs/TOOLS.md`](docs/TOOLS.md) | Контракт Tool, Permission Engine, Protected Zones, риски R0–R4 |
+| [`docs/ELEVATED.md`](docs/ELEVATED.md) | Elevated broker: allowlist, UAC, request/result, аудит |
 | [`docs/TRUST.md`](docs/TRUST.md) | Trust labels, envelope, санитайзер и injection-корпус |
 | [`docs/MEMORY.md`](docs/MEMORY.md) | Память: сообщения, факты, артефакты, FTS5 и Context Builder |
 | [`docs/LIFECYCLE.md`](docs/LIFECYCLE.md) | Retention, суммаризация, TTL и durable approvals |
+| [`docs/VECTOR.md`](docs/VECTOR.md) | LanceDB-индекс, sync/rebuild и ANN-поиск |
 | [`docs/SHELL.md`](docs/SHELL.md) | Kivi Shell: замена Explorer, паритет, fail-safe |
 | [`docs/PERSONA.md`](docs/PERSONA.md) | Kivi: характер, голос, аватар, одежда, липсинк |
 | [`docs/VOICE-CLONING.md`](docs/VOICE-CLONING.md) | Улучшение Silero, согласие, датасет и пайплайн клонирования голоса |

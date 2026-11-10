@@ -44,10 +44,12 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe tools run fs.read --args '{"path":"README.md"}'
 .venv\Scripts\kivi.exe tools run shell.exec --args '{"argv":["python","-V"]}' --dry-run
 .venv\Scripts\kivi.exe killswitch status
+.venv\Scripts\kivi.exe elevated list
 .venv\Scripts\kivi.exe hotkey --check
 .venv\Scripts\kivi.exe memory stats
 .venv\Scripts\kivi.exe memory index -m bge-m3
 .venv\Scripts\kivi.exe memory similar "тёплый город" -m bge-m3
+.venv\Scripts\kivi.exe memory vector-sync -m bge-m3
 .venv\Scripts\kivi.exe zones status
 ```
 
@@ -66,13 +68,14 @@ Model Gateway (этап 2), ядро и CLI уже работают.
   разрешений на опасные действия. `zones.py` — Protected Zones, `permissions.py` —
   grant'ы, TTL и риски R0–R4, `trust.py` — метки и envelope, `sanitize.py` —
   очистка недоверенного текста и redaction секретов, `zone_manifest.py` —
-  подписанный HMAC-манифест дополнительных зон.
+  подписанный HMAC-манифест дополнительных зон, `elevated.py` — allowlist
+  admin-операций через UAC.
 - `src/kivi/tools/` — контракт `Tool`, реестр, `ToolExecutor` (Capability Broker),
   `fs.*`, `shell.exec`, `http.get`, `proc.*`, `clipboard.*`, `screen.capture`.
   Каждый вызов идёт через executor и пишется в аудит.
 - `src/kivi/models/` — registry, Ollama backend, VRAM budget, lease/eviction.
 - `src/kivi/memory/` — SQLite-память (messages/facts/preferences/artifacts,
-  FTS5), эмбеддинги + hybrid-search (RRF), retention/суммаризация/TTL,
+  FTS5), эмбеддинги + hybrid-search (RRF), LanceDB-индекс, retention/суммаризация/TTL,
   approvals, content-addressed артефакты и Context Builder с бюджетом.
 - `src/kivi/brain/` — планировщик и исполнение (этапы 4–5).
 - `src/kivi/senses/`, `tools/`, `memory/`, `modules/`, `interfaces/`.
