@@ -47,9 +47,10 @@
 ## 3. Этап 0 — решения и baseline (2–3 дня)
 
 - [x] Зафиксировать ADR-0001 (`docs/DECISIONS.md`) — сделано.
-- [ ] Уточнить детали: аватар, запретные папки, облачные аккаунты, автоматизация работы.
-- [ ] Замерить baseline при закрытых Chrome/Telegram/Broadcast.
-- [ ] Проверить `OLLAMA_MODELS=D:\ollama_models`.
+- [x] Уточнить детали: аватар, запретные папки, облачные аккаунты, автоматизация работы —
+      решения в `docs/DECISIONS.md` §10.
+- [ ] Замерить baseline при закрытых Chrome/Telegram/Broadcast; заполнить `docs/BASELINE.md` §5.
+- [x] Проверить `OLLAMA_MODELS=D:\ollama_models` — подтверждено.
 - [x] Создать venv Python 3.12, `pyproject.toml`, линтер, тесты.
 - [x] Первый коммит.
 
