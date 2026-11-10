@@ -83,6 +83,7 @@ security:
   audit_enabled: true
   killswitch_hotkey: Ctrl+Alt+J
   redact_secrets: true
+  blocked_hosts: []          # egress denylist for http.get, e.g. ["*.tracker.example"]
   egress_deny:
     - private/**
     - '**/.env'

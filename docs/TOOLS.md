@@ -82,6 +82,11 @@ elevated broker; до тех пор R2 — обязательный барьер
 | `clipboard.write` | R2 | `clipboard.write` | заменить текст буфера обмена; подтверждение |
 | `screen.capture` | R1 | `screen.capture` | снимок рабочего стола в BMP внутри workspace, `untrusted:vision` |
 
+`http.get` дополнительно проверяет `security.blocked_hosts` из
+`config/kivi.yaml` (точное имя или glob, например `*.tracker.example`).
+Доменный denylist проверяется до DNS; для SSRF-защиты каждый IP всё равно
+обязан быть публичным.
+
 ## 6. CLI
 
 ```powershell
@@ -162,8 +167,7 @@ kivi zones sign          # переподписать после ручной п
 
 - подписанный манифест зон и добавление зон из конфига;
 - trust labels и санитайзер недоверенного контента (сделано в [TRUST.md](TRUST.md));
-- `proc.*`, `clipboard`, `screen.capture`;
-- elevated broker (UAC) и kill switch;
-- denylist доменов для `http.get` (сейчас — только SSRF-защита по IP);
+- `proc.start`;
+- elevated broker (UAC) и глобальная горячая клавиша kill switch;
 - pin resolved IP при подключении (закрыть DNS rebinding);
 - injection-корпус `tests/security/injection` расширять по мере роста инструментов.

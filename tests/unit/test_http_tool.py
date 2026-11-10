@@ -24,6 +24,7 @@ def make_executor(
     handler,
     *,
     resolver=public_resolver,
+    blocked_hosts: tuple[str, ...] = (),
 ) -> tuple[ToolExecutor, Database]:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -35,6 +36,7 @@ def make_executor(
         HttpGetTool(
             transport=httpx.MockTransport(handler),
             resolver=resolver,
+            blocked_hosts=blocked_hosts,
         )
     )
     executor = ToolExecutor(
@@ -272,3 +274,39 @@ def test_non_https_schemes_are_refused(tmp_path: Path, url: str) -> None:
         db.close()
     assert not result.ok
     assert "https" in result.error
+
+
+def test_blocked_host_is_refused_before_dns(tmp_path: Path) -> None:
+    called = False
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal called
+        called = True
+        return httpx.Response(200, headers={"content-type": "text/plain"}, content=b"x")
+
+    executor, db = make_executor(tmp_path, handler, blocked_hosts=("example.com",))
+    try:
+        result = run(executor)
+    finally:
+        db.close()
+    assert not result.ok
+    assert "blocked by policy" in result.error
+    assert called is False
+
+
+def test_blocked_host_wildcard_covers_subdomains(tmp_path: Path) -> None:
+    executor, db = make_executor(
+        tmp_path,
+        lambda request: httpx.Response(
+            200, headers={"content-type": "text/plain"}, content=b"x"
+        ),
+        blocked_hosts=("*.example.com",),
+    )
+    try:
+        blocked = run(executor, "https://news.example.com/")
+        allowed = run(executor, "https://example.com/")
+    finally:
+        db.close()
+    assert not blocked.ok
+    assert "blocked" in blocked.error
+    assert allowed.ok

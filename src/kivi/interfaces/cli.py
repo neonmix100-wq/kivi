@@ -704,7 +704,7 @@ def cmd_tools(args: argparse.Namespace) -> int:
 def cmd_tool_run(args: argparse.Namespace) -> int:
     paths = get_paths()
     config = _config(paths)
-    registry = build_registry()
+    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
     tool = registry.get(args.name)
     if tool is None:
         console.print(f"[red]unknown tool:[/red] {args.name}")

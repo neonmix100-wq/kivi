@@ -52,8 +52,11 @@ class ToolRegistry:
         return tuple(describe(tool) for tool in self.all())
 
 
-def build_registry() -> ToolRegistry:
-    """Create the default registry with the stage-4 filesystem, shell and web tools."""
+def build_registry(
+    *,
+    blocked_hosts: tuple[str, ...] | list[str] = (),
+) -> ToolRegistry:
+    """Create the default registry with the stage-4 tools."""
     from kivi.tools.clipboard import ClipboardReadTool, ClipboardWriteTool
     from kivi.tools.fs import FsListTool, FsReadTool, FsWriteTool
     from kivi.tools.net import HttpGetTool
@@ -67,7 +70,7 @@ def build_registry() -> ToolRegistry:
         FsListTool(),
         FsWriteTool(),
         ShellExecTool(),
-        HttpGetTool(),
+        HttpGetTool(blocked_hosts=blocked_hosts),
         ProcListTool(),
         ProcKillTool(),
         ClipboardReadTool(),

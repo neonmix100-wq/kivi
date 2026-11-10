@@ -40,6 +40,29 @@ def test_unknown_key_is_rejected(tmp_path: Path) -> None:
         load_config(path)
 
 
+def test_blocked_hosts_are_normalised(tmp_path: Path) -> None:
+    path = tmp_path / "kivi.yaml"
+    path.write_text(
+        "security:\n"
+        "  blocked_hosts:\n"
+        "    - Example.COM\n"
+        "    - example.com\n",
+        encoding="utf-8",
+    )
+    config = load_config(path)
+    assert config.security.blocked_hosts == ["example.com"]
+
+
+def test_blocked_hosts_reject_urls(tmp_path: Path) -> None:
+    path = tmp_path / "kivi.yaml"
+    path.write_text(
+        "security:\n  blocked_hosts: ['https://example.com/path']\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="hostname pattern"):
+        load_config(path)
+
+
 def test_drafts_only_rejects_auto_send(tmp_path: Path) -> None:
     path = tmp_path / "kivi.yaml"
     path.write_text(

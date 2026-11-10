@@ -14,7 +14,7 @@ generated: true
 | --- | ---: | --- |
 | `src.kivi.__init__` | 3 | Kivi - local-first AI assistant. |
 | `src.kivi.__main__` | 8 | Allow ``python -m kivi``. |
-| `src.kivi.config` | 205 | Typed configuration for Kivi. |
+| `src.kivi.config` | 220 | Typed configuration for Kivi. |
 | `src.kivi.doctor` | 208 | Environment diagnostics for ``kivi doctor``. |
 | `src.kivi.paths` | 68 | Filesystem layout for Kivi runtime data. |
 
@@ -102,9 +102,9 @@ generated: true
 | `src.kivi.tools.clipboard` | 205 | Clipboard tools: explicit, confirmed access to the Windows clipboard. |
 | `src.kivi.tools.executor` | 288 | Capability Broker: the only path from a proposed tool call to the OS. |
 | `src.kivi.tools.fs` | 221 | Filesystem tools: read, list and write inside the workspace. |
-| `src.kivi.tools.net` | 180 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
+| `src.kivi.tools.net` | 187 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
 | `src.kivi.tools.proc` | 192 | Process list tool: names and memory only, never command lines. |
-| `src.kivi.tools.registry` | 81 | Tool registry: one place that knows which tools exist. |
+| `src.kivi.tools.registry` | 84 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.screen` | 306 | Screen capture tool: save the desktop as a BMP inside the workspace. |
 | `src.kivi.tools.shell` | 132 | Shell tool: one approved process, no shell expansion, minimal environment. |
 

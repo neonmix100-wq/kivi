@@ -12,6 +12,7 @@ Even then the result is marked ``untrusted:web`` and may not issue instructions.
 
 from __future__ import annotations
 
+import fnmatch
 import ipaddress
 import socket
 from collections.abc import Callable
@@ -64,9 +65,13 @@ class HttpGetTool:
         *,
         transport: httpx.BaseTransport | None = None,
         resolver: Resolver | None = None,
+        blocked_hosts: tuple[str, ...] | list[str] = (),
     ) -> None:
         self._transport = transport
         self._resolver = resolver or _default_resolver
+        self._blocked_hosts = tuple(
+            item.strip().lower() for item in blocked_hosts if item.strip()
+        )
 
     def _parse(self, url: str) -> tuple[str, str]:
         try:
@@ -81,6 +86,8 @@ class HttpGetTool:
         host = parts.hostname
         if not host:
             raise ToolError("URL has no host")
+        if any(fnmatch.fnmatchcase(host, pattern) for pattern in self._blocked_hosts):
+            raise ToolError(f"host is blocked by policy: {host}")
         if port not in (None, 443):
             raise ToolError("only the default HTTPS port is allowed")
         return host, url

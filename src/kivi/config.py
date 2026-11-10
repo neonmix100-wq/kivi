@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from kivi.paths import project_root
 
@@ -151,6 +151,21 @@ class SecuritySettings(BaseModel):
     killswitch_hotkey: str = "Ctrl+Alt+J"
     redact_secrets: bool = True
     egress_deny: list[str] = Field(default_factory=list)
+    blocked_hosts: list[str] = Field(default_factory=list)
+
+    @field_validator("blocked_hosts")
+    @classmethod
+    def _clean_blocked_hosts(cls, values: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for value in values:
+            host = value.strip().lower()
+            if not host:
+                raise ValueError("blocked host must not be empty")
+            if "://" in host or "/" in host:
+                raise ValueError(f"blocked host must be a hostname pattern: {value!r}")
+            if host not in cleaned:
+                cleaned.append(host)
+        return cleaned
 
 
 class KiviConfig(BaseModel):
