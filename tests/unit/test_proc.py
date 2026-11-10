@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 import psutil
@@ -8,7 +12,7 @@ from kivi.kernel.db import Database
 from kivi.safety.permissions import PermissionEngine
 from kivi.safety.zones import ProtectedZones
 from kivi.tools import ToolExecutor, ToolRegistry, build_registry
-from kivi.tools.proc import ProcListTool
+from kivi.tools.proc import ProcKillTool, ProcListTool
 
 
 class FakeMemory:
@@ -146,3 +150,130 @@ def test_executor_respects_killswitch(tmp_path: Path) -> None:
         db.close()
     assert not result.ok
     assert "kill switch" in result.error
+
+
+class FakeTarget:
+    def __init__(self, name: str, *, exit_on_wait: bool = True) -> None:
+        self._name = name
+        self.terminated = False
+        self.killed = False
+        self.exit_on_wait = exit_on_wait
+
+    def name(self) -> str:
+        return self._name
+
+    def terminate(self) -> None:
+        self.terminated = True
+
+    def kill(self) -> None:
+        self.killed = True
+
+    def wait(self, timeout: float | None = None) -> None:
+        if not self.exit_on_wait:
+            raise psutil.TimeoutExpired(seconds=timeout or 0)
+
+
+def test_kill_rejects_system_and_protected_names() -> None:
+    tool = ProcKillTool(process_factory=lambda pid: FakeTarget("explorer.exe"))
+    try:
+        tool.dry_run(tool.args_model(pid=100, name="explorer.exe"), None)  # type: ignore[arg-type]
+    except Exception as exc:
+        assert "protected" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("explorer.exe must be protected")
+
+
+def test_kill_rejects_name_mismatch() -> None:
+    tool = ProcKillTool(process_factory=lambda pid: FakeTarget("chrome.exe"))
+    try:
+        tool.dry_run(tool.args_model(pid=100, name="notepad.exe"), None)  # type: ignore[arg-type]
+    except Exception as exc:
+        assert "name mismatch" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("a mismatched name must be refused")
+
+
+def test_kill_rejects_own_pid() -> None:
+    tool = ProcKillTool(process_factory=lambda pid: FakeTarget("python.exe"))
+    try:
+        tool.dry_run(tool.args_model(pid=os.getpid(), name="python.exe"), None)  # type: ignore[arg-type]
+    except Exception as exc:
+        assert "Kivi process" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("Kivi must not kill itself")
+
+
+def test_kill_dry_run_and_force() -> None:
+    target = FakeTarget("notepad.exe")
+    tool = ProcKillTool(process_factory=lambda pid: target)
+    preview = tool.dry_run(tool.args_model(pid=100, name="notepad.exe"), None)  # type: ignore[arg-type]
+    assert preview.action == "process-kill"
+    assert preview.reversible is False
+
+    result = tool.run(tool.args_model(pid=100, name="notepad.exe", force=True), None)  # type: ignore[arg-type]
+    assert result.ok
+    assert target.killed is True
+    assert target.terminated is False
+
+
+def test_kill_timeout_asks_for_force() -> None:
+    target = FakeTarget("notepad.exe", exit_on_wait=False)
+    tool = ProcKillTool(process_factory=lambda pid: target)
+    try:
+        tool.run(tool.args_model(pid=100, name="notepad.exe"), None)  # type: ignore[arg-type]
+    except Exception as exc:
+        assert "force=true" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("a timeout must be reported")
+
+
+def test_executor_kills_a_real_spawned_process(tmp_path: Path) -> None:
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        name = psutil.Process(process.pid).name()
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        db = Database(tmp_path / "kivi.db")
+        engine = PermissionEngine(db, workspace=str(workspace))
+        grant = engine.issue("t1", ["proc.kill"])
+        registry = ToolRegistry()
+        registry.register(ProcKillTool())
+        executor = ToolExecutor(
+            registry,
+            db,
+            engine,
+            ProtectedZones(workspace),
+            workspace=workspace,
+        )
+        try:
+            denied = executor.run("proc.kill", {"pid": process.pid, "name": name}, grant=grant)
+            assert not denied.ok
+            assert "confirmation required" in denied.error
+
+            result = executor.run(
+                "proc.kill",
+                {"pid": process.pid, "name": name},
+                grant=grant,
+                approved=True,
+            )
+            assert result.ok
+            process.wait(timeout=5)
+        finally:
+            db.close()
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+        time.sleep(0)
+
+
+def test_registry_contains_proc_kill() -> None:
+    registry = build_registry()
+    assert "proc.kill" in registry.names()
+    spec = next(spec for spec in registry.specs() if spec.name == "proc.kill")
+    assert spec.risk == "R3"
+    assert spec.capabilities == ("proc.kill",)

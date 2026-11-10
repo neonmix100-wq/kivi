@@ -77,6 +77,7 @@ elevated broker; до тех пор R2 — обязательный барьер
 | `shell.exec` | R2 | `shell.exec` | argv без shell, минимальный env, таймаут |
 | `http.get` | R1 | `net.http` | HTTPS GET только на публичные адреса, санитайзер, `untrusted:web` |
 | `proc.list` | R0 | `proc.list` | pid, имя и RSS процессов; без командных строк |
+| `proc.kill` | R3 | `proc.kill` | завершить процесс после проверки имени; системные запрещены |
 | `clipboard.read` | R2 | `clipboard.read` | текст из буфера обмена, санитайзер и redaction |
 | `clipboard.write` | R2 | `clipboard.write` | заменить текст буфера обмена; подтверждение |
 

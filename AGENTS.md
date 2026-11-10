@@ -62,8 +62,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
   очистка недоверенного текста и redaction секретов, `zone_manifest.py` —
   подписанный HMAC-манифест дополнительных зон.
 - `src/kivi/tools/` — контракт `Tool`, реестр, `ToolExecutor` (Capability Broker),
-  `fs.*`, `shell.exec`, `http.get`, `proc.list`, `clipboard.*`. Каждый вызов идёт
-  через executor и пишется в аудит.
+  `fs.*`, `shell.exec`, `http.get`, `proc.list`, `proc.kill`, `clipboard.*`.
+  Каждый вызов идёт через executor и пишется в аудит.
 - `src/kivi/models/` — registry, Ollama backend, VRAM budget, lease/eviction.
 - `src/kivi/brain/` — планировщик и исполнение (этапы 4–5).
 - `src/kivi/senses/`, `tools/`, `memory/`, `modules/`, `interfaces/`.

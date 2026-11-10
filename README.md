@@ -7,7 +7,7 @@
 > Event Bus, аудит, Policy Engine, Protected Zones, risk-политика R0–R4,
 > trust labels, санитайзер недоверенного контента, kill switch и подписанный
 > манифест Protected Zones.
-> Осталось: `proc.kill`/`screen`, elevated broker, глобальный hotkey
+> Осталось: `proc.start`/`screen`, elevated broker, глобальный hotkey
 > kill switch, OCR/PDF-читатели; живой облачный вызов с ключом.
 
 ## Быстрый старт

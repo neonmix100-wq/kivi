@@ -103,8 +103,8 @@ generated: true
 | `src.kivi.tools.executor` | 288 | Capability Broker: the only path from a proposed tool call to the OS. |
 | `src.kivi.tools.fs` | 221 | Filesystem tools: read, list and write inside the workspace. |
 | `src.kivi.tools.net` | 180 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
-| `src.kivi.tools.proc` | 82 | Process list tool: names and memory only, never command lines. |
-| `src.kivi.tools.registry` | 78 | Tool registry: one place that knows which tools exist. |
+| `src.kivi.tools.proc` | 192 | Process list tool: names and memory only, never command lines. |
+| `src.kivi.tools.registry` | 79 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.shell` | 132 | Shell tool: one approved process, no shell expansion, minimal environment. |
 
 ## Тесты

@@ -7,12 +7,35 @@ action and still goes through the executor and audit.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import psutil
 from pydantic import BaseModel, ConfigDict, Field
 
 from kivi.tools.base import Preview, ToolContext, ToolError, ToolResult
+
+# Closing these would destabilise Windows or the user's session.
+PROTECTED_PROCESSES: frozenset[str] = frozenset(
+    {
+        "system",
+        "system idle process",
+        "smss.exe",
+        "csrss.exe",
+        "wininit.exe",
+        "winlogon.exe",
+        "services.exe",
+        "lsass.exe",
+        "lsaiso.exe",
+        "svchost.exe",
+        "explorer.exe",
+        "dwm.exe",
+        "fontdrvhost.exe",
+        "sihost.exe",
+        "ctfmon.exe",
+        "audiodg.exe",
+    }
+)
 
 
 class ProcListArgs(BaseModel):
@@ -79,4 +102,91 @@ class ProcListTool:
         )
 
 
-__all__ = ["ProcListArgs", "ProcListTool"]
+class ProcKillArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pid: int = Field(gt=4, description="Process id; 0..4 are system processes.")
+    name: str = Field(
+        min_length=1,
+        max_length=260,
+        description="Expected process name; must match the live process.",
+    )
+    force: bool = False
+
+
+class ProcKillTool:
+    name = "proc.kill"
+    description = "Terminate one process after checking its name and system role (R3)."
+    risk = "R3"
+    capabilities = ("proc.kill",)
+    args_model = ProcKillArgs
+
+    def __init__(self, process_factory: Any = None) -> None:
+        self._process_factory = process_factory or psutil.Process
+
+    def _target(self, args: ProcKillArgs) -> Any:
+        if args.pid <= 4:
+            raise ToolError("system pids are not killable")
+        if args.pid == os.getpid():
+            raise ToolError("refusing to kill the Kivi process")
+        expected = args.name.strip().casefold()
+        if expected in PROTECTED_PROCESSES or expected.startswith("kivi"):
+            raise ToolError(f"protected process: {args.name}")
+        try:
+            process = self._process_factory(args.pid)
+            actual = process.name()
+        except psutil.NoSuchProcess as exc:
+            raise ToolError(f"process not found: {args.pid}") from exc
+        except psutil.AccessDenied as exc:
+            raise ToolError(f"access denied: {args.pid}") from exc
+        if actual.casefold() != expected:
+            raise ToolError(f"name mismatch: pid {args.pid} is {actual}, not {args.name}")
+        return process
+
+    def dry_run(self, args: BaseModel, ctx: ToolContext) -> Preview:
+        assert isinstance(args, ProcKillArgs)
+        self._target(args)
+        return Preview(
+            "process-kill",
+            {"pid": args.pid, "name": args.name, "force": args.force},
+            reversible=False,
+            warnings=("the process will be terminated",),
+        )
+
+    def run(self, args: BaseModel, ctx: ToolContext) -> ToolResult:
+        assert isinstance(args, ProcKillArgs)
+        process = self._target(args)
+        try:
+            if args.force:
+                process.kill()
+            else:
+                process.terminate()
+            process.wait(timeout=5)
+        except psutil.TimeoutExpired as exc:
+            raise ToolError(
+                f"process {args.pid} did not exit in time; retry with force=true"
+            ) from exc
+        except psutil.NoSuchProcess:
+            return ToolResult(
+                ok=True,
+                output=f"process {args.pid} already exited",
+                meta={"pid": args.pid, "already_exited": True},
+                trust="untrusted:tool",
+            )
+        except psutil.AccessDenied as exc:
+            raise ToolError(f"access denied: {exc}") from exc
+        return ToolResult(
+            ok=True,
+            output=f"terminated {args.name} (pid {args.pid})",
+            meta={"pid": args.pid, "force": args.force},
+            trust="untrusted:tool",
+        )
+
+
+__all__ = [
+    "PROTECTED_PROCESSES",
+    "ProcKillArgs",
+    "ProcKillTool",
+    "ProcListArgs",
+    "ProcListTool",
+]

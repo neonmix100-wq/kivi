@@ -63,6 +63,7 @@ def test_registry_exposes_specs() -> None:
         "fs.read",
         "fs.write",
         "http.get",
+        "proc.kill",
         "proc.list",
         "shell.exec",
     )
