@@ -7,7 +7,7 @@
 > (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite, Event Bus,
 > аудит, Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
 > санитайзер, kill switch, подписанный манифест зон и память с FTS5 +
-> гибридным поиском.
+> гибридным поиском, суммаризацией, TTL и approvals.
 > Осталось: LanceDB/ANN, elevated broker, OCR/PDF-читатели;
 > живой облачный вызов с ключом.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
@@ -131,6 +131,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/TOOLS.md`](docs/TOOLS.md) | Контракт Tool, Permission Engine, Protected Zones, риски R0–R4 |
 | [`docs/TRUST.md`](docs/TRUST.md) | Trust labels, envelope, санитайзер и injection-корпус |
 | [`docs/MEMORY.md`](docs/MEMORY.md) | Память: сообщения, факты, артефакты, FTS5 и Context Builder |
+| [`docs/LIFECYCLE.md`](docs/LIFECYCLE.md) | Retention, суммаризация, TTL и durable approvals |
 | [`docs/SHELL.md`](docs/SHELL.md) | Kivi Shell: замена Explorer, паритет, fail-safe |
 | [`docs/PERSONA.md`](docs/PERSONA.md) | Kivi: характер, голос, аватар, одежда, липсинк |
 | [`docs/VOICE-CLONING.md`](docs/VOICE-CLONING.md) | Улучшение Silero, согласие, датасет и пайплайн клонирования голоса |

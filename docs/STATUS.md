@@ -5,15 +5,16 @@
 
 ## 1. Краткий ответ
 
+- **Этап 0 закрыт:** baseline моделей снят 11.11.2026 (Chrome/Broadcast закрыты),
+  цифры в `docs/BASELINE.md` §5. SDXL/whisper — n/a: нет чекпойнта/пакета.
 - **Этапы 1–3 закрыты:** ядро, Model Gateway и Cloud Broker.
 - **Этап 4 почти закрыт:** инструменты, Permission Engine, Protected Zones,
   trust labels, санитайзер, kill switch, hotkey и injection-корпус готовы.
   Остался один пункт — **elevated broker** (admin/UAC).
-- **Этап 5 в работе (~70%):** память, FTS5, эмбеддинги, hybrid-search,
-  Context Builder и импорт готовы. Осталось: **LanceDB/ANN, суммаризация/TTL,
-  API approvals**.
-- **Этап 0** формально не закрыт: не заполнен baseline-замер
-  `docs/BASELINE.md` §5 (нужны закрытые Chrome/Telegram/Broadcast).
+- **Этап 5 почти закрыт (~85%):** память, FTS5, эмбеддинги, hybrid-search,
+  Context Builder, импорт, суммаризация, TTL и approvals API готовы.
+  Осталось: **LanceDB/ANN и автоподключение approvals к PermissionEngine**.
+- **Этап 0** закрыт: baseline §5 заполнен (SDXL/whisper отмечены как n/a).
 - **Этапы 6–13 не начаты:** planner/M1, Coder, Operator, Communicator,
   Voice & Avatar, Work CRM, Cloud Media, Kivi Shell.
 
@@ -21,12 +22,12 @@
 
 | Этап | Статус | Что готово | Что осталось |
 |---|---|---|---|
-| 0. Решения и baseline | 🟡 частично | ADR-0001, решения второй итерации, `OLLAMA_MODELS`, venv, тесты | замер baseline §5 |
+| 0. Baseline | ✅ закрыт | ADR, решения, `OLLAMA_MODELS`, замер пяти моделей; SDXL/whisper n/a | — |
 | 1. Скелет ядра | ✅ готово | конфиг, SQLite/миграции, Event Bus, JSONL, CLI, `doctor` | — |
 | 2. Model Gateway | ✅ готово | registry, Ollama, NVML, lease/eviction, watchdog, CPU fallback, benchmark 20 переключений | — |
 | 3. Cloud Broker | ✅ готово | провайдеры, квоты, `QuotaExhausted`, handoff, Scout, `cloud ask/scout/handoff` | живой ключ (внешнее) |
 | 4. Tools + safety | 🟡 ~90% | Tool contract, разрешения R0–R4, зоны, MAC-манифест, trust/sanitizer, fs/shell/http/proc/clipboard/screen, kill switch, hotkey, injection-корпус | elevated broker; OCR/PDF-читатели |
-| 5. Память и контекст | 🟡 ~70% | messages/facts/preferences/artifacts, FTS5, embeddings, RRF hybrid, Context Builder, импорт, CLI | LanceDB/ANN, суммаризация/TTL, approvals API |
+| 5. Память и контекст | 🟡 ~85% | messages/facts/preferences/artifacts, FTS5, embeddings, RRF hybrid, Context Builder, импорт, суммаризация, TTL, approvals, CLI | LanceDB/ANN, автоподключение approvals |
 | 6. M1: Core Kivi | ⬜ не начат | — | planner DAG, fast/deep path, CLI-чат/API, Silero TTS, 2D-аватар, 20 сценариев |
 | 7. M2: Coder | ⬜ не начат | — | sandbox, code.run, патчи/диффы, git, цикл тестов |
 | 8. M3: Operator | ⬜ не начат | — | управление ПК, браузер, UIA/OCR |

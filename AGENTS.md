@@ -72,8 +72,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
   Каждый вызов идёт через executor и пишется в аудит.
 - `src/kivi/models/` — registry, Ollama backend, VRAM budget, lease/eviction.
 - `src/kivi/memory/` — SQLite-память (messages/facts/preferences/artifacts,
-  FTS5), эмбеддинги + hybrid-search (RRF), content-addressed артефакты и
-  Context Builder с бюджетом.
+  FTS5), эмбеддинги + hybrid-search (RRF), retention/суммаризация/TTL,
+  approvals, content-addressed артефакты и Context Builder с бюджетом.
 - `src/kivi/brain/` — планировщик и исполнение (этапы 4–5).
 - `src/kivi/senses/`, `tools/`, `memory/`, `modules/`, `interfaces/`.
 - `tests/unit/` — быстрые тесты без Ollama и сети.

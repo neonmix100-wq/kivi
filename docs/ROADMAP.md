@@ -48,7 +48,7 @@
 
 | Этап | Статус | Осталось |
 |---|---|---|
-| 0 | 🟡 частично | baseline §5 |
+| 0 | ✅ закрыт | SDXL/whisper — n/a (нет моделей) |
 | 1 | ✅ закрыт | — |
 | 2 | ✅ закрыт | — |
 | 3 | ✅ закрыт | живой ключ (внешнее) |
@@ -66,7 +66,8 @@
 - [x] Зафиксировать ADR-0001 (`docs/DECISIONS.md`) — сделано.
 - [x] Уточнить детали: аватар, запретные папки, облачные аккаунты, автоматизация работы —
       решения в `docs/DECISIONS.md` §10.
-- [ ] Замерить baseline при закрытых Chrome/Telegram/Broadcast; заполнить `docs/BASELINE.md` §5.
+- [x] Замерить baseline при закрытых Chrome/Telegram/Broadcast; заполнить `docs/BASELINE.md` §5
+      (SDXL/whisper — n/a: нет чекпойнта/пакета).
 - [x] Проверить `OLLAMA_MODELS=D:\ollama_models` — подтверждено.
 - [x] Создать venv Python 3.12, `pyproject.toml`, линтер, тесты.
 - [x] Первый коммит.
@@ -132,7 +133,8 @@ benchmark-стенд с fake- и real-режимами.
       условий/лимитов/watermark/политики данных, ручное подтверждение.
 - [x] Если Scout не нашёл провайдера — локальный handoff без потери контекста.
 - [x] Политика `cloud: auto_free`.
-- [ ] Denylist-интеграция и redaction перед облаком (этап 4).
+- [x] Redaction секретов и невидимых символов перед облаком; denylist путей —
+      через Protected Zones и инструменты.
 - [x] Первые провайдеры: OpenRouter и Groq (OpenAI-compatible, ключи только в env).
 
 **Сделано в первом срезе:** реестр `config/cloud.yaml` (OpenRouter, Groq),
@@ -234,16 +236,18 @@ workspace-cwd, минимальный env, detached-процесс); 6 тест�
 
 ## 8. Этап 5 — память и контекст (5–7 дней)
 
-**Статус:** 🟡 в работе (~70%). Готовы SQLite-память, FTS5, эмбеддинги,
-hybrid-search (RRF + recency), Context Builder, импорт и CLI. Осталось:
-LanceDB/ANN, суммаризация/TTL, API approvals.
+**Статус:** 🟡 в работе (~85%). Готовы SQLite-память, FTS5, эмбеддинги,
+hybrid-search (RRF + recency), Context Builder, импорт, суммаризация, TTL,
+approvals API и CLI. Осталось: LanceDB/ANN, автоматическая интеграция
+approvals с PermissionEngine.
 
 - [x] SQLite: messages, facts, artifacts, preferences, approvals (approvals — схема).
 - [x] Артефакты content-addressed.
 - [ ] LanceDB + bge-m3 на CPU (сейчас SQLite float32 + cosine).
 - [x] Гибридный поиск FTS5 + вектор (RRF).
 - [x] Профиль и правила (preferences + facts).
-- [x] Context Builder с бюджетом (суммаризация — позже).
+- [x] Context Builder с бюджетом и суммаризацией старых сообщений.
+- [x] TTL-очистка сообщений/эмбеддингов и approvals API (scope + TTL).
 - [x] Импорт `D:\AI-base` read-only (текстовые файлы, чанки, `untrusted:file`).
 - [x] `kivi memory add/search/recent/remember/forget/stats/export/context/import`.
 
@@ -258,8 +262,11 @@ artifacts, approvals) с FTS5 и триггерами; `MemoryStore` (upsert ф�
 векторов, recency-бонус, Context Builder использует hybrid при наличии
 embedder'а, CLI `kivi memory index` и `memory similar` через Ollama/bge-m3;
 17 тестов.
-**Осталось:** LanceDB/ANN для больших баз, суммаризация старых сообщений,
-API approvals.
+**Сделано в третьем срезе:** суммаризация старых сообщений, TTL-очистка
+сообщений/эмбеддингов, durable approvals (scope, TTL, отзыв, cleanup) и CLI
+`memory summarize/ttl/approvals`; 17 тестов lifecycle + CLI.
+**Осталось:** LanceDB/ANN для больших баз, автоматическая интеграция approvals
+с PermissionEngine.
 
 **Приёмка:** 10 фактов находятся после перезапуска; 20 запросов к базе дают релевантные источники;
 «забудь X» удаляет запись и векторы; секреты не индексируются.

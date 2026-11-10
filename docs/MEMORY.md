@@ -101,6 +101,11 @@ kivi memory export --out data/memory.json
 kivi memory import D:\AI-base\AI-base\docs --limit 50
 kivi memory index -m bge-m3
 kivi memory similar "тёплый город" -m bge-m3
+kivi memory summarize --older-than-days 7
+kivi memory ttl --days 90
+kivi memory approvals grant tsk_1 shell.exec --scope workspace --ttl 300
+kivi memory approvals list
+kivi memory approvals revoke 1
 ```
 
 `memory import` читает только `.md/.markdown/.txt/.rst`, пропускает `.git`,
@@ -112,12 +117,36 @@ kivi memory similar "тёплый город" -m bge-m3
 `kivi chat` теперь сохраняет сообщение пользователя в память; ответы модели
 появятся при интеграции Gateway/планировщика.
 
-## 6. Ограничения
+## 6. Retention, суммаризация и approvals
+
+[lifecycle.py](src/kivi/memory/lifecycle.py) добавляет управляемый жизненный цикл:
+
+```python
+from kivi.memory import ApprovalStore, apply_ttl, summarize_messages
+
+summarize_messages(store, older_than_days=7, delete_originals=False)
+apply_ttl(store, days=90)
+approvals = ApprovalStore(store)
+approvals.grant("tsk_1", "shell.exec", scope="workspace", ttl_s=300)
+approvals.is_approved("tsk_1", "shell.exec", scope="workspace")
+```
+
+- `summarize_messages` группирует старые сообщения по `task_id`, делает
+  экстрактивный summary (или вызывает переданный summarizer) и сохраняет его
+  как `system`/`untrusted:tool`; оригиналы удаляются только при
+  `delete_originals=True`.
+- `apply_ttl` удаляет старые сообщения и их эмбеддинги, а также просроченные
+  approvals; факты, предпочтения и артефакты не трогает.
+- `ApprovalStore` — durable-подтверждения в таблице `approvals`: TTL, scope,
+  отзыв и cleanup с суточным grace-периодом.
+- Интеграция approvals с `PermissionEngine` — следующий шаг; сейчас это
+  отдельное хранилище.
+
+## 7. Ограничения
 
 - Векторы лежат в SQLite и сравниваются cosine-перебором; LanceDB + ANN —
   следующий шаг для больших баз.
-- Нет суммаризации старых сообщений и TTL-политики; бюджет решает Context
-  Builder, но хранилище не чистится автоматически.
-- `approvals` — только схема, API подтверждений появится вместе с планером.
-- CLI `memory search` остаётся FTS; гибридный поиск доступен как
-  `memory similar` и программно через `HybridSearch`.
+- Нет автоматического TTL-таймера: `apply_ttl` вызывается явно (CLI/код).
+- `approvals` API есть, но `PermissionEngine` пока не читает его автоматически.
+- Hybrid-search встроен в Context Builder, CLI `memory search` остаётся FTS;
+  гибридный поиск — `memory similar`.

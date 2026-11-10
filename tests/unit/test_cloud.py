@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import httpx
@@ -58,6 +59,37 @@ def success_handler(request: httpx.Request) -> httpx.Response:
             "usage": {"total_tokens": 12},
         },
     )
+
+
+def test_secret_is_redacted_before_the_cloud_call(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("TEST_CLOUD_KEY", "test-secret")
+    seen: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen["content"] = body["messages"][0]["content"]
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "ok"}}],
+                "usage": {"total_tokens": 1},
+            },
+        )
+
+    broker, db = make_broker(tmp_path, handler)
+    try:
+        broker.complete(
+            "groq",
+            [{"role": "user", "content": "token sk-canary12345678901234567890"}],
+            data_class="public",
+        )
+        audit = db.recent_audit()
+    finally:
+        broker.close()
+        db.close()
+    assert "sk-canary" not in seen["content"]
+    assert "[REDACTED]" in seen["content"]
+    assert any(row["reason"] == "secrets redacted" for row in audit)
 
 
 def test_public_call_is_recorded_and_audited(tmp_path: Path, monkeypatch) -> None:

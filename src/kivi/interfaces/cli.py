@@ -37,7 +37,15 @@ from kivi.doctor import ollama_models, run_checks, summary
 from kivi.kernel.db import Database
 from kivi.kernel.events import EventBus
 from kivi.kernel.logs import JsonlLogger
-from kivi.memory import ContextBuilder, HybridSearch, MemoryStore, import_directory
+from kivi.memory import (
+    ApprovalStore,
+    ContextBuilder,
+    HybridSearch,
+    MemoryStore,
+    apply_ttl,
+    import_directory,
+    summarize_messages,
+)
 from kivi.models import (
     BackendError,
     GatewayError,
@@ -1194,6 +1202,105 @@ def cmd_memory_context(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_memory_summarize(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        try:
+            result = summarize_messages(
+                _memory(paths, db),
+                older_than_days=args.older_than_days,
+                max_messages=args.max_messages,
+                delete_originals=args.delete,
+            )
+        except ValueError as exc:
+            console.print(f"[red]memory error:[/red] {exc}")
+            return 1
+    console.print(
+        f"summarized groups={result.groups} messages={result.summarized} "
+        f"deleted={result.deleted}"
+    )
+    return 0
+
+
+def cmd_memory_ttl(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        try:
+            result = apply_ttl(_memory(paths, db), days=args.days)
+        except ValueError as exc:
+            console.print(f"[red]memory error:[/red] {exc}")
+            return 1
+    console.print(
+        f"ttl cutoff={result.cutoff} messages={result.messages_deleted} "
+        f"embeddings={result.embeddings_deleted} approvals={result.approvals_deleted}"
+    )
+    return 0
+
+
+def cmd_memory_approvals_list(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        store = ApprovalStore(_memory(paths, db))
+        rows = store.list(args.task_id or None)
+    if not rows:
+        console.print("No approvals.")
+        return 0
+    table = Table(title="Approvals")
+    table.add_column("ID", justify="right")
+    table.add_column("Task")
+    table.add_column("Action")
+    table.add_column("Scope")
+    table.add_column("Active")
+    table.add_column("Expires")
+    for row in rows:
+        table.add_row(
+            str(row["id"]),
+            _plain(str(row["task_id"])),
+            _plain(str(row["action"])),
+            _plain(str(row["scope"] or "-")),
+            "yes" if row["active"] else "no",
+            str(row["expires_at"] or "never"),
+        )
+    console.print(table)
+    return 0
+
+
+def cmd_memory_approvals_grant(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        try:
+            row = ApprovalStore(_memory(paths, db)).grant(
+                args.task_id,
+                args.action,
+                scope=args.scope,
+                ttl_s=args.ttl,
+            )
+        except ValueError as exc:
+            console.print(f"[red]approval error:[/red] {exc}")
+            return 1
+    console.print(f"granted approval #{row.get('id')} for {args.action}")
+    return 0
+
+
+def cmd_memory_approvals_revoke(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        removed = ApprovalStore(_memory(paths, db)).revoke(args.approval_id)
+    if not removed:
+        console.print(f"no active approval #{args.approval_id}")
+        return 1
+    console.print(f"revoked approval #{args.approval_id}")
+    return 0
+
+
+def cmd_memory_approvals_cleanup(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        deleted = ApprovalStore(_memory(paths, db)).cleanup()
+    console.print(f"cleaned up {deleted} approval(s)")
+    return 0
+
+
 def cmd_audit(args: argparse.Namespace) -> int:
     paths = get_paths()
     with _state(paths) as (db, _):
@@ -1442,6 +1549,31 @@ def build_parser() -> argparse.ArgumentParser:
     memory_similar.add_argument("--timeout", type=float, default=120.0)
     memory_similar.add_argument("--keep-alive", default="0")
     memory_similar.set_defaults(func=cmd_memory_similar)
+    memory_summarize = memory_sub.add_parser("summarize", help="summarize old messages")
+    memory_summarize.add_argument("--older-than-days", type=int, default=7)
+    memory_summarize.add_argument("--max-messages", type=int, default=200)
+    memory_summarize.add_argument("--delete", action="store_true")
+    memory_summarize.set_defaults(func=cmd_memory_summarize)
+    memory_ttl = memory_sub.add_parser("ttl", help="delete messages older than the TTL")
+    memory_ttl.add_argument("--days", type=int, default=90)
+    memory_ttl.set_defaults(func=cmd_memory_ttl)
+    memory_approvals = memory_sub.add_parser("approvals", help="durable approvals")
+    approvals_sub = memory_approvals.add_subparsers(dest="approvals_command")
+    approvals_list = approvals_sub.add_parser("list")
+    approvals_list.add_argument("--task-id", default="")
+    approvals_list.set_defaults(func=cmd_memory_approvals_list)
+    approvals_grant = approvals_sub.add_parser("grant")
+    approvals_grant.add_argument("task_id")
+    approvals_grant.add_argument("action")
+    approvals_grant.add_argument("--scope", default="")
+    approvals_grant.add_argument("--ttl", type=int, default=None)
+    approvals_grant.set_defaults(func=cmd_memory_approvals_grant)
+    approvals_revoke = approvals_sub.add_parser("revoke")
+    approvals_revoke.add_argument("approval_id", type=int)
+    approvals_revoke.set_defaults(func=cmd_memory_approvals_revoke)
+    approvals_cleanup = approvals_sub.add_parser("cleanup")
+    approvals_cleanup.set_defaults(func=cmd_memory_approvals_cleanup)
+    memory_approvals.set_defaults(func=cmd_memory_approvals_list)
     memory_context = memory_sub.add_parser("context", help="build a context window")
     memory_context.add_argument("query")
     memory_context.add_argument("--task-id", default="")

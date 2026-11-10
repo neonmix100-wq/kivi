@@ -17,6 +17,7 @@ import httpx
 from kivi.cloud.providers import CloudProvider, CloudRegistry
 from kivi.config import CloudSettings
 from kivi.kernel.db import Database
+from kivi.safety.sanitize import sanitize_text
 
 DataClass = Literal["public", "internal", "private", "secret"]
 RESTRICTED_DATA = frozenset({"internal", "private", "secret"})
@@ -291,6 +292,18 @@ class CloudBroker:
             )
 
     # -- calls -----------------------------------------------------------
+    def _sanitize_messages(
+        self, messages: list[dict[str, str]]
+    ) -> tuple[list[dict[str, str]], int]:
+        """Redact secrets and invisible characters before egress."""
+        cleaned: list[dict[str, str]] = []
+        secrets = 0
+        for message in messages:
+            sanitized = sanitize_text(str(message.get("content", "")), html=False)
+            secrets += sanitized.removed.get("secrets", 0)
+            cleaned.append({**message, "content": sanitized.text})
+        return cleaned, secrets
+
     def complete(
         self,
         provider_id: str,
@@ -328,6 +341,16 @@ class CloudBroker:
         self._check_quota(provider, usage, model=chosen_model)
         if not chosen_model:
             raise CloudError(f"{provider.id}: no model configured")
+        safe_messages, redactions = self._sanitize_messages(messages)
+        if redactions:
+            self._audit(
+                provider,
+                model=chosen_model,
+                decision="allow",
+                reason="secrets redacted",
+                details={"redactions": redactions},
+            )
+        messages = safe_messages
 
         body = {
             "model": chosen_model,

@@ -466,6 +466,20 @@ def test_cli_memory_flow(tmp_path: Path, monkeypatch) -> None:
     assert main(["memory", "forget", "city"]) == 1
 
 
+def test_cli_memory_lifecycle(tmp_path: Path, monkeypatch) -> None:
+    paths = make_cli_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+
+    assert main(["memory", "add", "old message"]) == 0
+    assert main(["memory", "summarize", "--older-than-days", "0"]) == 0
+    assert main(["memory", "ttl", "--days", "90"]) == 0
+    assert main(["memory", "approvals", "grant", "t1", "shell.exec", "--ttl", "300"]) == 0
+    assert main(["memory", "approvals", "list"]) == 0
+    assert main(["memory", "approvals", "revoke", "1"]) == 0
+    assert main(["memory", "approvals", "revoke", "1"]) == 1
+    assert main(["memory", "approvals", "cleanup"]) == 0
+
+
 def test_cli_memory_import(tmp_path: Path, monkeypatch) -> None:
     paths = make_cli_profile(tmp_path)
     monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
