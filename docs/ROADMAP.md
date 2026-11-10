@@ -158,7 +158,7 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
 - [ ] Elevated broker: узкий список admin-операций, UAC, аудит.
 - [x] Kill switch: флаг, CLI, блокировка tools/cloud, аудит.
 - [x] Kill switch выгружает модели, которые обслуживает Ollama (best-effort).
-- [ ] Глобальная горячая клавиша kill switch.
+- [x] Глобальная горячая клавиша kill switch (`kivi hotkey`, `RegisterHotKey`).
 - [x] 40+ тестов, включая обходы прав.
 - [x] Первый injection-корпус и canary-тесты (`tests/security/injection`).
 
@@ -200,8 +200,10 @@ GDI без Pillow, BMP в workspace, лимит размера, `untrusted:visio
 исходные `Host` и SNI), закрывает DNS rebinding; 1 тест.
 **Сделано в тринадцатом мини-срезе:** `proc.start` (R3, policy-проверка,
 workspace-cwd, минимальный env, detached-процесс); 6 тестов.
-**Осталось:** elevated broker, глобальный hotkey kill switch, OCR/PDF-читатели
-и расширение injection-корпуса.
+**Сделано в четырнадцатом мини-срезе:** глобальная горячая клавиша kill switch
+(`kivi hotkey`, `RegisterHotKey` + `GetMessageW`, fake-backend для тестов);
+16 тестов.
+**Осталось:** elevated broker, OCR/PDF-читатели и расширение injection-корпуса.
 
 **Приёмка:** запись вне scope невозможна; `format`, `diskpart`, `reg delete`, `shutdown`,
 системные папки и секреты блокируются; агент не может изменить denylist/safety/audit;

@@ -38,7 +38,7 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 1 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.cli` | 1064 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 1114 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -78,7 +78,8 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.safety.__init__` | 51 | Safety layer: policy, protected zones, approvals and trust labels. |
+| `src.kivi.safety.__init__` | 63 | Safety layer: policy, protected zones, approvals and trust labels. |
+| `src.kivi.safety.hotkey` | 218 | Global kill-switch hotkey. |
 | `src.kivi.safety.killswitch` | 157 | Kill switch: one durable flag that stops tools and cloud calls. |
 | `src.kivi.safety.permissions` | 224 | Permission Engine: task grants, risk levels and allow/confirm/deny. |
 | `src.kivi.safety.policy` | 227 | A4-Bounded policy checks. |
@@ -110,7 +111,7 @@ generated: true
 
 ## Тесты
 
-Всего файлов: **27**.
+Всего файлов: **28**.
 
 - `tests/security/test_injection.py`
 - `tests/unit/test_bench_gateway.py`
@@ -124,6 +125,7 @@ generated: true
 - `tests/unit/test_doctor.py`
 - `tests/unit/test_events.py`
 - `tests/unit/test_gateway.py`
+- `tests/unit/test_hotkey.py`
 - `tests/unit/test_http_tool.py`
 - `tests/unit/test_killswitch.py`
 - `tests/unit/test_knowledge.py`

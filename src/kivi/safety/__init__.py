@@ -1,5 +1,12 @@
 """Safety layer: policy, protected zones, approvals and trust labels."""
 
+from kivi.safety.hotkey import (
+    HotkeyError,
+    HotkeyListener,
+    HotkeySpec,
+    HotkeyUnavailable,
+    parse_hotkey,
+)
 from kivi.safety.killswitch import KillSwitch, KillSwitchState
 from kivi.safety.permissions import (
     Decision,
@@ -28,6 +35,10 @@ from kivi.safety.zones import (
 __all__ = [
     "Decision",
     "Grant",
+    "HotkeyError",
+    "HotkeyListener",
+    "HotkeySpec",
+    "HotkeyUnavailable",
     "KillSwitch",
     "KillSwitchState",
     "PermissionEngine",
@@ -46,6 +57,7 @@ __all__ = [
     "build_envelope",
     "can_issue_instructions",
     "classify_source",
+    "parse_hotkey",
     "redact_secrets",
     "sanitize_text",
 ]

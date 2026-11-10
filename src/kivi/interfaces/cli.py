@@ -47,6 +47,13 @@ from kivi.models import (
 )
 from kivi.paths import Paths, get_paths
 from kivi.safety import KillSwitch, PermissionEngine, ProtectedZones
+from kivi.safety.hotkey import (
+    HotkeyError,
+    HotkeyListener,
+    HotkeyUnavailable,
+    WindowsHotkey,
+    parse_hotkey,
+)
 from kivi.safety.killswitch import FLAG_NAME
 from kivi.safety.zone_manifest import (
     ZoneManifestError,
@@ -850,6 +857,39 @@ def cmd_zones(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_hotkey(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    try:
+        spec = parse_hotkey(args.hotkey or config.security.killswitch_hotkey)
+    except HotkeyError as exc:
+        console.print(f"[red]hotkey error:[/red] {exc}")
+        return 1
+    if args.check:
+        console.print(f"hotkey: {spec.text} (vk=0x{spec.virtual_key:02X})")
+        return 0
+
+    with _state(paths) as (db, events):
+        switch = _kill_switch(paths, db, events)
+
+        def trigger() -> None:
+            state = switch.engage(f"hotkey {spec.text}", source="hotkey")
+            console.print(f"[red]kill switch engaged[/red] by {spec.text}: {state.reason}")
+
+        listener = HotkeyListener(spec, WindowsHotkey(), trigger)
+        console.print(f"Listening for {spec.text}; Ctrl+C to stop.")
+        try:
+            handled = listener.run(max_events=1 if args.once else None)
+        except HotkeyUnavailable as exc:
+            console.print(f"[red]hotkey error:[/red] {exc}")
+            return 1
+        except KeyboardInterrupt:
+            console.print("\nHotkey listener stopped.")
+            return 0
+    console.print(f"handled {handled} hotkey press(es)")
+    return 0
+
+
 def cmd_audit(args: argparse.Namespace) -> int:
     paths = get_paths()
     with _state(paths) as (db, _):
@@ -1033,6 +1073,16 @@ def build_parser() -> argparse.ArgumentParser:
         default="status",
     )
     zones.set_defaults(func=cmd_zones)
+
+    hotkey = sub.add_parser("hotkey", help="listen for the global kill-switch hotkey")
+    hotkey.add_argument(
+        "--hotkey",
+        default="",
+        help="override the configured hotkey, for example Ctrl+Alt+J",
+    )
+    hotkey.add_argument("--once", action="store_true", help="stop after the first press")
+    hotkey.add_argument("--check", action="store_true", help="validate the hotkey and exit")
+    hotkey.set_defaults(func=cmd_hotkey)
 
     events = sub.add_parser("events", help="show recent events")
     events.add_argument("-n", "--limit", type=int, default=20)

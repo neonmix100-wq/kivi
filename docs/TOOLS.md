@@ -142,8 +142,17 @@ kivi killswitch off
 (best-effort); недоступная Ollama не отменяет сам флаг и пишет
 `safety.killswitch_unload` в аудит.
 
-Глобальная горячая клавиша (`Ctrl+Alt+J`) появится в shell/tray-срезе; сейчас
-команда вызывается вручную.
+Глобальная горячая клавиша (`Ctrl+Alt+J`) обслуживается отдельным listener:
+
+```powershell
+kivi hotkey --check     # проверить строку и показать virtual-key
+kivi hotkey --once      # дождаться одного нажатия и выйти
+kivi hotkey             # слушать до Ctrl+C
+```
+
+Listener регистрирует `RegisterHotKey` с `MOD_NOREPEAT` и в цикле
+`GetMessageW`; нажатие включает kill switch (`source=hotkey`) и пишет аудит.
+Это отдельный процесс: закройте его Ctrl+C, когда не нужен.
 
 ## 9. Подписанный манифест зон
 
