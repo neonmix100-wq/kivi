@@ -74,7 +74,14 @@ kivi memory forget city
 kivi memory context Новосибирск --max-chars 6000
 kivi memory stats
 kivi memory export --out data/memory.json
+kivi memory import D:\AI-base\AI-base\docs --limit 50
 ```
+
+`memory import` читает только `.md/.markdown/.txt/.rst`, пропускает `.git`,
+`.obsidian`, `private`, `voice-dataset`, symlink'и, бинарные и слишком большие
+файлы; каждый файл чанкуется по абзацам и сохраняется как `untrusted:file`.
+Повторный импорт того же пути пропускается (duplicates), исходные файлы не
+меняются.
 
 `kivi chat` теперь сохраняет сообщение пользователя в память; ответы модели
 появятся при интеграции Gateway/планировщика.
@@ -84,5 +91,4 @@ kivi memory export --out data/memory.json
 - Векторный поиск (LanceDB + bge-m3) ещё не подключён; сейчас только FTS5.
 - Нет суммаризации старых сообщений и TTL-политики; бюджет решает Context
   Builder, но хранилище не чистится автоматически.
-- Импорт `D:\AI-base` read-only — следующий срез.
 - `approvals` — только схема, API подтверждений появится вместе с планером.

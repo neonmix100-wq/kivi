@@ -38,7 +38,7 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 1 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.cli` | 1312 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 1345 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -53,9 +53,10 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.memory.__init__` | 6 | Memory: working, episodic, semantic, profile and artifacts. |
+| `src.kivi.memory.__init__` | 14 | Memory: working, episodic, semantic, profile and artifacts. |
 | `src.kivi.memory.context` | 159 | Context builder: profile, relevant memory and recent messages within budget. |
-| `src.kivi.memory.store` | 233 | Durable memory: messages, facts, preferences and content-addressed artifacts. |
+| `src.kivi.memory.importer` | 148 | Read-only import of text knowledge bases into memory. |
+| `src.kivi.memory.store` | 241 | Durable memory: messages, facts, preferences and content-addressed artifacts. |
 
 ## models
 

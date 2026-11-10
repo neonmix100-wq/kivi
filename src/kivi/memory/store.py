@@ -81,6 +81,14 @@ class MemoryStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def has_task_prefix(self, prefix: str) -> bool:
+        """True when any message task id starts with ``prefix``."""
+        row = self._conn.execute(
+            "SELECT 1 FROM messages WHERE substr(task_id, 1, ?) = ? LIMIT 1",
+            (len(prefix), prefix),
+        ).fetchone()
+        return row is not None
+
     def search_messages(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         phrase = _fts_phrase(query)
         if not phrase:

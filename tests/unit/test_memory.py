@@ -8,7 +8,7 @@ import pytest
 from kivi.interfaces import cli as cli_module
 from kivi.interfaces.cli import main
 from kivi.kernel.db import Database
-from kivi.memory import ContextBuilder, MemoryError, MemoryStore
+from kivi.memory import ContextBuilder, MemoryError, MemoryStore, import_directory
 from kivi.paths import Paths
 from kivi.safety.trust import TrustError
 
@@ -194,6 +194,83 @@ def test_empty_context(tmp_path: Path) -> None:
     assert context.empty is True
 
 
+def test_import_text_directory(tmp_path: Path) -> None:
+    source = tmp_path / "base"
+    (source / "sub").mkdir(parents=True)
+    (source / ".git").mkdir()
+    (source / "a.md").write_text("alpha paragraph\n\nbeta paragraph", encoding="utf-8")
+    (source / "sub" / "b.txt").write_text("gamma", encoding="utf-8")
+    (source / ".git" / "secret.md").write_text("hidden", encoding="utf-8")
+    (source / "image.png").write_bytes(b"\x89PNG")
+    (source / ".env").write_text("SECRET=1", encoding="utf-8")
+
+    store, db = make_store(tmp_path)
+    try:
+        result = import_directory(store, source)
+        messages = store.recent_messages(100)
+        hits = store.search_messages("alpha")
+    finally:
+        db.close()
+    assert result.files == 2
+    assert result.chunks == 2
+    assert result.skipped >= 2
+    assert all(message["trust"] == "untrusted:file" for message in messages)
+    assert hits and "alpha" in hits[0]["content"]
+
+
+def test_import_is_idempotent(tmp_path: Path) -> None:
+    source = tmp_path / "base"
+    source.mkdir()
+    (source / "a.md").write_text("alpha", encoding="utf-8")
+    store, db = make_store(tmp_path)
+    try:
+        first = import_directory(store, source)
+        second = import_directory(store, source)
+        count = store.stats()["messages"]
+    finally:
+        db.close()
+    assert first.files == 1
+    assert second.files == 0
+    assert second.duplicates == 1
+    assert count == 1
+
+
+def test_import_chunks_long_files(tmp_path: Path) -> None:
+    source = tmp_path / "base"
+    source.mkdir()
+    (source / "long.md").write_text("x" * 500, encoding="utf-8")
+    store, db = make_store(tmp_path)
+    try:
+        result = import_directory(store, source, chunk_chars=200)
+        messages = store.recent_messages(10)
+    finally:
+        db.close()
+    assert result.chunks == 3
+    assert all(len(message["content"]) <= 200 for message in messages)
+
+
+def test_import_respects_file_limit(tmp_path: Path) -> None:
+    source = tmp_path / "base"
+    source.mkdir()
+    for index in range(3):
+        (source / f"{index}.md").write_text(f"text {index}", encoding="utf-8")
+    store, db = make_store(tmp_path)
+    try:
+        result = import_directory(store, source, limit_files=1)
+    finally:
+        db.close()
+    assert result.files == 1
+
+
+def test_import_missing_directory(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        with pytest.raises(NotADirectoryError):
+            import_directory(store, tmp_path / "missing")
+    finally:
+        db.close()
+
+
 def make_cli_profile(tmp_path: Path) -> Paths:
     root = tmp_path / "repo"
     (root / "config").mkdir(parents=True)
@@ -214,3 +291,14 @@ def test_cli_memory_flow(tmp_path: Path, monkeypatch) -> None:
     assert main(["memory", "export"]) == 0
     assert main(["memory", "forget", "city"]) == 0
     assert main(["memory", "forget", "city"]) == 1
+
+
+def test_cli_memory_import(tmp_path: Path, monkeypatch) -> None:
+    paths = make_cli_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+    source = tmp_path / "knowledge"
+    source.mkdir()
+    (source / "note.md").write_text("imported knowledge", encoding="utf-8")
+
+    assert main(["memory", "import", str(source)]) == 0
+    assert main(["memory", "search", "imported"]) == 0

@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from kivi.cloud import (
@@ -36,7 +37,7 @@ from kivi.doctor import ollama_models, run_checks, summary
 from kivi.kernel.db import Database
 from kivi.kernel.events import EventBus
 from kivi.kernel.logs import JsonlLogger
-from kivi.memory import ContextBuilder, MemoryStore
+from kivi.memory import ContextBuilder, MemoryStore, import_directory
 from kivi.models import (
     BackendError,
     GatewayError,
@@ -71,10 +72,11 @@ from kivi.tools import ToolExecutor, build_registry
 console = Console()
 
 
-def _safe_text(text: str) -> str:
-    """Make arbitrary tool output printable on a legacy code page."""
+def _plain(text: str) -> str:
+    """Make arbitrary tool output printable and safe for Rich markup."""
     encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
-    return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+    safe = text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+    return escape(safe)
 
 
 @contextmanager
@@ -536,7 +538,7 @@ def cmd_cloud_scout(args: argparse.Namespace) -> int:
         console.print("No matching free provider in the Scout catalog.")
         if outcome is not None and outcome.handoff is not None:
             console.print(f"Local handoff saved as #{outcome.handoff_id}:")
-            console.print(_safe_text(outcome.handoff.to_prompt()))
+            console.print(_plain(outcome.handoff.to_prompt()))
         else:
             console.print("Pass --goal to save a local handoff, or run a local model directly.")
         return 0
@@ -589,14 +591,14 @@ def _handoff_after_quota(
                 console.print("\nConfirm one with: kivi cloud scout --approve <id>")
             else:
                 console.print("No free provider matched; continue locally from the handoff:")
-                console.print(_safe_text(outcome.handoff.to_prompt() if outcome.handoff else ""))
+                console.print(_plain(outcome.handoff.to_prompt() if outcome.handoff else ""))
             return 1
 
     pack = build_handoff(goal, reason, next_step=args.next_step, task_id=args.task_id)
     handoff_id = save_handoff(db, pack)
     console.print(f"[yellow]quota exhausted:[/yellow] {reason}")
     console.print(f"Local handoff saved as #{handoff_id}:")
-    console.print(_safe_text(pack.to_prompt()))
+    console.print(_plain(pack.to_prompt()))
     return 1
 
 
@@ -642,7 +644,7 @@ def cmd_cloud_ask(args: argparse.Namespace) -> int:
         finally:
             broker.close()
 
-    console.print(_safe_text(result.text))
+    console.print(_plain(result.text))
     console.print(
         f"[dim]{result.provider}/{result.model}: {result.tokens} tokens, "
         f"${result.cost_usd:.4f}[/dim]"
@@ -658,7 +660,7 @@ def cmd_cloud_handoffs(args: argparse.Namespace) -> int:
             if pack is None:
                 console.print(f"[red]unknown handoff:[/red] {args.show}")
                 return 1
-            console.print(_safe_text(pack.to_prompt()))
+            console.print(_plain(pack.to_prompt()))
             return 0
         rows = db.recent_handoffs(args.limit)
     if not rows:
@@ -762,7 +764,7 @@ def cmd_tool_run(args: argparse.Namespace) -> int:
         )
 
     if result.ok:
-        console.print(_safe_text(result.output))
+        console.print(_plain(result.output))
         if result.truncated:
             console.print("[yellow]output truncated[/yellow]")
         return 0
@@ -931,10 +933,10 @@ def cmd_memory_search(args: argparse.Namespace) -> int:
         table.add_column("Source", overflow="fold")
         for fact in facts:
             table.add_row(
-                fact["key"],
-                _safe_text(str(fact["value"])),
+                _plain(fact["key"]),
+                _plain(str(fact["value"])),
                 fact["trust"],
-                _safe_text(str(fact["source"] or "-")),
+                _plain(str(fact["source"] or "-")),
             )
         console.print(table)
     if messages:
@@ -948,7 +950,7 @@ def cmd_memory_search(args: argparse.Namespace) -> int:
                 str(message["id"]),
                 message["role"],
                 message["trust"],
-                _safe_text(str(message["snippet"] or message["content"])),
+                _plain(str(message["snippet"] or message["content"])),
             )
         console.print(table)
     return 0
@@ -971,7 +973,7 @@ def cmd_memory_recent(args: argparse.Namespace) -> int:
             str(row["id"]),
             row["role"],
             row["trust"],
-            _safe_text(str(row["content"])),
+            _plain(str(row["content"])),
         )
     console.print(table)
     return 0
@@ -1029,7 +1031,32 @@ def cmd_memory_export(args: argparse.Namespace) -> int:
         target.write_text(payload, encoding="utf-8")
         console.print(f"exported to {target}")
     else:
-        console.print(_safe_text(payload))
+        console.print(_plain(payload))
+    return 0
+
+
+def cmd_memory_import(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, _):
+        try:
+            result = import_directory(
+                _memory(paths, db),
+                Path(args.path),
+                limit_files=args.limit,
+                max_file_bytes=args.max_bytes,
+                chunk_chars=args.chunk_chars,
+            )
+        except (OSError, ValueError) as exc:
+            console.print(f"[red]memory import error:[/red] {exc}")
+            return 1
+    console.print(
+        f"imported files={result.files} chunks={result.chunks} "
+        f"skipped={result.skipped} duplicates={result.duplicates}"
+    )
+    if result.errors:
+        for error in result.errors[:10]:
+            console.print(f"[yellow]skipped:[/yellow] {_plain(error)}")
+        return 1
     return 0
 
 
@@ -1041,7 +1068,7 @@ def cmd_memory_context(args: argparse.Namespace) -> int:
     if context.empty:
         console.print("Context is empty.")
         return 0
-    console.print(_safe_text(context.text))
+    console.print(_plain(context.text))
     if context.truncated:
         console.print("[yellow]context truncated to budget[/yellow]")
     return 0
@@ -1275,6 +1302,12 @@ def build_parser() -> argparse.ArgumentParser:
     memory_export = memory_sub.add_parser("export", help="export memory as JSON")
     memory_export.add_argument("--out", default="")
     memory_export.set_defaults(func=cmd_memory_export)
+    memory_import = memory_sub.add_parser("import", help="import text files read-only")
+    memory_import.add_argument("path")
+    memory_import.add_argument("-n", "--limit", type=int, default=100)
+    memory_import.add_argument("--max-bytes", type=int, default=1024 * 1024)
+    memory_import.add_argument("--chunk-chars", type=int, default=4000)
+    memory_import.set_defaults(func=cmd_memory_import)
     memory_context = memory_sub.add_parser("context", help="build a context window")
     memory_context.add_argument("query")
     memory_context.add_argument("--task-id", default="")

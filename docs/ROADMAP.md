@@ -219,16 +219,17 @@ workspace-cwd, минимальный env, detached-процесс); 6 тест�
 - [ ] Гибридный поиск FTS5 + вектор + свежесть.
 - [x] Профиль и правила (preferences + facts).
 - [x] Context Builder с бюджетом (суммаризация — позже).
-- [ ] Импорт `D:\AI-base` read-only.
-- [x] `kivi memory add/search/recent/remember/forget/stats/export/context`.
+- [x] Импорт `D:\AI-base` read-only (текстовые файлы, чанки, `untrusted:file`).
+- [x] `kivi memory add/search/recent/remember/forget/stats/export/context/import`.
 
 **Сделано в первом срезе:** миграция 4 (messages, facts, preferences,
 artifacts, approvals) с FTS5 и триггерами; `MemoryStore` (upsert фактов,
 поиск, артефакты по SHA-256, export/stats); `ContextBuilder` с trust-envelope,
-санитайзером и бюджетом; CLI `kivi memory ...`; `kivi chat` пишет сообщение
-пользователя в память; 15 тестов.
+санитайзером и бюджетом; `kivi memory import` для read-only текстовых баз
+(чанки, пропуск `.git`/private/бинарных, идемпотентность); CLI `kivi memory ...`;
+`kivi chat` пишет сообщение пользователя в память; 21 тест.
 **Осталось:** LanceDB + bge-m3, гибридный поиск со свежестью, суммаризация
-старых сообщений, импорт `D:\AI-base`, API approvals.
+старых сообщений, API approvals.
 
 **Приёмка:** 10 фактов находятся после перезапуска; 20 запросов к базе дают релевантные источники;
 «забудь X» удаляет запись и векторы; секреты не индексируются.
