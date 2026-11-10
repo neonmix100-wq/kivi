@@ -8,7 +8,13 @@ import pytest
 from kivi.interfaces import cli as cli_module
 from kivi.interfaces.cli import main
 from kivi.kernel.db import Database
-from kivi.memory import ContextBuilder, MemoryError, MemoryStore, import_directory
+from kivi.memory import (
+    ContextBuilder,
+    HybridSearch,
+    MemoryError,
+    MemoryStore,
+    import_directory,
+)
 from kivi.paths import Paths
 from kivi.safety.trust import TrustError
 
@@ -269,6 +275,131 @@ def test_import_missing_directory(tmp_path: Path) -> None:
             import_directory(store, tmp_path / "missing")
     finally:
         db.close()
+
+
+def test_embeddings_roundtrip_and_stats(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        message_id = store.add_message("user", "alpha")
+        fact_id = store.remember("city", "Novosibirsk")
+        store.put_embedding("message", message_id, "bge-m3", [1.0, 0.0])
+        store.put_embedding("fact", fact_id, "bge-m3", [0.0, 1.0])
+        store.put_embedding("message", message_id, "bge-m3", [0.5, 0.5])
+        stats = store.embedding_stats("bge-m3")
+        vector = store.get_embedding("message", message_id, "bge-m3")
+    finally:
+        db.close()
+    assert vector == [0.5, 0.5]
+    assert stats == {"messages": 1, "facts": 1, "total": 2}
+
+
+def test_unembedded_lists_missing_rows(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        first = store.add_message("user", "alpha")
+        store.add_message("user", "beta")
+        store.put_embedding("message", first, "m", [1.0, 0.0])
+        missing = store.unembedded("message", "m")
+    finally:
+        db.close()
+    assert [row["content"] for row in missing] == ["beta"]
+
+
+def test_semantic_search_orders_by_cosine(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        near = store.add_message("user", "near")
+        far = store.add_message("user", "far")
+        store.put_embedding("message", near, "m", [1.0, 0.0])
+        store.put_embedding("message", far, "m", [0.0, 1.0])
+        hits = store.search_embeddings([0.9, 0.1], "m", 2)
+    finally:
+        db.close()
+    assert int(hits[0]["owner_id"]) == near
+    assert hits[0]["score"] > hits[1]["score"]
+
+
+def test_invalid_embeddings_are_rejected(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        with pytest.raises(MemoryError, match="owner"):
+            store.put_embedding("document", 1, "m", [1.0])
+        with pytest.raises(MemoryError, match="empty"):
+            store.put_embedding("message", 1, "m", [])
+        with pytest.raises(MemoryError, match="finite"):
+            store.put_embedding("message", 1, "m", [float("nan")])
+    finally:
+        db.close()
+
+
+def test_forget_removes_fact_embedding(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        fact_id = store.remember("city", "Novosibirsk")
+        store.put_embedding("fact", fact_id, "m", [1.0])
+        store.forget("city")
+        stats = store.embedding_stats("m")
+    finally:
+        db.close()
+    assert stats["total"] == 0
+
+
+def test_forget_message_removes_embedding(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        message_id = store.add_message("user", "alpha")
+        store.put_embedding("message", message_id, "m", [1.0])
+        assert store.forget_message(message_id) is True
+        assert store.get_message(message_id) is None
+        assert store.embedding_stats("m")["total"] == 0
+    finally:
+        db.close()
+
+
+def test_hybrid_search_merges_fts_and_vectors(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        alpha = store.add_message("user", "alpha text")
+        beta = store.add_message("user", "beta text")
+        store.put_embedding("message", alpha, "m", [1.0, 0.0])
+        store.put_embedding("message", beta, "m", [0.0, 1.0])
+        hits = HybridSearch(store).search(
+            "alpha",
+            embedder=lambda texts: [[0.9, 0.1]],
+            model="m",
+            limit=10,
+        )
+    finally:
+        db.close()
+    by_id = {hit.owner_id: hit for hit in hits}
+    assert by_id[alpha].sources == ("fts", "vector")
+    assert by_id[beta].sources == ("vector",)
+    assert hits[0].owner_id == alpha
+
+
+def test_hybrid_search_without_embedder_is_fts_only(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        store.add_message("user", "alpha text")
+        hits = HybridSearch(store).search("alpha")
+    finally:
+        db.close()
+    assert hits
+    assert hits[0].sources == ("fts",)
+
+
+def test_hybrid_search_skips_missing_owner(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        message_id = store.add_message("user", "alpha")
+        store.put_embedding("message", message_id, "m", [1.0])
+        store.forget_message(message_id)
+        hits = HybridSearch(store).search(
+            "alpha", embedder=lambda texts: [[1.0]], model="m"
+        )
+    finally:
+        db.close()
+    assert hits == []
 
 
 def make_cli_profile(tmp_path: Path) -> Paths:

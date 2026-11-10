@@ -215,8 +215,8 @@ workspace-cwd, минимальный env, detached-процесс); 6 тест�
 
 - [x] SQLite: messages, facts, artifacts, preferences, approvals (approvals — схема).
 - [x] Артефакты content-addressed.
-- [ ] LanceDB + bge-m3 на CPU.
-- [ ] Гибридный поиск FTS5 + вектор + свежесть.
+- [ ] LanceDB + bge-m3 на CPU (сейчас SQLite float32 + cosine).
+- [x] Гибридный поиск FTS5 + вектор (RRF).
 - [x] Профиль и правила (preferences + facts).
 - [x] Context Builder с бюджетом (суммаризация — позже).
 - [x] Импорт `D:\AI-base` read-only (текстовые файлы, чанки, `untrusted:file`).
@@ -228,8 +228,11 @@ artifacts, approvals) с FTS5 и триггерами; `MemoryStore` (upsert ф�
 санитайзером и бюджетом; `kivi memory import` для read-only текстовых баз
 (чанки, пропуск `.git`/private/бинарных, идемпотентность); CLI `kivi memory ...`;
 `kivi chat` пишет сообщение пользователя в память; 21 тест.
-**Осталось:** LanceDB + bge-m3, гибридный поиск со свежестью, суммаризация
-старых сообщений, API approvals.
+**Сделано во втором срезе:** миграция 5 (`embeddings`, float32 BLOB),
+`put_embedding`/`search_embeddings`, `HybridSearch` с RRF-слиянием FTS5 и
+векторов, CLI `kivi memory index` через Ollama/bge-m3; 9 тестов.
+**Осталось:** LanceDB/ANN для больших баз, подключение hybrid-search к
+Context Builder, суммаризация старых сообщений, API approvals.
 
 **Приёмка:** 10 фактов находятся после перезапуска; 20 запросов к базе дают релевантные источники;
 «забудь X» удаляет запись и векторы; секреты не индексируются.

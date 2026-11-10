@@ -17,6 +17,7 @@
 | `preferences` | настройки профиля `key → value` |
 | `artifacts` | `sha256 → path`, mime и размер |
 | `approvals` | заготовка для TTL-подтверждений |
+| `embeddings` | float32-векторы для `message`/`fact` с моделью и dim |
 
 FTS5 работает без внешних зависимостей. Запрос экранируется как фраза:
 пользовательский текст не может сломать синтаксис `MATCH`.
@@ -40,6 +41,7 @@ artifact = store.write_artifact(b"bytes", mime="image/bmp")
 - `forget` удаляет факт и его индекс;
 - `write_artifact` считает SHA-256, кладёт файл в
   `data/artifacts/<2 символа>/<sha256>` и не дублирует одинаковые байты;
+- `put_embedding` / `search_embeddings` хранят float32-векторы и считают cosine;
 - `export()` возвращает JSON-совместимый снимок;
 - все записи проверяют trust-метку и роль.
 
@@ -63,7 +65,27 @@ print(context.text)
 `[flags: ...]`. Бюджет символов соблюдается; при нехватке места контекст
 помечается `truncated`, а не обрезается молча в середине структуры.
 
-## 4. CLI
+## 4. Гибридный поиск
+
+```python
+from kivi.memory import HybridSearch
+
+hits = HybridSearch(store).search(
+    "Новосибирск",
+    embedder=lambda texts: gateway.embed("bge-m3", texts),
+    model="bge-m3",
+)
+```
+
+- FTS5 и векторный поиск объединяются через Reciprocal Rank Fusion;
+- `SearchHit.sources` показывает, откуда пришёл результат (`fts`, `vector`);
+- при удалении факта/сообщения векторы удаляются;
+- эмбеддинги считаются через `kivi memory index` (Ollama/bge-m3).
+
+`ContextBuilder` пока использует FTS-секцию; подключение hybrid-search к нему —
+следующий шаг.
+
+## 5. CLI
 
 ```powershell
 kivi memory add "текст" --role user --task-id tsk_1
@@ -75,6 +97,7 @@ kivi memory context Новосибирск --max-chars 6000
 kivi memory stats
 kivi memory export --out data/memory.json
 kivi memory import D:\AI-base\AI-base\docs --limit 50
+kivi memory index -m bge-m3
 ```
 
 `memory import` читает только `.md/.markdown/.txt/.rst`, пропускает `.git`,
@@ -86,9 +109,11 @@ kivi memory import D:\AI-base\AI-base\docs --limit 50
 `kivi chat` теперь сохраняет сообщение пользователя в память; ответы модели
 появятся при интеграции Gateway/планировщика.
 
-## 5. Ограничения
+## 6. Ограничения
 
-- Векторный поиск (LanceDB + bge-m3) ещё не подключён; сейчас только FTS5.
+- Векторы лежат в SQLite и сравниваются cosine-перебором; LanceDB + ANN —
+  следующий шаг для больших баз.
 - Нет суммаризации старых сообщений и TTL-политики; бюджет решает Context
   Builder, но хранилище не чистится автоматически.
 - `approvals` — только схема, API подтверждений появится вместе с планером.
+- Hybrid-search ещё не встроен в Context Builder автоматически.

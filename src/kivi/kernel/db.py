@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 MIGRATIONS: dict[int, list[str]] = {
     1: [
@@ -201,6 +201,22 @@ MIGRATIONS: dict[int, list[str]] = {
         )
         """,
         "CREATE INDEX IF NOT EXISTS idx_approvals_task ON approvals (task_id)",
+    ],
+    5: [
+        """
+        CREATE TABLE IF NOT EXISTS embeddings (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_type TEXT NOT NULL CHECK (owner_type IN ('message', 'fact')),
+            owner_id   TEXT NOT NULL,
+            model      TEXT NOT NULL,
+            dim        INTEGER NOT NULL,
+            vector     BLOB NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE (owner_type, owner_id, model)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_embeddings_model ON embeddings (model)",
+        "CREATE INDEX IF NOT EXISTS idx_embeddings_owner ON embeddings (owner_type, owner_id)",
     ],
 }
 

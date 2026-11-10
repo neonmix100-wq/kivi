@@ -1060,6 +1060,66 @@ def cmd_memory_import(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_memory_index(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    registry = _registry(paths)
+    try:
+        spec = registry.require(args.model) if args.model else registry.default_for("embedding")
+    except RegistryError as exc:
+        console.print(f"[red]model error:[/red] {exc}")
+        return 1
+    if args.batch < 1 or args.limit < 1:
+        console.print("[red]batch and limit must be positive[/red]")
+        return 2
+    with _state(paths) as (db, bus):
+        store = _memory(paths, db)
+        messages = store.unembedded("message", spec.id, args.limit)
+        facts = store.unembedded("fact", spec.id, args.limit)
+        if not messages and not facts:
+            console.print("Memory is already indexed.")
+            return 0
+        rows: list[tuple[str, dict]] = [("message", row) for row in messages]
+        rows.extend(("fact", row) for row in facts)
+        task_id = f"tsk_{uuid.uuid4().hex[:12]}"
+        db.create_task(task_id, "memory-index", {"model": spec.id, "rows": len(rows)})
+        try:
+            with OllamaBackend(timeout=args.timeout) as backend:
+                gateway = ModelGateway(
+                    registry,
+                    backend,
+                    vram_total_mb=config.model_gateway.vram_total_mb,
+                    safety_margin_mb=config.model_gateway.safety_margin_mb,
+                    allow_cpu_fallback=config.model_gateway.cpu_fallback,
+                    events=bus,
+                )
+                for start in range(0, len(rows), args.batch):
+                    batch = rows[start : start + args.batch]
+                    texts = [
+                        str(row["content"])
+                        if owner == "message"
+                        else f"{row['key']}: {row['value']}"
+                        for owner, row in batch
+                    ]
+                    vectors = gateway.embed(
+                        spec.id,
+                        texts,
+                        task_id=task_id,
+                        priority=1,
+                        keep_alive=args.keep_alive,
+                    )
+                    for (owner, row), vector in zip(batch, vectors, strict=True):
+                        store.put_embedding(owner, row["id"], spec.id, vector)
+        except (GatewayError, BackendError) as exc:
+            db.update_task(task_id, "failed", {"error": str(exc)})
+            bus.emit("memory.index_failed", task_id=task_id, payload={"error": str(exc)})
+            console.print(f"[red]indexing error:[/red] {exc}")
+            return 1
+        db.update_task(task_id, "done", {"model": spec.id, "rows": len(rows)})
+    console.print(f"indexed {len(rows)} rows with {spec.id}")
+    return 0
+
+
 def cmd_memory_context(args: argparse.Namespace) -> int:
     paths = get_paths()
     with _state(paths) as (db, _):
@@ -1308,6 +1368,13 @@ def build_parser() -> argparse.ArgumentParser:
     memory_import.add_argument("--max-bytes", type=int, default=1024 * 1024)
     memory_import.add_argument("--chunk-chars", type=int, default=4000)
     memory_import.set_defaults(func=cmd_memory_import)
+    memory_index = memory_sub.add_parser("index", help="build embeddings for memory")
+    memory_index.add_argument("-m", "--model", default="")
+    memory_index.add_argument("-n", "--limit", type=int, default=1000)
+    memory_index.add_argument("--batch", type=int, default=16)
+    memory_index.add_argument("--timeout", type=float, default=120.0)
+    memory_index.add_argument("--keep-alive", default="0")
+    memory_index.set_defaults(func=cmd_memory_index)
     memory_context = memory_sub.add_parser("context", help="build a context window")
     memory_context.add_argument("query")
     memory_context.add_argument("--task-id", default="")

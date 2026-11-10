@@ -38,14 +38,14 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 1 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.cli` | 1345 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 1412 | Command-line interface (stage 1). |
 
 ## kernel
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.kernel.__init__` | 1 | Kernel primitives: storage, events and audit. |
-| `src.kivi.kernel.db` | 449 | SQLite storage with forward-only migrations. |
+| `src.kivi.kernel.db` | 465 | SQLite storage with forward-only migrations. |
 | `src.kivi.kernel.events` | 75 | In-process event bus. |
 | `src.kivi.kernel.logs` | 43 | Append-only JSONL logs. |
 
@@ -53,10 +53,11 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.memory.__init__` | 14 | Memory: working, episodic, semantic, profile and artifacts. |
+| `src.kivi.memory.__init__` | 18 | Memory: working, episodic, semantic, profile and artifacts. |
 | `src.kivi.memory.context` | 159 | Context builder: profile, relevant memory and recent messages within budget. |
 | `src.kivi.memory.importer` | 148 | Read-only import of text knowledge bases into memory. |
-| `src.kivi.memory.store` | 241 | Durable memory: messages, facts, preferences and content-addressed artifacts. |
+| `src.kivi.memory.search` | 156 | Hybrid memory search: FTS5 and embeddings fused with reciprocal rank. |
+| `src.kivi.memory.store` | 381 | Durable memory: messages, facts, preferences and content-addressed artifacts. |
 
 ## models
 

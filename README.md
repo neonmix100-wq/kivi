@@ -6,8 +6,9 @@
 > `kivi killswitch`, `kivi hotkey`, `kivi zones`, реестр моделей, VRAM-бюджет
 > (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite, Event Bus,
 > аудит, Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
-> санитайзер, kill switch и подписанный манифест зон.
-> Осталось: LanceDB + bge-m3, elevated broker, OCR/PDF-читатели;
+> санитайзер, kill switch, подписанный манифест зон и память с FTS5 +
+> гибридным поиском.
+> Осталось: LanceDB/ANN, elevated broker, OCR/PDF-читатели;
 > живой облачный вызов с ключом.
 
 ## Быстрый старт
