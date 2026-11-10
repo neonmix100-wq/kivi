@@ -99,12 +99,13 @@ generated: true
 | `src.kivi.tools.base` | 143 | Tool contract: typed arguments, previews and structured results. |
 | `src.kivi.tools.executor` | 275 | Capability Broker: the only path from a proposed tool call to the OS. |
 | `src.kivi.tools.fs` | 202 | Filesystem tools: read, list and write inside the workspace. |
-| `src.kivi.tools.registry` | 66 | Tool registry: one place that knows which tools exist. |
+| `src.kivi.tools.net` | 180 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
+| `src.kivi.tools.registry` | 67 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.shell` | 132 | Shell tool: one approved process, no shell expansion, minimal environment. |
 
 ## Тесты
 
-Всего файлов: **21**.
+Всего файлов: **22**.
 
 - `tests/security/test_injection.py`
 - `tests/unit/test_bench_gateway.py`
@@ -117,6 +118,7 @@ generated: true
 - `tests/unit/test_doctor.py`
 - `tests/unit/test_events.py`
 - `tests/unit/test_gateway.py`
+- `tests/unit/test_http_tool.py`
 - `tests/unit/test_knowledge.py`
 - `tests/unit/test_ollama.py`
 - `tests/unit/test_paths.py`

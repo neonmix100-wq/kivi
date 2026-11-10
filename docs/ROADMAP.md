@@ -145,7 +145,8 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
       все уровни доверия, redaction; OCR/PDF — позже).
 - [x] **Capability Broker:** модель предлагает действие, Policy Engine проверяет и выполняет.
 - [x] Инструменты: `fs.*`, `shell.exec`.
-- [ ] Инструменты: `proc.*`, `clipboard`, `screen.capture`, `http.get`.
+- [x] `http.get`: только HTTPS, SSRF-защита по IP, лимиты, `untrusted:web`.
+- [ ] Инструменты: `proc.*`, `clipboard`, `screen.capture`.
 - [x] A4-политика: авто внутри scope, hard deny снаружи.
 - [ ] Elevated broker: узкий список admin-операций, UAC, аудит.
 - [ ] Kill switch + watchdog.
@@ -163,6 +164,9 @@ CLI `kivi tools list/run` с `--dry-run` и `--approve`; 76 новых тест�
 санитайзер (HTML-комментарии, скрытые элементы, zero-width/bidi, control chars,
 redaction токенов и PEM), `ToolResult.trust` и `trust` в аудите, injection-корпус
 из 6 файлов и 18 тестов (`tests/security`).
+**Сделано в третьем мини-срезе:** `http.get` — HTTPS/443, запрет credentials,
+редиректов и непубличных IP (SSRF), allow-list текстовых content-type, лимиты
+байт и времени, санитайзер ответа и метка `untrusted:web`; 17 тестов.
 **Осталось:** подписанный манифест зон и зоны из конфига, остальные инструменты,
 elevated broker, kill switch, OCR/PDF-читатели и расширение корпуса.
 

@@ -75,6 +75,7 @@ elevated broker; до тех пор R2 — обязательный барьер
 | `fs.list` | R0 | `fs.read` | список каталога без перехода по ссылкам |
 | `fs.write` | R1 | `fs.write` | атомарная запись UTF-8, только workspace |
 | `shell.exec` | R2 | `shell.exec` | argv без shell, минимальный env, таймаут |
+| `http.get` | R1 | `net.http` | HTTPS GET только на публичные адреса, санитайзер, `untrusted:web` |
 
 ## 6. CLI
 
@@ -87,6 +88,7 @@ kivi tools run fs.write --args '{"path":"data/artifacts/note.txt","content":"hi"
 kivi tools run fs.write --args '{"path":"docs/x.md","content":"new","overwrite":true}'
 kivi tools run shell.exec --args '{"argv":["python","-c","print(1)"]}' --dry-run
 kivi tools run shell.exec --args '{"argv":["python","-c","print(1)"]}' --approve
+kivi tools run http.get --args '{"url":"https://example.com/","max_bytes":20000}' --dry-run
 ```
 
 `--dry-run` показывает JSON-preview и не требует подтверждения. R2 без
@@ -109,7 +111,9 @@ kivi tools run shell.exec --args '{"argv":["python","-c","print(1)"]}' --approve
 ## 8. Осталось
 
 - подписанный манифест зон и добавление зон из конфига;
-- trust labels и санитайзер недоверенного контента;
-- `proc.*`, `clipboard`, `screen.capture`, `http.get`;
+- trust labels и санитайзер недоверенного контента (сделано в [TRUST.md](TRUST.md));
+- `proc.*`, `clipboard`, `screen.capture`;
 - elevated broker (UAC) и kill switch;
-- injection-корпус `tests/security/injection`.
+- denylist доменов для `http.get` (сейчас — только SSRF-защита по IP);
+- pin resolved IP при подключении (закрыть DNS rebinding);
+- injection-корпус `tests/security/injection` расширять по мере роста инструментов.

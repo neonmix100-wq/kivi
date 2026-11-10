@@ -73,6 +73,7 @@ print(envelope.render())
 
 - `ToolResult.trust` по умолчанию `untrusted:tool`;
 - `fs.read` и `fs.list` возвращают `untrusted:file`;
+- `http.get` возвращает `untrusted:web` и прогоняет ответ через санитайзер;
 - `ToolExecutor` пишет `trust` в аудит вместе с `args_digest`;
 - контекст-билдер (этап 5) обязан оборачивать такой результат в envelope и не
   передавать его как инструкцию.
