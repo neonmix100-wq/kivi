@@ -48,6 +48,15 @@ from kivi.models import (
 from kivi.paths import Paths, get_paths
 from kivi.safety import KillSwitch, PermissionEngine, ProtectedZones
 from kivi.safety.killswitch import FLAG_NAME
+from kivi.safety.zone_manifest import (
+    ZoneManifestError,
+    generate_key,
+    load_signed_rules,
+    sign_manifest,
+)
+from kivi.safety.zone_manifest import (
+    status as zone_manifest_status,
+)
 from kivi.tools import ToolExecutor, build_registry
 
 console = Console()
@@ -78,6 +87,12 @@ def _config(paths: Paths) -> KiviConfig:
 
 def _kill_switch(paths: Paths, db: Database, events: EventBus) -> KillSwitch:
     return KillSwitch(paths.home / FLAG_NAME, db=db, events=events)
+
+
+def _zones_extra(paths: Paths):
+    manifest = paths.root / "config" / "protected-zones.yaml"
+    key = paths.root / "private" / "safety" / "zones.key"
+    return load_signed_rules(manifest, key)
 
 
 def _registry(paths: Paths):
@@ -685,7 +700,12 @@ def cmd_tool_run(args: argparse.Namespace) -> int:
         return 2
 
     with _state(paths) as (db, events):
-        zones = ProtectedZones(paths.root)
+        try:
+            extra_zones = _zones_extra(paths)
+        except ZoneManifestError as exc:
+            console.print(f"[red]protected zones error:[/red] {exc}")
+            return 1
+        zones = ProtectedZones(paths.root, extra_rules=extra_zones)
         permissions = PermissionEngine(
             db,
             autonomy=config.autonomy,
@@ -745,6 +765,57 @@ def cmd_killswitch(args: argparse.Namespace) -> int:
         console.print("Reset with: kivi killswitch off")
     else:
         console.print("[green]kill switch is not engaged[/green]")
+    return 0
+
+
+def cmd_zones(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    manifest = paths.root / "config" / "protected-zones.yaml"
+    key = paths.root / "private" / "safety" / "zones.key"
+    action = args.action
+
+    if action == "init":
+        try:
+            generate_key(key)
+            if not manifest.is_file():
+                manifest.parent.mkdir(parents=True, exist_ok=True)
+                manifest.write_text("version: 1\nzones: []\n", encoding="utf-8")
+            signature = sign_manifest(manifest, key)
+        except ZoneManifestError as exc:
+            console.print(f"[red]zones error:[/red] {exc}")
+            return 1
+        console.print(f"key: {key}")
+        console.print(f"manifest: {manifest}")
+        console.print(f"signature: {signature}")
+        return 0
+
+    if action == "sign":
+        if not manifest.is_file():
+            console.print(f"[red]zones error:[/red] manifest not found: {manifest}")
+            return 1
+        try:
+            signature = sign_manifest(manifest, key)
+        except ZoneManifestError as exc:
+            console.print(f"[red]zones error:[/red] {exc}")
+            return 1
+        console.print(f"[green]signed[/green] {manifest} -> {signature.name}")
+        return 0
+
+    info = zone_manifest_status(manifest, key)
+    builtin = len(ProtectedZones(paths.root).rules)
+    if not info.exists:
+        console.print(f"No signed manifest. Built-in rules: {builtin}.")
+        console.print("Create one with: kivi zones init")
+        return 0
+    if not info.signed:
+        console.print(f"[red]manifest is not trusted:[/red] {info.reason}")
+        console.print(f"Built-in rules still active: {builtin}.")
+        return 1
+    console.print(f"[green]signed manifest[/green] with {info.zones} extra zone(s)")
+    console.print(f"built-in rules: {builtin}")
+    console.print(f"manifest: {manifest}")
+    if action == "check":
+        console.print("signature: valid")
     return 0
 
 
@@ -922,6 +993,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     killswitch.add_argument("--reason", default="user requested stop")
     killswitch.set_defaults(func=cmd_killswitch)
+
+    zones = sub.add_parser("zones", help="inspect or sign extra Protected Zones")
+    zones.add_argument(
+        "action",
+        nargs="?",
+        choices=("status", "check", "init", "sign"),
+        default="status",
+    )
+    zones.set_defaults(func=cmd_zones)
 
     events = sub.add_parser("events", help="show recent events")
     events.add_argument("-n", "--limit", type=int, default=20)

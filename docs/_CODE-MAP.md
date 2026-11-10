@@ -38,7 +38,7 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 1 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.cli` | 953 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 1033 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -84,6 +84,7 @@ generated: true
 | `src.kivi.safety.policy` | 227 | A4-Bounded policy checks. |
 | `src.kivi.safety.sanitize` | 257 | Sanitizer for untrusted content. |
 | `src.kivi.safety.trust` | 214 | Trust labels and envelope rendering for external content. |
+| `src.kivi.safety.zone_manifest` | 237 | Signed Protected Zones manifest. |
 | `src.kivi.safety.zones` | 233 | Protected Zones: hard-deny paths and escape checks. |
 
 ## senses
@@ -107,7 +108,7 @@ generated: true
 
 ## Тесты
 
-Всего файлов: **24**.
+Всего файлов: **25**.
 
 - `tests/security/test_injection.py`
 - `tests/unit/test_bench_gateway.py`
@@ -132,4 +133,5 @@ generated: true
 - `tests/unit/test_tools.py`
 - `tests/unit/test_vram.py`
 - `tests/unit/test_watchdog.py`
+- `tests/unit/test_zone_manifest.py`
 - `tests/unit/test_zones.py`

@@ -42,6 +42,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe tools run fs.read --args '{"path":"README.md"}'
 .venv\Scripts\kivi.exe tools run shell.exec --args '{"argv":["python","-V"]}' --dry-run
 .venv\Scripts\kivi.exe killswitch status
+.venv\Scripts\kivi.exe zones status
 ```
 
 `cloud mode auto_free`: только бесплатные провайдеры и общедоступные данные.
@@ -58,7 +59,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 - `src/kivi/safety/` — Policy Engine, зоны, approvals; единственный источник
   разрешений на опасные действия. `zones.py` — Protected Zones, `permissions.py` —
   grant'ы, TTL и риски R0–R4, `trust.py` — метки и envelope, `sanitize.py` —
-  очистка недоверенного текста и redaction секретов.
+  очистка недоверенного текста и redaction секретов, `zone_manifest.py` —
+  подписанный HMAC-манифест дополнительных зон.
 - `src/kivi/tools/` — контракт `Tool`, реестр, `ToolExecutor` (Capability Broker),
   `fs.*`, `shell.exec`, `http.get`, `proc.list`. Каждый вызов идёт через executor
   и пишется в аудит.

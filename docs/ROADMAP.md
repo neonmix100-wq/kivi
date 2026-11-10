@@ -140,7 +140,7 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
 - [x] Контракт `Tool`, реестр, JSON-схемы, `dry_run`.
 - [x] Permission Engine: capabilities, scope, TTL, allow/confirm/deny.
 - [x] **Protected Zones:** канонизация путей, запрет symlink/junction/UNC/ADS.
-- [ ] Подписанный манифест Protected Zones и добавление зон из конфига.
+- [x] Подписанный манифест Protected Zones и добавление зон из конфига.
 - [x] **Trust labels + санитайзер** недоверенного контента (первый срез: текст,
       все уровни доверия, redaction; OCR/PDF — позже).
 - [x] **Capability Broker:** модель предлагает действие, Policy Engine проверяет и выполняет.
@@ -174,8 +174,12 @@ redaction токенов и PEM), `ToolResult.trust` и `trust` в аудите,
 `safety.killswitch`; 8 тестов.
 **Сделано в пятом мини-срезе:** `proc.list` (pid, имя, RSS, без cmdline),
 фильтр по имени и лимит; 7 тестов.
-**Осталось:** подписанный манифест зон и зоны из конфига, остальные инструменты,
-elevated broker, kill switch, OCR/PDF-читатели и расширение корпуса.
+**Сделано в шестом мини-срезе:** подписанный HMAC-SHA256 манифест
+`config/protected-zones.yaml` + `private/safety/zones.key`, `kivi zones
+init/status/check/sign`, fail-closed при битой подписи; 15 тестов.
+**Осталось:** остальные инструменты (`proc.kill`, `clipboard`, `screen.capture`),
+elevated broker, глобальный hotkey kill switch и выгрузка модели, OCR/PDF-читатели
+и расширение injection-корпуса.
 
 **Приёмка:** запись вне scope невозможна; `format`, `diskpart`, `reg delete`, `shutdown`,
 системные папки и секреты блокируются; агент не может изменить denylist/safety/audit;
