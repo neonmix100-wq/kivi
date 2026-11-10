@@ -65,6 +65,7 @@ def test_registry_exposes_specs() -> None:
         "http.get",
         "proc.kill",
         "proc.list",
+        "screen.capture",
         "shell.exec",
     )
     read = next(spec for spec in registry.specs() if spec.name == "fs.read")

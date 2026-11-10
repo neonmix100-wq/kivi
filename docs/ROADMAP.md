@@ -149,7 +149,8 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
 - [x] `proc.list`: pid, имя, RSS; без командных строк.
 - [x] `proc.kill`: R3, проверка имени, запрет системных процессов и своего pid.
 - [x] `clipboard.read`/`clipboard.write`: R2, подтверждение, redaction.
-- [ ] Инструменты: `proc.start`, `screen.capture`.
+- [x] `screen.capture`: BMP в workspace, GDI-backend, `untrusted:vision`.
+- [ ] Инструменты: `proc.start`.
 - [x] A4-политика: авто внутри scope, hard deny снаружи.
 - [ ] Elevated broker: узкий список admin-операций, UAC, аудит.
 - [x] Kill switch: флаг, CLI, блокировка tools/cloud, аудит.
@@ -188,8 +189,10 @@ init/status/check/sign`, fail-closed при битой подписи; 15 тес
 **Сделано в девятом мини-срезе:** `proc.kill` (R3, обязательное совпадение
 имени, защита системных процессов и собственного pid, force-режим);
 7 тестов.
-**Осталось:** `proc.start`, `screen.capture`, elevated broker, глобальный
-hotkey kill switch, OCR/PDF-читатели и расширение injection-корпуса.
+**Сделано в десятом мини-срезе:** `screen.capture` — полный рабочий стол через
+GDI без Pillow, BMP в workspace, лимит размера, `untrusted:vision`; 11 тестов.
+**Осталось:** `proc.start`, elevated broker, глобальный hotkey kill switch,
+OCR/PDF-читатели и расширение injection-корпуса.
 
 **Приёмка:** запись вне scope невозможна; `format`, `diskpart`, `reg delete`, `shutdown`,
 системные папки и секреты блокируются; агент не может изменить denylist/safety/audit;

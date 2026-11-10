@@ -80,6 +80,7 @@ elevated broker; до тех пор R2 — обязательный барьер
 | `proc.kill` | R3 | `proc.kill` | завершить процесс после проверки имени; системные запрещены |
 | `clipboard.read` | R2 | `clipboard.read` | текст из буфера обмена, санитайзер и redaction |
 | `clipboard.write` | R2 | `clipboard.write` | заменить текст буфера обмена; подтверждение |
+| `screen.capture` | R1 | `screen.capture` | снимок рабочего стола в BMP внутри workspace, `untrusted:vision` |
 
 ## 6. CLI
 

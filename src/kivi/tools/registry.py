@@ -58,6 +58,7 @@ def build_registry() -> ToolRegistry:
     from kivi.tools.fs import FsListTool, FsReadTool, FsWriteTool
     from kivi.tools.net import HttpGetTool
     from kivi.tools.proc import ProcKillTool, ProcListTool
+    from kivi.tools.screen import ScreenCaptureTool
     from kivi.tools.shell import ShellExecTool
 
     registry = ToolRegistry()
@@ -71,6 +72,7 @@ def build_registry() -> ToolRegistry:
         ProcKillTool(),
         ClipboardReadTool(),
         ClipboardWriteTool(),
+        ScreenCaptureTool(),
     ):
         registry.register(tool)
     return registry
