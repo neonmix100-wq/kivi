@@ -56,10 +56,18 @@ def build_registry() -> ToolRegistry:
     """Create the default registry with the stage-4 filesystem, shell and web tools."""
     from kivi.tools.fs import FsListTool, FsReadTool, FsWriteTool
     from kivi.tools.net import HttpGetTool
+    from kivi.tools.proc import ProcListTool
     from kivi.tools.shell import ShellExecTool
 
     registry = ToolRegistry()
-    for tool in (FsReadTool(), FsListTool(), FsWriteTool(), ShellExecTool(), HttpGetTool()):
+    for tool in (
+        FsReadTool(),
+        FsListTool(),
+        FsWriteTool(),
+        ShellExecTool(),
+        HttpGetTool(),
+        ProcListTool(),
+    ):
         registry.register(tool)
     return registry
 

@@ -56,7 +56,14 @@ def env(tmp_path: Path, workspace: Path) -> ToolEnv:
 
 def test_registry_exposes_specs() -> None:
     registry = build_registry()
-    assert registry.names() == ("fs.list", "fs.read", "fs.write", "http.get", "shell.exec")
+    assert registry.names() == (
+        "fs.list",
+        "fs.read",
+        "fs.write",
+        "http.get",
+        "proc.list",
+        "shell.exec",
+    )
     read = next(spec for spec in registry.specs() if spec.name == "fs.read")
     assert read.risk == "R0"
     assert read.capabilities == ("fs.read",)

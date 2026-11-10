@@ -6,7 +6,7 @@
 > VRAM-бюджет (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite,
 > Event Bus, аудит, Policy Engine, Protected Zones, risk-политика R0–R4,
 > trust labels, санитайзер недоверенного контента и kill switch.
-> Осталось: подписанный манифест зон, `proc.*`/`clipboard`/`screen`,
+> Осталось: подписанный манифест зон, `proc.kill`/`clipboard`/`screen`,
 > elevated broker, глобальный hotkey kill switch, OCR/PDF-читатели;
 > живой облачный вызов с ключом.
 

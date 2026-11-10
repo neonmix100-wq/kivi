@@ -146,7 +146,8 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
 - [x] **Capability Broker:** модель предлагает действие, Policy Engine проверяет и выполняет.
 - [x] Инструменты: `fs.*`, `shell.exec`.
 - [x] `http.get`: только HTTPS, SSRF-защита по IP, лимиты, `untrusted:web`.
-- [ ] Инструменты: `proc.*`, `clipboard`, `screen.capture`.
+- [x] `proc.list`: pid, имя, RSS; без командных строк.
+- [ ] Инструменты: `proc.*` (kill/start), `clipboard`, `screen.capture`.
 - [x] A4-политика: авто внутри scope, hard deny снаружи.
 - [ ] Elevated broker: узкий список admin-операций, UAC, аудит.
 - [x] Kill switch: флаг, CLI, блокировка tools/cloud, аудит.
@@ -171,6 +172,8 @@ redaction токенов и PEM), `ToolResult.trust` и `trust` в аудите,
 **Сделано в четвёртом мини-срезе:** kill switch `kivi killswitch on/off/status`
 с fail-closed флагом, блокировкой `ToolExecutor` и Cloud Broker, аудитом
 `safety.killswitch`; 8 тестов.
+**Сделано в пятом мини-срезе:** `proc.list` (pid, имя, RSS, без cmdline),
+фильтр по имени и лимит; 7 тестов.
 **Осталось:** подписанный манифест зон и зоны из конфига, остальные инструменты,
 elevated broker, kill switch, OCR/PDF-читатели и расширение корпуса.
 

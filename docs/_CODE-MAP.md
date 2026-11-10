@@ -101,12 +101,13 @@ generated: true
 | `src.kivi.tools.executor` | 288 | Capability Broker: the only path from a proposed tool call to the OS. |
 | `src.kivi.tools.fs` | 221 | Filesystem tools: read, list and write inside the workspace. |
 | `src.kivi.tools.net` | 180 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
-| `src.kivi.tools.registry` | 67 | Tool registry: one place that knows which tools exist. |
+| `src.kivi.tools.proc` | 82 | Process list tool: names and memory only, never command lines. |
+| `src.kivi.tools.registry` | 75 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.shell` | 132 | Shell tool: one approved process, no shell expansion, minimal environment. |
 
 ## Тесты
 
-Всего файлов: **23**.
+Всего файлов: **24**.
 
 - `tests/security/test_injection.py`
 - `tests/unit/test_bench_gateway.py`
@@ -126,6 +127,7 @@ generated: true
 - `tests/unit/test_paths.py`
 - `tests/unit/test_permissions.py`
 - `tests/unit/test_policy.py`
+- `tests/unit/test_proc.py`
 - `tests/unit/test_registry.py`
 - `tests/unit/test_tools.py`
 - `tests/unit/test_vram.py`

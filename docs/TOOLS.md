@@ -76,6 +76,7 @@ elevated broker; до тех пор R2 — обязательный барьер
 | `fs.write` | R1 | `fs.write` | атомарная запись UTF-8, только workspace |
 | `shell.exec` | R2 | `shell.exec` | argv без shell, минимальный env, таймаут |
 | `http.get` | R1 | `net.http` | HTTPS GET только на публичные адреса, санитайзер, `untrusted:web` |
+| `proc.list` | R0 | `proc.list` | pid, имя и RSS процессов; без командных строк |
 
 ## 6. CLI
 

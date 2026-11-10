@@ -60,7 +60,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
   grant'ы, TTL и риски R0–R4, `trust.py` — метки и envelope, `sanitize.py` —
   очистка недоверенного текста и redaction секретов.
 - `src/kivi/tools/` — контракт `Tool`, реестр, `ToolExecutor` (Capability Broker),
-  `fs.*` и `shell.exec`. Каждый вызов идёт через executor и пишется в аудит.
+  `fs.*`, `shell.exec`, `http.get`, `proc.list`. Каждый вызов идёт через executor
+  и пишется в аудит.
 - `src/kivi/models/` — registry, Ollama backend, VRAM budget, lease/eviction.
 - `src/kivi/brain/` — планировщик и исполнение (этапы 4–5).
 - `src/kivi/senses/`, `tools/`, `memory/`, `modules/`, `interfaces/`.
