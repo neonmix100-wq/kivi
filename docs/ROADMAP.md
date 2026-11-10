@@ -137,17 +137,28 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
 
 ## 7. Этап 4 — инструменты, A4-Bounded, аудит (7–10 дней)
 
-- [ ] Контракт `Tool`, реестр, JSON-схемы, `dry_run`.
-- [ ] Permission Engine: capabilities, scope, TTL, allow/confirm/deny.
+- [x] Контракт `Tool`, реестр, JSON-схемы, `dry_run`.
+- [x] Permission Engine: capabilities, scope, TTL, allow/confirm/deny.
 - [ ] **Protected Zones:** подписанный список, канонизация путей, запрет symlink/junction/UNC/ADS.
 - [ ] **Trust labels + санитайзер** недоверенного контента (web/file/message/tool/vision).
-- [ ] **Capability Broker:** модель предлагает действие, Policy Engine проверяет и выполняет.
-- [ ] Инструменты: `fs.*`, `shell.exec`, `proc.*`, `clipboard`, `screen.capture`, `http.get`.
-- [ ] A4-политика: авто внутри scope, hard deny снаружи.
+- [x] **Capability Broker:** модель предлагает действие, Policy Engine проверяет и выполняет.
+- [x] Инструменты: `fs.*`, `shell.exec`.
+- [ ] Инструменты: `proc.*`, `clipboard`, `screen.capture`, `http.get`.
+- [x] A4-политика: авто внутри scope, hard deny снаружи.
 - [ ] Elevated broker: узкий список admin-операций, UAC, аудит.
 - [ ] Kill switch + watchdog.
-- [ ] 40+ тестов, включая обходы прав.
+- [x] 40+ тестов, включая обходы прав.
 - [ ] Первый injection-корпус и canary-тесты (`tests/security/injection`).
+
+**Сделано в первом срезе:** контракт `Tool` с Pydantic-аргументами, реестр и
+JSON-схемы; `PermissionEngine` с grant'ами на задачу, TTL, рисками R0–R4 и
+allow/confirm/deny; `ProtectedZones` с канонизацией путей, workspace-границей,
+запретом UNC/ADS/8.3 и symlink/junction; `ToolExecutor` с аудитом каждого
+вызова; инструменты `fs.read`, `fs.list`, `fs.write`, `shell.exec`;
+CLI `kivi tools list/run` с `--dry-run` и `--approve`; 76 новых тестов.
+**Осталось:** подписанный манифест зон и добавление зон из конфига, trust
+labels и санитайзер, остальные инструменты, elevated broker, kill switch и
+injection-корпус.
 
 **Приёмка:** запись вне scope невозможна; `format`, `diskpart`, `reg delete`, `shutdown`,
 системные папки и секреты блокируются; агент не может изменить denylist/safety/audit;

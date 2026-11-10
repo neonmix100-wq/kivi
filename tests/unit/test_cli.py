@@ -125,6 +125,69 @@ def test_cloud_ask_checkpoints_and_scouts_after_quota(tmp_path: Path, monkeypatc
     assert main(["cloud", "handoff", "--show", "1"]) == 0
 
 
+def make_tools_profile(tmp_path: Path) -> Paths:
+    root = tmp_path / "repo"
+    (root / "config").mkdir(parents=True)
+    (root / "config" / "kivi.yaml").write_text("version: 1\n", encoding="utf-8")
+    (root / "notes.txt").write_text("hello world", encoding="utf-8")
+    return Paths(root=root, home=tmp_path / "profile")
+
+
+def test_tools_list_and_json(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+
+    assert main(["tools", "list"]) == 0
+    assert main(["tools", "list", "--json"]) == 0
+
+
+def test_tools_run_reads_a_file(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+
+    assert main(["tools", "run", "fs.read", "--args", '{"path": "notes.txt"}']) == 0
+
+
+def test_tools_run_dry_run_needs_no_approval(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+
+    code = main(
+        [
+            "tools",
+            "run",
+            "shell.exec",
+            "--args",
+            '{"argv": ["python", "-c", "print(1)"]}',
+            "--dry-run",
+        ]
+    )
+    assert code == 0
+
+
+def test_tools_run_denies_safety_write(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+
+    code = main(
+        [
+            "tools",
+            "run",
+            "fs.write",
+            "--args",
+            '{"path": "src/kivi/safety/evil.py", "content": "x"}',
+        ]
+    )
+    assert code == 1
+
+
+def test_tools_run_rejects_bad_json(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+
+    assert main(["tools", "run", "fs.read", "--args", "not-json"]) == 2
+
+
 def test_module_entrypoint_delegates(monkeypatch) -> None:
     import kivi.__main__ as entry
 

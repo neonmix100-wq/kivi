@@ -38,7 +38,7 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 1 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.cli` | 790 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 894 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -78,8 +78,10 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.safety.__init__` | 1 | Safety layer: policy, protected zones, approvals. |
+| `src.kivi.safety.__init__` | 28 | Safety layer: policy, protected zones, approvals. |
+| `src.kivi.safety.permissions` | 224 | Permission Engine: task grants, risk levels and allow/confirm/deny. |
 | `src.kivi.safety.policy` | 227 | A4-Bounded policy checks. |
+| `src.kivi.safety.zones` | 232 | Protected Zones: hard-deny paths and escape checks. |
 
 ## senses
 
@@ -91,11 +93,16 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.tools.__init__` | 1 | Tools: files, shell, processes, browser, code, media and OS control. |
+| `src.kivi.tools.__init__` | 29 | Tools: files, shell, processes, browser, code, media and OS control. |
+| `src.kivi.tools.base` | 141 | Tool contract: typed arguments, previews and structured results. |
+| `src.kivi.tools.executor` | 270 | Capability Broker: the only path from a proposed tool call to the OS. |
+| `src.kivi.tools.fs` | 200 | Filesystem tools: read, list and write inside the workspace. |
+| `src.kivi.tools.registry` | 66 | Tool registry: one place that knows which tools exist. |
+| `src.kivi.tools.shell` | 132 | Shell tool: one approved process, no shell expansion, minimal environment. |
 
 ## Тесты
 
-Всего файлов: **17**.
+Всего файлов: **20**.
 
 - `tests/unit/test_bench_gateway.py`
 - `tests/unit/test_cli.py`
@@ -110,7 +117,10 @@ generated: true
 - `tests/unit/test_knowledge.py`
 - `tests/unit/test_ollama.py`
 - `tests/unit/test_paths.py`
+- `tests/unit/test_permissions.py`
 - `tests/unit/test_policy.py`
 - `tests/unit/test_registry.py`
+- `tests/unit/test_tools.py`
 - `tests/unit/test_vram.py`
 - `tests/unit/test_watchdog.py`
+- `tests/unit/test_zones.py`

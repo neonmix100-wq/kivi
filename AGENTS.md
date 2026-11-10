@@ -38,6 +38,9 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe ask "вопрос" --keep-alive 0
 .venv\Scripts\kivi.exe embed "text" --keep-alive 0
 .venv\Scripts\kivi.exe cloud status
+.venv\Scripts\kivi.exe tools list
+.venv\Scripts\kivi.exe tools run fs.read --args '{"path":"README.md"}'
+.venv\Scripts\kivi.exe tools run shell.exec --args '{"argv":["python","-V"]}' --dry-run
 ```
 
 `cloud mode auto_free`: только бесплатные провайдеры и общедоступные данные.
@@ -52,7 +55,10 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 - `src/kivi/config.py` — Pydantic-конфиг, `extra="forbid"`, безопасные дефолты.
 - `src/kivi/kernel/` — SQLite, Event Bus, JSONL-логи, аудит.
 - `src/kivi/safety/` — Policy Engine, зоны, approvals; единственный источник
-  разрешений на опасные действия.
+  разрешений на опасные действия. `zones.py` — Protected Zones, `permissions.py` —
+  grant'ы, TTL и риски R0–R4.
+- `src/kivi/tools/` — контракт `Tool`, реестр, `ToolExecutor` (Capability Broker),
+  `fs.*` и `shell.exec`. Каждый вызов идёт через executor и пишется в аудит.
 - `src/kivi/models/` — registry, Ollama backend, VRAM budget, lease/eviction.
 - `src/kivi/brain/` — планировщик и исполнение (этапы 4–5).
 - `src/kivi/senses/`, `tools/`, `memory/`, `modules/`, `interfaces/`.

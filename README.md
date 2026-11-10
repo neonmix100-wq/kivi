@@ -1,11 +1,12 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этап 3 — Cloud Broker, второй срез (v0.9). Работают `kivi doctor`,
-> `kivi models`, `kivi ask`, `kivi embed`, `kivi cloud status`, `kivi cloud ask`,
-> `kivi cloud scout`, `kivi cloud handoff`, реестр моделей, VRAM-бюджет
-> (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite, Event Bus,
-> аудит и Policy Engine.
-> Осталось: живой вызов с ключом, denylist/redaction перед облаком (этап 4).
+> **Статус:** этап 4 — инструменты и Permission Engine, первый срез (v0.10).
+> Работают `kivi doctor`, `kivi models`, `kivi ask`, `kivi embed`,
+> `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`, реестр моделей,
+> VRAM-бюджет (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite,
+> Event Bus, аудит, Policy Engine, Protected Zones и risk-политика R0–R4.
+> Осталось: trust labels и санитайзер, `proc.*`/`clipboard`/`screen`/`http`,
+> elevated broker, kill switch, injection-корпус; живой облачный вызов с ключом.
 
 ## Быстрый старт
 
@@ -20,6 +21,8 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe cloud status
 .venv\Scripts\kivi.exe cloud scout
 .venv\Scripts\kivi.exe cloud handoff
+.venv\Scripts\kivi.exe tools list
+.venv\Scripts\kivi.exe tools run fs.read --args '{"path":"README.md"}'
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
 ```
@@ -116,6 +119,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Этапы, milestone'ы, критерии приёмки, первые 14 дней |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Принятые решения, A4-Bounded, admin, облако, приоритеты |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Модель угроз, prompt injection, egress, тесты |
+| [`docs/TOOLS.md`](docs/TOOLS.md) | Контракт Tool, Permission Engine, Protected Zones, риски R0–R4 |
 | [`docs/SHELL.md`](docs/SHELL.md) | Kivi Shell: замена Explorer, паритет, fail-safe |
 | [`docs/PERSONA.md`](docs/PERSONA.md) | Kivi: характер, голос, аватар, одежда, липсинк |
 | [`docs/VOICE-CLONING.md`](docs/VOICE-CLONING.md) | Улучшение Silero, согласие, датасет и пайплайн клонирования голоса |

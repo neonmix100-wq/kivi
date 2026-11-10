@@ -7,6 +7,7 @@ durable event log and a chat placeholder that already records tasks and events.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import uuid
 from collections.abc import Iterator
@@ -45,6 +46,8 @@ from kivi.models import (
     query_vram,
 )
 from kivi.paths import Paths, get_paths
+from kivi.safety import PermissionEngine, ProtectedZones
+from kivi.tools import ToolExecutor, build_registry
 
 console = Console()
 
@@ -614,6 +617,89 @@ def cmd_cloud_handoffs(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tools(args: argparse.Namespace) -> int:
+    registry = build_registry()
+    specs = registry.specs()
+    if getattr(args, "json", False):
+        payload = [
+            {
+                "name": spec.name,
+                "description": spec.description,
+                "risk": spec.risk,
+                "capabilities": list(spec.capabilities),
+                "schema": spec.schema,
+            }
+            for spec in specs
+        ]
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+    table = Table(title="Kivi tools")
+    table.add_column("Name", style="bold")
+    table.add_column("Risk")
+    table.add_column("Capabilities")
+    table.add_column("Description", overflow="fold")
+    for spec in specs:
+        table.add_row(spec.name, spec.risk, ", ".join(spec.capabilities), spec.description)
+    console.print(table)
+    console.print("Run one with: kivi tools run <name> --args '<json>' [--dry-run] [--approve]")
+    return 0
+
+
+def cmd_tool_run(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    registry = build_registry()
+    tool = registry.get(args.name)
+    if tool is None:
+        console.print(f"[red]unknown tool:[/red] {args.name}")
+        console.print(f"Known tools: {', '.join(registry.names())}")
+        return 1
+    try:
+        payload = json.loads(args.args)
+    except json.JSONDecodeError as exc:
+        console.print(f"[red]invalid --args JSON:[/red] {exc}")
+        return 2
+    if not isinstance(payload, dict):
+        console.print("[red]--args must be a JSON object[/red]")
+        return 2
+
+    with _state(paths) as (db, events):
+        zones = ProtectedZones(paths.root)
+        permissions = PermissionEngine(
+            db,
+            autonomy=config.autonomy,
+            workspace=str(paths.root),
+            events=events,
+        )
+        task_id = args.task_id or f"cli-{uuid.uuid4().hex[:8]}"
+        grant = permissions.issue(task_id, tool.capabilities)
+        executor = ToolExecutor(
+            registry,
+            db,
+            permissions,
+            zones,
+            workspace=paths.root,
+            events=events,
+        )
+        result = executor.run(
+            args.name,
+            payload,
+            grant=grant,
+            approved=args.approve,
+            dry_run=args.dry_run,
+        )
+
+    if result.ok:
+        console.print(result.output)
+        if result.truncated:
+            console.print("[yellow]output truncated[/yellow]")
+        return 0
+    console.print(f"[red]tool failed:[/red] {result.error}")
+    if "confirmation required" in result.error:
+        console.print("Review the dry run, then re-run with --approve to confirm.")
+    return 1
+
+
 def cmd_audit(args: argparse.Namespace) -> int:
     paths = get_paths()
     with _state(paths) as (db, _):
@@ -759,6 +845,24 @@ def build_parser() -> argparse.ArgumentParser:
     cloud_handoff.set_defaults(func=cmd_cloud_handoffs)
 
     cloud.set_defaults(func=cmd_cloud_status)
+
+    tools = sub.add_parser("tools", help="list and run tools")
+    tools_sub = tools.add_subparsers(dest="tools_command")
+    tools_list = tools_sub.add_parser("list", help="list registered tools")
+    tools_list.add_argument("--json", action="store_true", help="print specs as JSON")
+    tools_list.set_defaults(func=cmd_tools)
+    tools_run = tools_sub.add_parser("run", help="run a tool through the permission engine")
+    tools_run.add_argument("name", help="tool name, for example fs.read")
+    tools_run.add_argument("--args", default="{}", help="tool arguments as a JSON object")
+    tools_run.add_argument("--dry-run", action="store_true", help="show the preview only")
+    tools_run.add_argument(
+        "--approve",
+        action="store_true",
+        help="confirm an R2/R3 action after reviewing the preview",
+    )
+    tools_run.add_argument("--task-id", default="", help="task id for the grant and audit")
+    tools_run.set_defaults(func=cmd_tool_run)
+    tools.set_defaults(func=cmd_tools)
 
     events = sub.add_parser("events", help="show recent events")
     events.add_argument("-n", "--limit", type=int, default=20)
