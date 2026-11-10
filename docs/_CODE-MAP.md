@@ -38,7 +38,7 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 1 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.cli` | 1412 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 1479 | Command-line interface (stage 1). |
 
 ## kernel
 

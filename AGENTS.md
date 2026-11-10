@@ -45,6 +45,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe hotkey --check
 .venv\Scripts\kivi.exe memory stats
 .venv\Scripts\kivi.exe memory index -m bge-m3
+.venv\Scripts\kivi.exe memory similar "тёплый город" -m bge-m3
 .venv\Scripts\kivi.exe zones status
 ```
 

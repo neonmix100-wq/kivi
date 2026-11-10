@@ -37,7 +37,7 @@ from kivi.doctor import ollama_models, run_checks, summary
 from kivi.kernel.db import Database
 from kivi.kernel.events import EventBus
 from kivi.kernel.logs import JsonlLogger
-from kivi.memory import ContextBuilder, MemoryStore, import_directory
+from kivi.memory import ContextBuilder, HybridSearch, MemoryStore, import_directory
 from kivi.models import (
     BackendError,
     GatewayError,
@@ -1120,6 +1120,66 @@ def cmd_memory_index(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_memory_similar(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    registry = _registry(paths)
+    try:
+        spec = registry.require(args.model) if args.model else registry.default_for("embedding")
+    except RegistryError as exc:
+        console.print(f"[red]model error:[/red] {exc}")
+        return 1
+    with _state(paths) as (db, bus):
+        store = _memory(paths, db)
+        task_id = f"tsk_{uuid.uuid4().hex[:12]}"
+        try:
+            with OllamaBackend(timeout=args.timeout) as backend:
+                gateway = ModelGateway(
+                    registry,
+                    backend,
+                    vram_total_mb=config.model_gateway.vram_total_mb,
+                    safety_margin_mb=config.model_gateway.safety_margin_mb,
+                    allow_cpu_fallback=config.model_gateway.cpu_fallback,
+                    events=bus,
+                )
+                hits = HybridSearch(store).search(
+                    args.query,
+                    embedder=lambda texts: gateway.embed(
+                        spec.id,
+                        texts,
+                        task_id=task_id,
+                        priority=1,
+                        keep_alive=args.keep_alive,
+                    ),
+                    model=spec.id,
+                    limit=args.limit,
+                )
+        except (GatewayError, BackendError) as exc:
+            console.print(f"[red]search error:[/red] {exc}")
+            return 1
+    if not hits:
+        console.print("Nothing found.")
+        return 0
+    table = Table(title=f"Hybrid search: {args.query}")
+    table.add_column("Type")
+    table.add_column("ID", justify="right")
+    table.add_column("Trust")
+    table.add_column("Sources")
+    table.add_column("Score", justify="right")
+    table.add_column("Text", overflow="fold")
+    for hit in hits:
+        table.add_row(
+            hit.owner_type,
+            str(hit.owner_id),
+            hit.trust,
+            ",".join(hit.sources),
+            f"{hit.score:.4f}",
+            _plain(hit.text),
+        )
+    console.print(table)
+    return 0
+
+
 def cmd_memory_context(args: argparse.Namespace) -> int:
     paths = get_paths()
     with _state(paths) as (db, _):
@@ -1375,6 +1435,13 @@ def build_parser() -> argparse.ArgumentParser:
     memory_index.add_argument("--timeout", type=float, default=120.0)
     memory_index.add_argument("--keep-alive", default="0")
     memory_index.set_defaults(func=cmd_memory_index)
+    memory_similar = memory_sub.add_parser("similar", help="hybrid semantic search")
+    memory_similar.add_argument("query")
+    memory_similar.add_argument("-m", "--model", default="")
+    memory_similar.add_argument("-n", "--limit", type=int, default=10)
+    memory_similar.add_argument("--timeout", type=float, default=120.0)
+    memory_similar.add_argument("--keep-alive", default="0")
+    memory_similar.set_defaults(func=cmd_memory_similar)
     memory_context = memory_sub.add_parser("context", help="build a context window")
     memory_context.add_argument("query")
     memory_context.add_argument("--task-id", default="")

@@ -100,6 +100,7 @@ kivi memory stats
 kivi memory export --out data/memory.json
 kivi memory import D:\AI-base\AI-base\docs --limit 50
 kivi memory index -m bge-m3
+kivi memory similar "тёплый город" -m bge-m3
 ```
 
 `memory import` читает только `.md/.markdown/.txt/.rst`, пропускает `.git`,
@@ -118,5 +119,5 @@ kivi memory index -m bge-m3
 - Нет суммаризации старых сообщений и TTL-политики; бюджет решает Context
   Builder, но хранилище не чистится автоматически.
 - `approvals` — только схема, API подтверждений появится вместе с планером.
-- Hybrid-search встроен в Context Builder, но CLI `memory search` пока делает
-  только FTS-поиск.
+- CLI `memory search` остаётся FTS; гибридный поиск доступен как
+  `memory similar` и программно через `HybridSearch`.
