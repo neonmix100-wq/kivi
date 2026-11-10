@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -168,6 +169,47 @@ def test_context_wraps_untrusted_content(tmp_path: Path) -> None:
     finally:
         db.close()
     assert "<untrusted" in context.text
+
+
+def test_context_can_use_hybrid_search(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        message_id = store.add_message("user", "alpha text")
+        store.put_embedding("message", message_id, "m", [1.0, 0.0])
+        builder = ContextBuilder(
+            store,
+            hybrid=HybridSearch(store),
+            embedder=lambda texts: [[1.0, 0.0]],
+            model="m",
+        )
+        context = builder.build("alpha")
+    finally:
+        db.close()
+    assert "alpha text" in context.text
+    assert "<trusted" in context.text
+
+
+def test_hybrid_search_prefers_recent_rows(tmp_path: Path) -> None:
+    store, db = make_store(tmp_path)
+    try:
+        old = store.remember("city", "alpha old")
+        new = store.remember("city2", "alpha new")
+        with store._conn:
+            store._conn.execute(
+                "UPDATE facts SET updated_at = '2020-01-01T00:00:00+00:00' WHERE id = ?",
+                (old,),
+            )
+            store._conn.execute(
+                "UPDATE facts SET updated_at = '2026-01-01T00:00:00+00:00' WHERE id = ?",
+                (new,),
+            )
+        hits = HybridSearch(
+            store,
+            clock=lambda: datetime(2026, 1, 2, tzinfo=UTC),
+        ).search("alpha", limit=5)
+    finally:
+        db.close()
+    assert hits[0].owner_id == new
 
 
 def test_context_flags_injection_text(tmp_path: Path) -> None:

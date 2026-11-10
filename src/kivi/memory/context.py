@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from kivi.memory.search import Embedder, HybridSearch
 from kivi.memory.store import MemoryStore
 from kivi.safety.sanitize import sanitize_text
 from kivi.safety.trust import TRUST_LEVELS, build_envelope
@@ -35,6 +36,9 @@ class ContextBuilder:
         max_facts: int = 10,
         max_messages: int = 8,
         max_search: int = 5,
+        hybrid: HybridSearch | None = None,
+        embedder: Embedder | None = None,
+        model: str = "",
     ) -> None:
         if max_chars < 200:
             raise ValueError("max_chars must be at least 200")
@@ -43,6 +47,9 @@ class ContextBuilder:
         self.max_facts = max_facts
         self.max_messages = max_messages
         self.max_search = max_search
+        self.hybrid = hybrid
+        self.embedder = embedder
+        self.model = model
 
     def _safe_trust(self, trust: str) -> str:
         return trust if trust in TRUST_LEVELS else "untrusted:tool"
@@ -71,6 +78,8 @@ class ContextBuilder:
     def _relevant(self, query: str) -> tuple[str, set[int], set[str]]:
         if not query.strip():
             return "", set(), set()
+        if self.hybrid is not None:
+            return self._relevant_hybrid(query)
         blocks: list[str] = []
         message_ids: set[int] = set()
         fact_keys: set[str] = set()
@@ -90,6 +99,31 @@ class ContextBuilder:
                     f"{message['role']}: {message['content']}",
                     str(message["trust"]),
                     f"message:{message['id']}",
+                )
+            )
+        return "\n".join(blocks), message_ids, fact_keys
+
+    def _relevant_hybrid(self, query: str) -> tuple[str, set[int], set[str]]:
+        blocks: list[str] = []
+        message_ids: set[int] = set()
+        fact_keys: set[str] = set()
+        assert self.hybrid is not None
+        hits = self.hybrid.search(
+            query,
+            embedder=self.embedder,
+            model=self.model,
+            limit=self.max_search,
+        )
+        for hit in hits:
+            if hit.owner_type == "message":
+                message_ids.add(hit.owner_id)
+            else:
+                fact_keys.add(hit.text.split(":", 1)[0].strip())
+            blocks.append(
+                self._envelope(
+                    hit.text,
+                    hit.trust,
+                    f"{hit.owner_type}:{hit.owner_id}",
                 )
             )
         return "\n".join(blocks), message_ids, fact_keys

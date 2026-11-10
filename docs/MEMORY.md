@@ -79,11 +79,13 @@ hits = HybridSearch(store).search(
 
 - FTS5 и векторный поиск объединяются через Reciprocal Rank Fusion;
 - `SearchHit.sources` показывает, откуда пришёл результат (`fts`, `vector`);
+- свежесть учитывается небольшим recency-бонусом (по `created_at`/`updated_at`);
 - при удалении факта/сообщения векторы удаляются;
 - эмбеддинги считаются через `kivi memory index` (Ollama/bge-m3).
 
-`ContextBuilder` пока использует FTS-секцию; подключение hybrid-search к нему —
-следующий шаг.
+`ContextBuilder(..., hybrid=HybridSearch(store), embedder=..., model="bge-m3")`
+использует гибридный поиск для секции Relevant memory; без embedder'а он
+деградирует до FTS.
 
 ## 5. CLI
 
@@ -116,4 +118,5 @@ kivi memory index -m bge-m3
 - Нет суммаризации старых сообщений и TTL-политики; бюджет решает Context
   Builder, но хранилище не чистится автоматически.
 - `approvals` — только схема, API подтверждений появится вместе с планером.
-- Hybrid-search ещё не встроен в Context Builder автоматически.
+- Hybrid-search встроен в Context Builder, но CLI `memory search` пока делает
+  только FTS-поиск.

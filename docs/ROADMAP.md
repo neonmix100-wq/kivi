@@ -230,9 +230,10 @@ artifacts, approvals) с FTS5 и триггерами; `MemoryStore` (upsert ф�
 `kivi chat` пишет сообщение пользователя в память; 21 тест.
 **Сделано во втором срезе:** миграция 5 (`embeddings`, float32 BLOB),
 `put_embedding`/`search_embeddings`, `HybridSearch` с RRF-слиянием FTS5 и
-векторов, CLI `kivi memory index` через Ollama/bge-m3; 9 тестов.
-**Осталось:** LanceDB/ANN для больших баз, подключение hybrid-search к
-Context Builder, суммаризация старых сообщений, API approvals.
+векторов, recency-бонус, Context Builder использует hybrid при наличии
+embedder'а, CLI `kivi memory index` через Ollama/bge-m3; 17 тестов.
+**Осталось:** LanceDB/ANN для больших баз, CLI hybrid-search, суммаризация
+старых сообщений, API approvals.
 
 **Приёмка:** 10 фактов находятся после перезапуска; 20 запросов к базе дают релевантные источники;
 «забудь X» удаляет запись и векторы; секреты не индексируются.

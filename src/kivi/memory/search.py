@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from kivi.memory.store import MemoryStore
 
@@ -27,6 +28,7 @@ class SearchHit:
     trust: str
     score: float = 0.0
     sources: tuple[str, ...] = ()
+    created_at: str = ""
 
     @property
     def key(self) -> tuple[str, int]:
@@ -34,11 +36,34 @@ class SearchHit:
 
 
 class HybridSearch:
-    def __init__(self, store: MemoryStore, *, rrf_k: int = 60) -> None:
+    def __init__(
+        self,
+        store: MemoryStore,
+        *,
+        rrf_k: int = 60,
+        recency_weight: float = 0.1,
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
         if rrf_k < 1:
             raise ValueError("rrf_k must be positive")
+        if not 0.0 <= recency_weight <= 1.0:
+            raise ValueError("recency_weight must be between 0 and 1")
         self.store = store
         self.rrf_k = rrf_k
+        self.recency_weight = recency_weight
+        self._clock = clock or (lambda: datetime.now(UTC))
+
+    def _recency(self, timestamp: str) -> float:
+        if not timestamp:
+            return 0.0
+        try:
+            parsed = datetime.fromisoformat(timestamp)
+        except ValueError:
+            return 0.0
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        age_days = max(0.0, (self._clock() - parsed).total_seconds() / 86400.0)
+        return 1.0 / (1.0 + age_days)
 
     def _fts_hits(self, query: str, limit: int) -> list[SearchHit]:
         hits: list[SearchHit] = []
@@ -50,6 +75,7 @@ class HybridSearch:
                     role="fact",
                     text=f"{fact['key']}: {fact['value']}",
                     trust=str(fact["trust"]),
+                    created_at=str(fact["updated_at"]),
                 )
             )
         for message in self.store.search_messages(query, limit):
@@ -60,6 +86,7 @@ class HybridSearch:
                     role=str(message["role"]),
                     text=str(message["content"]),
                     trust=str(message["trust"]),
+                    created_at=str(message["created_at"]),
                 )
             )
         return hits
@@ -83,6 +110,7 @@ class HybridSearch:
                         text=str(message["content"]),
                         trust=str(message["trust"]),
                         score=float(row["score"]),
+                        created_at=str(message["created_at"]),
                     )
                 )
             elif owner_type == "fact":
@@ -97,6 +125,7 @@ class HybridSearch:
                         text=f"{fact['key']}: {fact['value']}",
                         trust=str(fact["trust"]),
                         score=float(row["score"]),
+                        created_at=str(fact["updated_at"]),
                     )
                 )
         return hits
@@ -131,7 +160,11 @@ class HybridSearch:
         ordered = sorted(
             ranked.values(),
             key=lambda item: (
-                -float(item["score"]),
+                -(
+                    float(item["score"])
+                    + self.recency_weight * self._recency(item["hit"].created_at)
+                ),
+                -float(item["hit"].score),
                 item["hit"].owner_type,
                 item["hit"].owner_id,
             ),
@@ -146,8 +179,13 @@ class HybridSearch:
                     role=hit.role,
                     text=hit.text,
                     trust=hit.trust,
-                    score=round(float(entry["score"]), 6),
+                    score=round(
+                        float(entry["score"])
+                        + self.recency_weight * self._recency(hit.created_at),
+                        6,
+                    ),
                     sources=tuple(sorted(entry["sources"])),
+                    created_at=hit.created_at,
                 )
             )
         return result

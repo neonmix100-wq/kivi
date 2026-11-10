@@ -54,9 +54,9 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.memory.__init__` | 18 | Memory: working, episodic, semantic, profile and artifacts. |
-| `src.kivi.memory.context` | 159 | Context builder: profile, relevant memory and recent messages within budget. |
+| `src.kivi.memory.context` | 193 | Context builder: profile, relevant memory and recent messages within budget. |
 | `src.kivi.memory.importer` | 148 | Read-only import of text knowledge bases into memory. |
-| `src.kivi.memory.search` | 156 | Hybrid memory search: FTS5 and embeddings fused with reciprocal rank. |
+| `src.kivi.memory.search` | 194 | Hybrid memory search: FTS5 and embeddings fused with reciprocal rank. |
 | `src.kivi.memory.store` | 381 | Durable memory: messages, facts, preferences and content-addressed artifacts. |
 
 ## models
