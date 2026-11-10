@@ -12,6 +12,7 @@ state, audit and CLI that the hotkey will call.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,11 +41,13 @@ class KillSwitch:
         db: Database | None = None,
         events: Any = None,
         clock: Any = None,
+        on_engage: Callable[[], None] | None = None,
     ) -> None:
         self.path = Path(path)
         self.db = db
         self.events = events
         self._clock = clock or (lambda: datetime.now(UTC))
+        self._on_engage = on_engage
 
     def state(self) -> KillSwitchState:
         if not self.path.is_file():
@@ -101,6 +104,19 @@ class KillSwitch:
         temporary.replace(self.path)
         self._record("engaged", state.reason)
         self._emit("engaged", state)
+        if self._on_engage is not None:
+            try:
+                self._on_engage()
+            except Exception as exc:  # noqa: BLE001 - the stop flag must still stand
+                self._emit("unload_failed", state)
+                if self.db is not None:
+                    self.db.append_audit(
+                        actor="safety",
+                        action="safety.killswitch_unload",
+                        target=str(self.path),
+                        decision="error",
+                        reason=str(exc)[:200],
+                    )
         return state
 
     def disengage(self, *, source: str = "cli") -> KillSwitchState:

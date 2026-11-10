@@ -151,7 +151,8 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
 - [x] A4-политика: авто внутри scope, hard deny снаружи.
 - [ ] Elevated broker: узкий список admin-операций, UAC, аудит.
 - [x] Kill switch: флаг, CLI, блокировка tools/cloud, аудит.
-- [ ] Глобальная горячая клавиша kill switch и выгрузка модели через Gateway.
+- [x] Kill switch выгружает модели, которые обслуживает Ollama (best-effort).
+- [ ] Глобальная горячая клавиша kill switch.
 - [x] 40+ тестов, включая обходы прав.
 - [x] Первый injection-корпус и canary-тесты (`tests/security/injection`).
 
@@ -177,9 +178,11 @@ redaction токенов и PEM), `ToolResult.trust` и `trust` в аудите,
 **Сделано в шестом мини-срезе:** подписанный HMAC-SHA256 манифест
 `config/protected-zones.yaml` + `private/safety/zones.key`, `kivi zones
 init/status/check/sign`, fail-closed при битой подписи; 15 тестов.
+**Сделано в седьмом мини-срезе:** kill switch выгружает обслуживаемые Ollama
+модели (best-effort, ошибка не отменяет флаг); 2 теста.
 **Осталось:** остальные инструменты (`proc.kill`, `clipboard`, `screen.capture`),
-elevated broker, глобальный hotkey kill switch и выгрузка модели, OCR/PDF-читатели
-и расширение injection-корпуса.
+elevated broker, глобальный hotkey kill switch, OCR/PDF-читатели и расширение
+injection-корпуса.
 
 **Приёмка:** запись вне scope невозможна; `format`, `diskpart`, `reg delete`, `shutdown`,
 системные папки и секреты блокируются; агент не может изменить denylist/safety/audit;

@@ -85,14 +85,34 @@ def _config(paths: Paths) -> KiviConfig:
         raise SystemExit(2) from exc
 
 
-def _kill_switch(paths: Paths, db: Database, events: EventBus) -> KillSwitch:
-    return KillSwitch(paths.home / FLAG_NAME, db=db, events=events)
+def _kill_switch(
+    paths: Paths,
+    db: Database,
+    events: EventBus,
+    on_engage=None,
+) -> KillSwitch:
+    return KillSwitch(paths.home / FLAG_NAME, db=db, events=events, on_engage=on_engage)
 
 
 def _zones_extra(paths: Paths):
     manifest = paths.root / "config" / "protected-zones.yaml"
     key = paths.root / "private" / "safety" / "zones.key"
     return load_signed_rules(manifest, key)
+
+
+def _unload_local_models(paths: Paths) -> int:
+    """Best-effort unload of models Ollama is currently serving."""
+    try:
+        with OllamaBackend(timeout=3.0) as backend:
+            running = backend.running()
+            for model_id in running:
+                try:
+                    backend.unload(model_id)
+                except BackendError:
+                    continue
+            return len(running)
+    except BackendError:
+        return 0
 
 
 def _registry(paths: Paths):
@@ -744,8 +764,19 @@ def cmd_tool_run(args: argparse.Namespace) -> int:
 
 def cmd_killswitch(args: argparse.Namespace) -> int:
     paths = get_paths()
+    if args.action == "on":
+        _config(paths)  # fail early on a broken config, before the flag is written
+
+        def unload() -> None:
+            count = _unload_local_models(paths)
+            if count:
+                console.print(f"unloaded {count} local model(s)")
+
+        on_engage = unload
+    else:
+        on_engage = None
     with _state(paths) as (db, events):
-        switch = _kill_switch(paths, db, events)
+        switch = _kill_switch(paths, db, events, on_engage=on_engage)
         if args.action == "on":
             state = switch.engage(args.reason)
             console.print(

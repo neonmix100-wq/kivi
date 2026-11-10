@@ -203,9 +203,38 @@ def make_cli_profile(tmp_path: Path) -> Paths:
     return Paths(root=root, home=tmp_path / "profile")
 
 
+def test_engage_calls_unload_hook_once(tmp_path: Path) -> None:
+    calls: list[int] = []
+    db = Database(tmp_path / "kivi.db")
+    switch = KillSwitch(tmp_path / "killswitch.json", db=db, on_engage=lambda: calls.append(1))
+    try:
+        switch.engage("stop")
+        switch.engage("stop again")
+    finally:
+        db.close()
+    assert calls == [1]
+
+
+def test_unload_failure_does_not_prevent_the_stop(tmp_path: Path) -> None:
+    def broken() -> None:
+        raise RuntimeError("ollama is down")
+
+    switch, db, _ = make_switch(tmp_path, on_engage=broken)
+    try:
+        state = switch.engage("stop")
+        audit = db.recent_audit()[0]
+    finally:
+        db.close()
+    assert state.engaged is True
+    assert switch.is_engaged() is True
+    assert audit["action"] == "safety.killswitch_unload"
+    assert audit["decision"] == "error"
+
+
 def test_cli_killswitch_blocks_tools(tmp_path: Path, monkeypatch) -> None:
     paths = make_cli_profile(tmp_path)
     monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+    monkeypatch.setattr(cli_module, "_unload_local_models", lambda _paths: 0)
 
     assert main(["killswitch", "status"]) == 0
     assert main(["killswitch", "on", "--reason", "test stop"]) == 0

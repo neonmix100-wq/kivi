@@ -38,7 +38,7 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 1 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.cli` | 1033 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 1064 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -79,7 +79,7 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.safety.__init__` | 51 | Safety layer: policy, protected zones, approvals and trust labels. |
-| `src.kivi.safety.killswitch` | 141 | Kill switch: one durable flag that stops tools and cloud calls. |
+| `src.kivi.safety.killswitch` | 157 | Kill switch: one durable flag that stops tools and cloud calls. |
 | `src.kivi.safety.permissions` | 224 | Permission Engine: task grants, risk levels and allow/confirm/deny. |
 | `src.kivi.safety.policy` | 227 | A4-Bounded policy checks. |
 | `src.kivi.safety.sanitize` | 257 | Sanitizer for untrusted content. |
