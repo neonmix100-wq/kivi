@@ -54,6 +54,7 @@ class ToolRegistry:
 
 def build_registry() -> ToolRegistry:
     """Create the default registry with the stage-4 filesystem, shell and web tools."""
+    from kivi.tools.clipboard import ClipboardReadTool, ClipboardWriteTool
     from kivi.tools.fs import FsListTool, FsReadTool, FsWriteTool
     from kivi.tools.net import HttpGetTool
     from kivi.tools.proc import ProcListTool
@@ -67,6 +68,8 @@ def build_registry() -> ToolRegistry:
         ShellExecTool(),
         HttpGetTool(),
         ProcListTool(),
+        ClipboardReadTool(),
+        ClipboardWriteTool(),
     ):
         registry.register(tool)
     return registry

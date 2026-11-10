@@ -57,6 +57,8 @@ def env(tmp_path: Path, workspace: Path) -> ToolEnv:
 def test_registry_exposes_specs() -> None:
     registry = build_registry()
     assert registry.names() == (
+        "clipboard.read",
+        "clipboard.write",
         "fs.list",
         "fs.read",
         "fs.write",

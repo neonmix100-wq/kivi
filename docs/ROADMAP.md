@@ -147,7 +147,8 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
 - [x] Инструменты: `fs.*`, `shell.exec`.
 - [x] `http.get`: только HTTPS, SSRF-защита по IP, лимиты, `untrusted:web`.
 - [x] `proc.list`: pid, имя, RSS; без командных строк.
-- [ ] Инструменты: `proc.*` (kill/start), `clipboard`, `screen.capture`.
+- [x] `clipboard.read`/`clipboard.write`: R2, подтверждение, redaction.
+- [ ] Инструменты: `proc.kill`/`proc.start`, `screen.capture`.
 - [x] A4-политика: авто внутри scope, hard deny снаружи.
 - [ ] Elevated broker: узкий список admin-операций, UAC, аудит.
 - [x] Kill switch: флаг, CLI, блокировка tools/cloud, аудит.
@@ -180,9 +181,11 @@ redaction токенов и PEM), `ToolResult.trust` и `trust` в аудите,
 init/status/check/sign`, fail-closed при битой подписи; 15 тестов.
 **Сделано в седьмом мини-срезе:** kill switch выгружает обслуживаемые Ollama
 модели (best-effort, ошибка не отменяет флаг); 2 теста.
-**Осталось:** остальные инструменты (`proc.kill`, `clipboard`, `screen.capture`),
-elevated broker, глобальный hotkey kill switch, OCR/PDF-читатели и расширение
-injection-корпуса.
+**Сделано в восьмом мини-срезе:** `clipboard.read`/`clipboard.write` (R2,
+подтверждение, санитайзер и redaction при чтении, Windows backend за
+интерфейсом); 9 тестов.
+**Осталось:** `proc.kill`/`proc.start`, `screen.capture`, elevated broker,
+глобальный hotkey kill switch, OCR/PDF-читатели и расширение injection-корпуса.
 
 **Приёмка:** запись вне scope невозможна; `format`, `diskpart`, `reg delete`, `shutdown`,
 системные папки и секреты блокируются; агент не может изменить denylist/safety/audit;

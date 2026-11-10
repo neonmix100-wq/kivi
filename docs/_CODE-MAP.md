@@ -99,20 +99,22 @@ generated: true
 | --- | ---: | --- |
 | `src.kivi.tools.__init__` | 29 | Tools: files, shell, processes, browser, code, media and OS control. |
 | `src.kivi.tools.base` | 143 | Tool contract: typed arguments, previews and structured results. |
+| `src.kivi.tools.clipboard` | 205 | Clipboard tools: explicit, confirmed access to the Windows clipboard. |
 | `src.kivi.tools.executor` | 288 | Capability Broker: the only path from a proposed tool call to the OS. |
 | `src.kivi.tools.fs` | 221 | Filesystem tools: read, list and write inside the workspace. |
 | `src.kivi.tools.net` | 180 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
 | `src.kivi.tools.proc` | 82 | Process list tool: names and memory only, never command lines. |
-| `src.kivi.tools.registry` | 75 | Tool registry: one place that knows which tools exist. |
+| `src.kivi.tools.registry` | 78 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.shell` | 132 | Shell tool: one approved process, no shell expansion, minimal environment. |
 
 ## Тесты
 
-Всего файлов: **25**.
+Всего файлов: **26**.
 
 - `tests/security/test_injection.py`
 - `tests/unit/test_bench_gateway.py`
 - `tests/unit/test_cli.py`
+- `tests/unit/test_clipboard.py`
 - `tests/unit/test_cloud.py`
 - `tests/unit/test_cloud_providers.py`
 - `tests/unit/test_cloud_scout.py`
