@@ -147,7 +147,7 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
 - [x] Инструменты: `fs.*`, `shell.exec`.
 - [x] `http.get`: только HTTPS, SSRF-защита по IP, лимиты, `untrusted:web`.
 - [x] `http.get`: доменный denylist `security.blocked_hosts`.
-- [ ] `http.get`: pin resolved IP (закрыть DNS rebinding).
+- [x] `http.get`: соединение на разрешённый IP с исходным `Host`/SNI (DNS rebinding).
 - [x] `proc.list`: pid, имя, RSS; без командных строк.
 - [x] `proc.kill`: R3, проверка имени, запрет системных процессов и своего pid.
 - [x] `clipboard.read`/`clipboard.write`: R2, подтверждение, redaction.
@@ -195,8 +195,10 @@ init/status/check/sign`, fail-closed при битой подписи; 15 тес
 GDI без Pillow, BMP в workspace, лимит размера, `untrusted:vision`; 11 тестов.
 **Сделано в одиннадцатом мини-срезе:** `security.blocked_hosts` (exact/glob)
 для `http.get`, проверка до DNS; 5 тестов.
+**Сделано в двенадцатом мини-срезе:** pin resolved IP для `http.get` (IP в URL,
+исходные `Host` и SNI), закрывает DNS rebinding; 1 тест.
 **Осталось:** `proc.start`, elevated broker, глобальный hotkey kill switch,
-pin IP для `http.get`, OCR/PDF-читатели и расширение injection-корпуса.
+OCR/PDF-читатели и расширение injection-корпуса.
 
 **Приёмка:** запись вне scope невозможна; `format`, `diskpart`, `reg delete`, `shutdown`,
 системные папки и секреты блокируются; агент не может изменить denylist/safety/audit;

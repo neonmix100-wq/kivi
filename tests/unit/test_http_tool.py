@@ -310,3 +310,22 @@ def test_blocked_host_wildcard_covers_subdomains(tmp_path: Path) -> None:
     assert not blocked.ok
     assert "blocked" in blocked.error
     assert allowed.ok
+
+
+def test_request_uses_pinned_ip_and_original_host_header(tmp_path: Path) -> None:
+    seen: dict[str, str | None] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url_host"] = request.url.host
+        seen["host_header"] = request.headers.get("host")
+        return httpx.Response(200, headers={"content-type": "text/plain"}, content=b"ok")
+
+    executor, db = make_executor(tmp_path, handler)
+    try:
+        result = run(executor)
+    finally:
+        db.close()
+    assert result.ok
+    assert seen["url_host"] == PUBLIC_IP
+    assert seen["host_header"] == "example.com"
+    assert result.meta["address"] == PUBLIC_IP

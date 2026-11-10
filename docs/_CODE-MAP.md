@@ -102,7 +102,7 @@ generated: true
 | `src.kivi.tools.clipboard` | 205 | Clipboard tools: explicit, confirmed access to the Windows clipboard. |
 | `src.kivi.tools.executor` | 288 | Capability Broker: the only path from a proposed tool call to the OS. |
 | `src.kivi.tools.fs` | 221 | Filesystem tools: read, list and write inside the workspace. |
-| `src.kivi.tools.net` | 187 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
+| `src.kivi.tools.net` | 209 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
 | `src.kivi.tools.proc` | 192 | Process list tool: names and memory only, never command lines. |
 | `src.kivi.tools.registry` | 84 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.screen` | 306 | Screen capture tool: save the desktop as a BMP inside the workspace. |

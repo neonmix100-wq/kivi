@@ -45,6 +45,15 @@ def _default_resolver(host: str, port: int, **kwargs: Any) -> list[tuple[Any, ..
     return socket.getaddrinfo(host, port, **kwargs)
 
 
+def _pin_url(url: str, address: str) -> str:
+    """Replace the host in ``url`` with a resolved IP, keeping path and query."""
+    parts = urlsplit(url)
+    host = f"[{address}]" if ":" in address else address
+    path = parts.path or "/"
+    query = f"?{parts.query}" if parts.query else ""
+    return f"https://{host}{path}{query}"
+
+
 class HttpGetArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -92,13 +101,14 @@ class HttpGetTool:
             raise ToolError("only the default HTTPS port is allowed")
         return host, url
 
-    def _resolve_public(self, host: str) -> None:
+    def _resolve_public(self, host: str) -> str:
         try:
             answers = self._resolver(host, 443, type=socket.SOCK_STREAM)
         except OSError as exc:
             raise ToolError(f"cannot resolve {host}: {exc}") from exc
         if not answers:
             raise ToolError(f"cannot resolve {host}")
+        chosen: str | None = None
         for answer in answers:
             address = answer[4][0]
             try:
@@ -107,16 +117,22 @@ class HttpGetTool:
                 raise ToolError(f"invalid resolved address: {address}") from exc
             if not parsed.is_global:
                 raise ToolError(f"{host} resolves to a non-public address")
+            if chosen is None:
+                chosen = address
+        if chosen is None:
+            raise ToolError(f"cannot resolve {host}")
+        return chosen
 
     def dry_run(self, args: BaseModel, ctx: ToolContext) -> Preview:
         assert isinstance(args, HttpGetArgs)
         host, safe_url = self._parse(args.url)
-        self._resolve_public(host)
+        address = self._resolve_public(host)
         return Preview(
             "http-get",
             {
                 "url": safe_url,
                 "host": host,
+                "address": address,
                 "max_bytes": args.max_bytes,
                 "timeout_s": args.timeout_s,
             },
@@ -126,7 +142,8 @@ class HttpGetTool:
     def run(self, args: BaseModel, ctx: ToolContext) -> ToolResult:
         assert isinstance(args, HttpGetArgs)
         host, safe_url = self._parse(args.url)
-        self._resolve_public(host)
+        address = self._resolve_public(host)
+        pinned_url = _pin_url(safe_url, address)
         timeout = min(args.timeout_s, 60.0)
         limit = args.max_bytes
         try:
@@ -135,7 +152,11 @@ class HttpGetTool:
                 transport=self._transport,
                 follow_redirects=False,
             ) as client:
-                response = client.get(safe_url, headers=_DEFAULT_HEADERS)
+                response = client.get(
+                    pinned_url,
+                    headers={**_DEFAULT_HEADERS, "Host": host},
+                    extensions={"sni_hostname": host},
+                )
                 if 300 <= response.status_code < 400:
                     raise ToolError("redirects are not followed")
                 if response.status_code >= 400:
@@ -173,6 +194,7 @@ class HttpGetTool:
             meta={
                 "url": safe_url,
                 "host": host,
+                "address": address,
                 "status": response.status_code,
                 "content_type": content_type,
                 "bytes": len(raw),
