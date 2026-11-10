@@ -5,9 +5,10 @@
 > `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`, реестр моделей,
 > VRAM-бюджет (NVML + nvidia-smi fallback), lease/eviction, watchdog, SQLite,
 > Event Bus, аудит, Policy Engine, Protected Zones, risk-политика R0–R4,
-> trust labels и санитайзер недоверенного контента.
+> trust labels, санитайзер недоверенного контента и kill switch.
 > Осталось: подписанный манифест зон, `proc.*`/`clipboard`/`screen`,
-> elevated broker, kill switch, OCR/PDF-читатели; живой облачный вызов с ключом.
+> elevated broker, глобальный hotkey kill switch, OCR/PDF-читатели;
+> живой облачный вызов с ключом.
 
 ## Быстрый старт
 
@@ -24,6 +25,7 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe cloud handoff
 .venv\Scripts\kivi.exe tools list
 .venv\Scripts\kivi.exe tools run fs.read --args '{"path":"README.md"}'
+.venv\Scripts\kivi.exe killswitch status
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
 ```

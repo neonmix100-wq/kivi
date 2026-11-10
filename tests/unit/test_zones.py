@@ -53,6 +53,12 @@ def test_write_into_audit_database_is_denied(zones: ProtectedZones, workspace: P
     assert zones.check(workspace / "data" / "kivi.db", "write").rule == "core-data/kivi.db"
 
 
+def test_write_into_killswitch_flag_is_denied(zones: ProtectedZones, workspace: Path) -> None:
+    decision = zones.check(workspace / "data" / "killswitch.json", "write")
+    assert not decision.allowed
+    assert decision.rule == "core-data/killswitch.json"
+
+
 def test_write_into_logs_is_denied(zones: ProtectedZones, workspace: Path) -> None:
     assert zones.check(workspace / "data" / "logs" / "events.jsonl", "write").rule == (
         "core-data/logs"

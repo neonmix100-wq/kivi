@@ -44,6 +44,7 @@ class ToolExecutor:
         policy: PolicyEngine | None = None,
         events: Any = None,
         limits: Limits | None = None,
+        killswitch: Any = None,
     ) -> None:
         self.registry = registry
         self.db = db
@@ -53,6 +54,7 @@ class ToolExecutor:
         self.policy = policy or PolicyEngine()
         self.events = events
         self.limits = limits or Limits()
+        self.killswitch = killswitch
 
     # -- helpers ---------------------------------------------------------
     def _emit(self, name: str, payload: dict[str, Any]) -> None:
@@ -121,6 +123,17 @@ class ToolExecutor:
         raw = dict(raw_args or {})
         digest = _digest(raw)
         target = str(raw.get("path") or raw.get("cwd") or name)
+
+        if self.killswitch is not None and self.killswitch.is_engaged():
+            state = self.killswitch.state()
+            return self._fail(
+                name,
+                f"kill switch engaged: {state.reason or 'stopped by user'}",
+                target=target,
+                digest=digest,
+                reason="kill switch engaged",
+                details={"killswitch": True},
+            )
 
         tool = self.registry.get(name)
         if tool is None:

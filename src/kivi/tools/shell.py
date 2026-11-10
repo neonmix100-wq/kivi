@@ -105,7 +105,7 @@ class ShellExecTool:
                 env=_minimal_env(),
                 capture_output=True,
                 text=True,
-                errors="replace",
+                errors="backslashreplace",
                 timeout=timeout,
                 shell=False,
                 creationflags=creation_flags,

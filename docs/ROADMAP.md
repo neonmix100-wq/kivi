@@ -149,7 +149,8 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
 - [ ] Инструменты: `proc.*`, `clipboard`, `screen.capture`.
 - [x] A4-политика: авто внутри scope, hard deny снаружи.
 - [ ] Elevated broker: узкий список admin-операций, UAC, аудит.
-- [ ] Kill switch + watchdog.
+- [x] Kill switch: флаг, CLI, блокировка tools/cloud, аудит.
+- [ ] Глобальная горячая клавиша kill switch и выгрузка модели через Gateway.
 - [x] 40+ тестов, включая обходы прав.
 - [x] Первый injection-корпус и canary-тесты (`tests/security/injection`).
 
@@ -167,6 +168,9 @@ redaction токенов и PEM), `ToolResult.trust` и `trust` в аудите,
 **Сделано в третьем мини-срезе:** `http.get` — HTTPS/443, запрет credentials,
 редиректов и непубличных IP (SSRF), allow-list текстовых content-type, лимиты
 байт и времени, санитайзер ответа и метка `untrusted:web`; 17 тестов.
+**Сделано в четвёртом мини-срезе:** kill switch `kivi killswitch on/off/status`
+с fail-closed флагом, блокировкой `ToolExecutor` и Cloud Broker, аудитом
+`safety.killswitch`; 8 тестов.
 **Осталось:** подписанный манифест зон и зоны из конфига, остальные инструменты,
 elevated broker, kill switch, OCR/PDF-читатели и расширение корпуса.
 

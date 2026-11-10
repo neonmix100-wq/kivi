@@ -95,6 +95,22 @@ def test_read_truncates_at_the_limit(env: ToolEnv) -> None:
     assert result.truncated is True
 
 
+def test_read_does_not_split_a_utf8_character(env: ToolEnv) -> None:
+    (env.workspace / "docs" / "utf8.txt").write_text("привет", encoding="utf-8")
+    result = env.run("fs.read", {"path": "docs/utf8.txt", "max_bytes": 5})
+    assert result.ok
+    assert "\ufffd" not in result.output
+    assert result.output == "пр"
+
+
+def test_read_escapes_invalid_bytes_instead_of_replacement(env: ToolEnv) -> None:
+    (env.workspace / "docs" / "bad.bin").write_bytes(b"\xff\xfe")
+    result = env.run("fs.read", {"path": "docs/bad.bin"})
+    assert result.ok
+    assert "\ufffd" not in result.output
+    assert "\\xff" in result.output
+
+
 def test_read_missing_file_fails(env: ToolEnv) -> None:
     result = env.run("fs.read", {"path": "docs/missing.txt"})
     assert not result.ok

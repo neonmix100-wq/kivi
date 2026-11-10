@@ -46,10 +46,17 @@ from kivi.models import (
     query_vram,
 )
 from kivi.paths import Paths, get_paths
-from kivi.safety import PermissionEngine, ProtectedZones
+from kivi.safety import KillSwitch, PermissionEngine, ProtectedZones
+from kivi.safety.killswitch import FLAG_NAME
 from kivi.tools import ToolExecutor, build_registry
 
 console = Console()
+
+
+def _safe_text(text: str) -> str:
+    """Make arbitrary tool output printable on a legacy code page."""
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
 @contextmanager
@@ -67,6 +74,10 @@ def _config(paths: Paths) -> KiviConfig:
     except ConfigError as exc:
         console.print(f"[red]config error:[/red] {exc}")
         raise SystemExit(2) from exc
+
+
+def _kill_switch(paths: Paths, db: Database, events: EventBus) -> KillSwitch:
+    return KillSwitch(paths.home / FLAG_NAME, db=db, events=events)
 
 
 def _registry(paths: Paths):
@@ -434,6 +445,10 @@ def cmd_cloud_scout(args: argparse.Namespace) -> int:
     with _state(paths) as (db, events):
         scout = CloudScout(db, registry, candidates, events=events)
         if args.approve:
+            killswitch = _kill_switch(paths, db, events)
+            if killswitch.is_engaged():
+                console.print("[red]kill switch engaged:[/red] provider approval is blocked")
+                return 1
             try:
                 provider = scout.approve(args.approve, registry_path)
             except ScoutError as exc:
@@ -476,7 +491,7 @@ def cmd_cloud_scout(args: argparse.Namespace) -> int:
         console.print("No matching free provider in the Scout catalog.")
         if outcome is not None and outcome.handoff is not None:
             console.print(f"Local handoff saved as #{outcome.handoff_id}:")
-            console.print(outcome.handoff.to_prompt())
+            console.print(_safe_text(outcome.handoff.to_prompt()))
         else:
             console.print("Pass --goal to save a local handoff, or run a local model directly.")
         return 0
@@ -529,14 +544,14 @@ def _handoff_after_quota(
                 console.print("\nConfirm one with: kivi cloud scout --approve <id>")
             else:
                 console.print("No free provider matched; continue locally from the handoff:")
-                console.print(outcome.handoff.to_prompt() if outcome.handoff else "")
+                console.print(_safe_text(outcome.handoff.to_prompt() if outcome.handoff else ""))
             return 1
 
     pack = build_handoff(goal, reason, next_step=args.next_step, task_id=args.task_id)
     handoff_id = save_handoff(db, pack)
     console.print(f"[yellow]quota exhausted:[/yellow] {reason}")
     console.print(f"Local handoff saved as #{handoff_id}:")
-    console.print(pack.to_prompt())
+    console.print(_safe_text(pack.to_prompt()))
     return 1
 
 
@@ -550,7 +565,13 @@ def cmd_cloud_ask(args: argparse.Namespace) -> int:
         return 1
 
     with _state(paths) as (db, events):
-        broker = CloudBroker(db, config.model_gateway.cloud, registry, events=events)
+        broker = CloudBroker(
+            db,
+            config.model_gateway.cloud,
+            registry,
+            events=events,
+            killswitch=_kill_switch(paths, db, events),
+        )
         try:
             provider_id = args.provider or next(
                 (status.provider for status in broker.status() if status.key_configured),
@@ -576,7 +597,7 @@ def cmd_cloud_ask(args: argparse.Namespace) -> int:
         finally:
             broker.close()
 
-    console.print(result.text)
+    console.print(_safe_text(result.text))
     console.print(
         f"[dim]{result.provider}/{result.model}: {result.tokens} tokens, "
         f"${result.cost_usd:.4f}[/dim]"
@@ -592,7 +613,7 @@ def cmd_cloud_handoffs(args: argparse.Namespace) -> int:
             if pack is None:
                 console.print(f"[red]unknown handoff:[/red] {args.show}")
                 return 1
-            console.print(pack.to_prompt())
+            console.print(_safe_text(pack.to_prompt()))
             return 0
         rows = db.recent_handoffs(args.limit)
     if not rows:
@@ -680,6 +701,7 @@ def cmd_tool_run(args: argparse.Namespace) -> int:
             zones,
             workspace=paths.root,
             events=events,
+            killswitch=_kill_switch(paths, db, events),
         )
         result = executor.run(
             args.name,
@@ -690,7 +712,7 @@ def cmd_tool_run(args: argparse.Namespace) -> int:
         )
 
     if result.ok:
-        console.print(result.output)
+        console.print(_safe_text(result.output))
         if result.truncated:
             console.print("[yellow]output truncated[/yellow]")
         return 0
@@ -698,6 +720,32 @@ def cmd_tool_run(args: argparse.Namespace) -> int:
     if "confirmation required" in result.error:
         console.print("Review the dry run, then re-run with --approve to confirm.")
     return 1
+
+
+def cmd_killswitch(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    with _state(paths) as (db, events):
+        switch = _kill_switch(paths, db, events)
+        if args.action == "on":
+            state = switch.engage(args.reason)
+            console.print(
+                f"[red]kill switch engaged[/red] at {state.engaged_at or 'now'}: "
+                f"{state.reason}"
+            )
+            console.print("Tools and cloud calls are blocked until `kivi killswitch off`.")
+            return 0
+        if args.action == "off":
+            switch.disengage()
+            console.print("[green]kill switch disengaged[/green]")
+            return 0
+        state = switch.state()
+    if state.engaged:
+        console.print(f"[red]ENGAGED[/red] at {state.engaged_at or 'unknown'}: {state.reason}")
+        console.print(f"source: {state.source or 'unknown'}")
+        console.print("Reset with: kivi killswitch off")
+    else:
+        console.print("[green]kill switch is not engaged[/green]")
+    return 0
 
 
 def cmd_audit(args: argparse.Namespace) -> int:
@@ -863,6 +911,17 @@ def build_parser() -> argparse.ArgumentParser:
     tools_run.add_argument("--task-id", default="", help="task id for the grant and audit")
     tools_run.set_defaults(func=cmd_tool_run)
     tools.set_defaults(func=cmd_tools)
+
+    killswitch = sub.add_parser("killswitch", help="emergency stop for tools and cloud")
+    killswitch.add_argument(
+        "action",
+        nargs="?",
+        choices=("status", "on", "off"),
+        default="status",
+        help="show, engage or reset the stop flag",
+    )
+    killswitch.add_argument("--reason", default="user requested stop")
+    killswitch.set_defaults(func=cmd_killswitch)
 
     events = sub.add_parser("events", help="show recent events")
     events.add_argument("-n", "--limit", type=int, default=20)

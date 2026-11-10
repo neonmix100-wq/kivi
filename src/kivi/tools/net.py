@@ -154,7 +154,7 @@ class HttpGetTool:
             raise ToolError(f"network error: {type(exc).__name__}") from exc
 
         raw = b"".join(chunks)
-        body = raw.decode(response.encoding or "utf-8", errors="replace")
+        body = raw.decode(response.encoding or "utf-8", errors="backslashreplace")
         sanitized = sanitize_text(
             body,
             html=content_type.startswith("text/html"),

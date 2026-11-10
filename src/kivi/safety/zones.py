@@ -49,6 +49,7 @@ _WORKSPACE_WRITE_DENY: tuple[tuple[str, str], ...] = (
     ("src/kivi/kernel", "audit and storage core"),
     ("config", "configuration and denylist"),
     ("data/kivi.db", "audit database"),
+    ("data/killswitch.json", "kill switch flag"),
     ("data/logs", "append-only logs"),
     ("data/backups", "backups"),
 )

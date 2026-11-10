@@ -46,6 +46,25 @@ class FsWriteArgs(_FsArgs):
     overwrite: bool = False
 
 
+def _decode_text(data: bytes, *, allow_partial: bool = False) -> str:
+    """Decode UTF-8 without inventing broken replacement characters.
+
+    ``allow_partial`` is set when the byte cap may have split a multi-byte
+    character: up to three trailing bytes are then dropped before giving up.
+    Invalid bytes are escaped, never turned into U+FFFD.
+    """
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        if allow_partial:
+            for cut in range(1, 4):
+                try:
+                    return data[:-cut].decode("utf-8")
+                except UnicodeDecodeError:
+                    continue
+        return data.decode("utf-8", errors="backslashreplace")
+
+
 def _resolve(ctx: ToolContext, raw: str, access: str) -> Path:
     candidate = Path(raw)
     if not candidate.is_absolute():
@@ -85,7 +104,7 @@ class FsReadTool:
         with target.open("rb") as handle:
             data = handle.read(limit + 1)
         truncated = len(data) > limit
-        text = data[:limit].decode("utf-8", errors="replace")
+        text = _decode_text(data[:limit], allow_partial=truncated)
         if len(text) > ctx.limits.max_output_chars:
             text = text[: ctx.limits.max_output_chars]
             truncated = True

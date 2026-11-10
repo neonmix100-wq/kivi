@@ -41,6 +41,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe tools list
 .venv\Scripts\kivi.exe tools run fs.read --args '{"path":"README.md"}'
 .venv\Scripts\kivi.exe tools run shell.exec --args '{"argv":["python","-V"]}' --dry-run
+.venv\Scripts\kivi.exe killswitch status
 ```
 
 `cloud mode auto_free`: только бесплатные провайдеры и общедоступные данные.

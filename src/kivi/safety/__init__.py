@@ -1,5 +1,6 @@
 """Safety layer: policy, protected zones, approvals and trust labels."""
 
+from kivi.safety.killswitch import KillSwitch, KillSwitchState
 from kivi.safety.permissions import (
     Decision,
     Grant,
@@ -27,6 +28,8 @@ from kivi.safety.zones import (
 __all__ = [
     "Decision",
     "Grant",
+    "KillSwitch",
+    "KillSwitchState",
     "PermissionEngine",
     "PermissionRequest",
     "PolicyEngine",

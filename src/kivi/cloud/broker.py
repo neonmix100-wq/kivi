@@ -156,6 +156,7 @@ class CloudBroker:
         transport: httpx.BaseTransport | None = None,
         today: Any = None,
         timeout: float = 90.0,
+        killswitch: Any = None,
     ) -> None:
         self.db = db
         self.settings = settings
@@ -163,6 +164,7 @@ class CloudBroker:
         self.events = events
         self._client = httpx.Client(timeout=timeout, transport=transport)
         self._today = today or _today
+        self.killswitch = killswitch
 
     def close(self) -> None:
         self._client.close()
@@ -302,6 +304,18 @@ class CloudBroker:
     ) -> CloudResult:
         provider = self.registry.require(provider_id)
         chosen_model = model or provider.default_model
+        if self.killswitch is not None and self.killswitch.is_engaged():
+            state = self.killswitch.state()
+            self._audit(
+                provider,
+                model=chosen_model,
+                decision="deny",
+                reason="kill switch engaged",
+                details={"reason": state.reason},
+            )
+            raise CloudDisabled(
+                f"kill switch engaged: {state.reason or 'stopped by user'}"
+            )
         self._check_allowed(
             provider,
             data_class=data_class,
