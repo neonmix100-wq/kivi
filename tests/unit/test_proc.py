@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import psutil
 
@@ -12,7 +13,7 @@ from kivi.kernel.db import Database
 from kivi.safety.permissions import PermissionEngine
 from kivi.safety.zones import ProtectedZones
 from kivi.tools import ToolExecutor, ToolRegistry, build_registry
-from kivi.tools.proc import ProcKillTool, ProcListTool
+from kivi.tools.proc import ProcKillTool, ProcListTool, ProcStartTool
 
 
 class FakeMemory:
@@ -277,3 +278,109 @@ def test_registry_contains_proc_kill() -> None:
     spec = next(spec for spec in registry.specs() if spec.name == "proc.kill")
     assert spec.risk == "R3"
     assert spec.capabilities == ("proc.kill",)
+
+
+class FakePopen:
+    def __init__(self, argv: list[str], **kwargs: object) -> None:
+        self.argv = argv
+        self.kwargs = kwargs
+        self.pid = 4242
+
+
+def make_executor_for(tmp_path: Path, tool: Any, capability: str) -> tuple[ToolExecutor, Database]:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(exist_ok=True)
+    db = Database(tmp_path / "kivi.db")
+    engine = PermissionEngine(db, workspace=str(workspace))
+    grant = engine.issue("t1", [capability])
+    registry = ToolRegistry()
+    registry.register(tool)
+    executor = ToolExecutor(
+        registry,
+        db,
+        engine,
+        ProtectedZones(workspace),
+        workspace=workspace,
+    )
+    executor.grant = grant  # type: ignore[attr-defined]
+    return executor, db
+
+
+def test_proc_start_dry_run(tmp_path: Path) -> None:
+    executor, db = make_executor_for(tmp_path, ProcStartTool(popen=FakePopen), "proc.start")
+    try:
+        result = executor.run(
+            "proc.start",
+            {"argv": [sys.executable, "-c", "print(1)"]},
+            grant=executor.grant,  # type: ignore[attr-defined]
+            dry_run=True,
+        )
+    finally:
+        db.close()
+    assert result.ok
+    assert '"action": "process-start"' in result.output
+
+
+def test_proc_start_real_process(tmp_path: Path) -> None:
+    executor, db = make_executor_for(tmp_path, ProcStartTool(), "proc.start")
+    process = None
+    try:
+        denied = executor.run(
+            "proc.start",
+            {"argv": [sys.executable, "-c", "import time; time.sleep(30)"]},
+            grant=executor.grant,  # type: ignore[attr-defined]
+        )
+        assert not denied.ok
+        assert "confirmation required" in denied.error
+
+        result = executor.run(
+            "proc.start",
+            {"argv": [sys.executable, "-c", "import time; time.sleep(30)"]},
+            grant=executor.grant,  # type: ignore[attr-defined]
+            approved=True,
+        )
+        assert result.ok
+        process = psutil.Process(result.meta["pid"])
+        assert process.is_running()
+    finally:
+        if process is not None and process.is_running():
+            process.kill()
+            process.wait(timeout=5)
+        db.close()
+
+
+def test_proc_start_denies_system_command(tmp_path: Path) -> None:
+    executor, db = make_executor_for(tmp_path, ProcStartTool(), "proc.start")
+    try:
+        result = executor.run(
+            "proc.start",
+            {"argv": ["diskpart"]},
+            grant=executor.grant,  # type: ignore[attr-defined]
+            approved=True,
+        )
+    finally:
+        db.close()
+    assert not result.ok
+    assert "cmd-system" in result.error
+
+
+def test_proc_start_rejects_outside_cwd(tmp_path: Path) -> None:
+    executor, db = make_executor_for(tmp_path, ProcStartTool(), "proc.start")
+    try:
+        result = executor.run(
+            "proc.start",
+            {"argv": [sys.executable, "-c", "print(1)"], "cwd": str(tmp_path)},
+            grant=executor.grant,  # type: ignore[attr-defined]
+            approved=True,
+        )
+    finally:
+        db.close()
+    assert not result.ok
+    assert "zone-scope" in result.error
+
+
+def test_registry_contains_proc_start() -> None:
+    registry = build_registry()
+    assert "proc.start" in registry.names()
+    spec = next(spec for spec in registry.specs() if spec.name == "proc.start")
+    assert spec.risk == "R3"

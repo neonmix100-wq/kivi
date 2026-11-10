@@ -65,6 +65,7 @@ def test_registry_exposes_specs() -> None:
         "http.get",
         "proc.kill",
         "proc.list",
+        "proc.start",
         "screen.capture",
         "shell.exec",
     )

@@ -8,12 +8,16 @@ action and still goes through the executor and audit.
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any
 
 import psutil
 from pydantic import BaseModel, ConfigDict, Field
 
 from kivi.tools.base import Preview, ToolContext, ToolError, ToolResult
+from kivi.tools.shell import _minimal_env
 
 # Closing these would destabilise Windows or the user's session.
 PROTECTED_PROCESSES: frozenset[str] = frozenset(
@@ -183,10 +187,92 @@ class ProcKillTool:
         )
 
 
+class ProcStartArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    argv: list[str] = Field(
+        min_length=1,
+        max_length=64,
+        description="Command and arguments; no shell string.",
+    )
+    cwd: str = Field(default=".", max_length=4096)
+
+
+class ProcStartTool:
+    name = "proc.start"
+    description = "Start a background process and return its pid (R3)."
+    risk = "R3"
+    capabilities = ("proc.start",)
+    args_model = ProcStartArgs
+
+    def __init__(self, popen: Any = None) -> None:
+        self._popen = popen or subprocess.Popen
+
+    def _cwd(self, args: ProcStartArgs, ctx: ToolContext) -> Path:
+        candidate = Path(args.cwd)
+        if not candidate.is_absolute():
+            candidate = ctx.workspace / candidate
+        decision = ctx.zones.check(candidate, "exec")
+        if not decision.allowed:
+            raise ToolError(f"{decision.rule}: {decision.reason}")
+        if decision.resolved is None:
+            raise ToolError("working directory could not be resolved")
+        return decision.resolved
+
+    def dry_run(self, args: BaseModel, ctx: ToolContext) -> Preview:
+        assert isinstance(args, ProcStartArgs)
+        cwd = self._cwd(args, ctx)
+        decision = ctx.policy.check_command(args.argv)
+        warnings: list[str] = []
+        if not decision.allowed:
+            warnings.append(f"policy would deny: {decision.reason}")
+        return Preview(
+            "process-start",
+            {"argv": list(args.argv), "cwd": str(cwd)},
+            reversible=False,
+            warnings=tuple(warnings),
+        )
+
+    def run(self, args: BaseModel, ctx: ToolContext) -> ToolResult:
+        assert isinstance(args, ProcStartArgs)
+        cwd = self._cwd(args, ctx)
+        if not cwd.is_dir():
+            raise ToolError(f"working directory does not exist: {cwd}")
+        ctx.policy.check_command(args.argv).require()
+        if sys.platform == "win32":
+            flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
+                subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+            )
+        else:
+            flags = 0
+        try:
+            process = self._popen(
+                args.argv,
+                cwd=str(cwd),
+                env=_minimal_env(),
+                shell=False,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=flags,
+                start_new_session=sys.platform != "win32",
+            )
+        except OSError as exc:
+            raise ToolError(f"cannot start process: {exc}") from exc
+        return ToolResult(
+            ok=True,
+            output=f"started {args.argv[0]} (pid {process.pid})",
+            meta={"pid": process.pid, "cwd": str(cwd)},
+            trust="untrusted:tool",
+        )
+
+
 __all__ = [
     "PROTECTED_PROCESSES",
     "ProcKillArgs",
     "ProcKillTool",
     "ProcListArgs",
     "ProcListTool",
+    "ProcStartArgs",
+    "ProcStartTool",
 ]

@@ -78,6 +78,7 @@ elevated broker; до тех пор R2 — обязательный барьер
 | `http.get` | R1 | `net.http` | HTTPS GET только на публичные адреса, санитайзер, `untrusted:web` |
 | `proc.list` | R0 | `proc.list` | pid, имя и RSS процессов; без командных строк |
 | `proc.kill` | R3 | `proc.kill` | завершить процесс после проверки имени; системные запрещены |
+| `proc.start` | R3 | `proc.start` | запустить фоновый процесс, вернуть pid; policy + минимальный env |
 | `clipboard.read` | R2 | `clipboard.read` | текст из буфера обмена, санитайзер и redaction |
 | `clipboard.write` | R2 | `clipboard.write` | заменить текст буфера обмена; подтверждение |
 | `screen.capture` | R1 | `screen.capture` | снимок рабочего стола в BMP внутри workspace, `untrusted:vision` |

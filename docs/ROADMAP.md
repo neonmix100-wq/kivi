@@ -150,9 +150,10 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
 - [x] `http.get`: соединение на разрешённый IP с исходным `Host`/SNI (DNS rebinding).
 - [x] `proc.list`: pid, имя, RSS; без командных строк.
 - [x] `proc.kill`: R3, проверка имени, запрет системных процессов и своего pid.
+- [x] `proc.start`: R3, policy-проверка, workspace-cwd, минимальный env.
 - [x] `clipboard.read`/`clipboard.write`: R2, подтверждение, redaction.
 - [x] `screen.capture`: BMP в workspace, GDI-backend, `untrusted:vision`.
-- [ ] Инструменты: `proc.start`.
+- [x] Инструменты этапа 4 закрыты (кроме elevated/admin).
 - [x] A4-политика: авто внутри scope, hard deny снаружи.
 - [ ] Elevated broker: узкий список admin-операций, UAC, аудит.
 - [x] Kill switch: флаг, CLI, блокировка tools/cloud, аудит.
@@ -197,8 +198,10 @@ GDI без Pillow, BMP в workspace, лимит размера, `untrusted:visio
 для `http.get`, проверка до DNS; 5 тестов.
 **Сделано в двенадцатом мини-срезе:** pin resolved IP для `http.get` (IP в URL,
 исходные `Host` и SNI), закрывает DNS rebinding; 1 тест.
-**Осталось:** `proc.start`, elevated broker, глобальный hotkey kill switch,
-OCR/PDF-читатели и расширение injection-корпуса.
+**Сделано в тринадцатом мини-срезе:** `proc.start` (R3, policy-проверка,
+workspace-cwd, минимальный env, detached-процесс); 6 тестов.
+**Осталось:** elevated broker, глобальный hotkey kill switch, OCR/PDF-читатели
+и расширение injection-корпуса.
 
 **Приёмка:** запись вне scope невозможна; `format`, `diskpart`, `reg delete`, `shutdown`,
 системные папки и секреты блокируются; агент не может изменить denylist/safety/audit;

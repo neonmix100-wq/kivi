@@ -60,7 +60,7 @@ def build_registry(
     from kivi.tools.clipboard import ClipboardReadTool, ClipboardWriteTool
     from kivi.tools.fs import FsListTool, FsReadTool, FsWriteTool
     from kivi.tools.net import HttpGetTool
-    from kivi.tools.proc import ProcKillTool, ProcListTool
+    from kivi.tools.proc import ProcKillTool, ProcListTool, ProcStartTool
     from kivi.tools.screen import ScreenCaptureTool
     from kivi.tools.shell import ShellExecTool
 
@@ -73,6 +73,7 @@ def build_registry(
         HttpGetTool(blocked_hosts=blocked_hosts),
         ProcListTool(),
         ProcKillTool(),
+        ProcStartTool(),
         ClipboardReadTool(),
         ClipboardWriteTool(),
         ScreenCaptureTool(),
