@@ -6,6 +6,8 @@ Kivi — локальный ИИ-ассистент для Windows 11 (Python 3.
 локальный first, облако только по явному разрешению и бюджету. Текущий этап —
 Model Gateway (этап 2), ядро и CLI уже работают.
 
+Актуальный статус и backlog: `docs/STATUS.md`; план — `docs/ROADMAP.md`.
+
 ## Сначала контекст, потом код
 
 Не читай `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/DECISIONS.md`,

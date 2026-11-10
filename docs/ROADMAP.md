@@ -42,6 +42,23 @@
 панель задач, меню «Пуск», поиск, контекстные меню, multi-monitor, доступность и fail-safe.
 Оценка в 12–17 дней была нереалистичной; см. `docs/SHELL.md`.
 
+## 2.1. Статус на 11.11.2026
+
+Подробная расшифровка — [STATUS](STATUS.md). Коротко:
+
+| Этап | Статус | Осталось |
+|---|---|---|
+| 0 | 🟡 частично | baseline §5 |
+| 1 | ✅ закрыт | — |
+| 2 | ✅ закрыт | — |
+| 3 | ✅ закрыт | живой ключ (внешнее) |
+| 4 | 🟡 ~90% | elevated broker, OCR/PDF |
+| 5 | 🟡 ~70% | LanceDB/ANN, суммаризация/TTL, approvals API |
+| 6–13 | ⬜ не начаты | см. этапы 6–13 |
+
+Текущая точка: **этап 4 → этап 5**. Следующий крупный срез — **M1: Core Kivi**
+(planner DAG, CLI-чат, TTS, 2D-аватар), после закрытия baseline и elevated broker.
+
 ---
 
 ## 3. Этап 0 — решения и baseline (2–3 дня)
@@ -137,6 +154,10 @@ SQLite-квоты, проверка режима/данных/бюджета, `k
 
 ## 7. Этап 4 — инструменты, A4-Bounded, аудит (7–10 дней)
 
+**Статус:** 🟡 почти закрыт. Готовы контракт, Permission Engine, зоны,
+trust/sanitizer, Capability Broker, инструменты, kill switch, hotkey и
+injection-корпус. Осталось: elevated broker (UAC) и OCR/PDF-читатели.
+
 - [x] Контракт `Tool`, реестр, JSON-схемы, `dry_run`.
 - [x] Permission Engine: capabilities, scope, TTL, allow/confirm/deny.
 - [x] **Protected Zones:** канонизация путей, запрет symlink/junction/UNC/ADS.
@@ -212,6 +233,10 @@ workspace-cwd, минимальный env, detached-процесс); 6 тест�
 ---
 
 ## 8. Этап 5 — память и контекст (5–7 дней)
+
+**Статус:** 🟡 в работе (~70%). Готовы SQLite-память, FTS5, эмбеддинги,
+hybrid-search (RRF + recency), Context Builder, импорт и CLI. Осталось:
+LanceDB/ANN, суммаризация/TTL, API approvals.
 
 - [x] SQLite: messages, facts, artifacts, preferences, approvals (approvals — схема).
 - [x] Артефакты content-addressed.

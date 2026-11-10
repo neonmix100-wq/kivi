@@ -10,6 +10,7 @@
 > гибридным поиском.
 > Осталось: LanceDB/ANN, elevated broker, OCR/PDF-читатели;
 > живой облачный вызов с ключом.
+> Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Быстрый старт
 
@@ -124,6 +125,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 |---|---|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Слои, Model Gateway, Cloud Broker, память, безопасность, структура |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Этапы, milestone'ы, критерии приёмки, первые 14 дней |
+| [`docs/STATUS.md`](docs/STATUS.md) | Текущий статус, сделанное, backlog и критический путь |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Принятые решения, A4-Bounded, admin, облако, приоритеты |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Модель угроз, prompt injection, egress, тесты |
 | [`docs/TOOLS.md`](docs/TOOLS.md) | Контракт Tool, Permission Engine, Protected Zones, риски R0–R4 |
