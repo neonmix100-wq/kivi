@@ -1,6 +1,6 @@
 ---
 tags: [kivi, code, moc]
-updated: 2026-11-10
+updated: 2026-11-11
 generated: true
 ---
 
@@ -78,9 +78,11 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.safety.__init__` | 28 | Safety layer: policy, protected zones, approvals. |
+| `src.kivi.safety.__init__` | 48 | Safety layer: policy, protected zones, approvals and trust labels. |
 | `src.kivi.safety.permissions` | 224 | Permission Engine: task grants, risk levels and allow/confirm/deny. |
 | `src.kivi.safety.policy` | 227 | A4-Bounded policy checks. |
+| `src.kivi.safety.sanitize` | 257 | Sanitizer for untrusted content. |
+| `src.kivi.safety.trust` | 214 | Trust labels and envelope rendering for external content. |
 | `src.kivi.safety.zones` | 232 | Protected Zones: hard-deny paths and escape checks. |
 
 ## senses
@@ -94,16 +96,17 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.tools.__init__` | 29 | Tools: files, shell, processes, browser, code, media and OS control. |
-| `src.kivi.tools.base` | 141 | Tool contract: typed arguments, previews and structured results. |
-| `src.kivi.tools.executor` | 270 | Capability Broker: the only path from a proposed tool call to the OS. |
-| `src.kivi.tools.fs` | 200 | Filesystem tools: read, list and write inside the workspace. |
+| `src.kivi.tools.base` | 143 | Tool contract: typed arguments, previews and structured results. |
+| `src.kivi.tools.executor` | 275 | Capability Broker: the only path from a proposed tool call to the OS. |
+| `src.kivi.tools.fs` | 202 | Filesystem tools: read, list and write inside the workspace. |
 | `src.kivi.tools.registry` | 66 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.shell` | 132 | Shell tool: one approved process, no shell expansion, minimal environment. |
 
 ## Тесты
 
-Всего файлов: **20**.
+Всего файлов: **21**.
 
+- `tests/security/test_injection.py`
 - `tests/unit/test_bench_gateway.py`
 - `tests/unit/test_cli.py`
 - `tests/unit/test_cloud.py`

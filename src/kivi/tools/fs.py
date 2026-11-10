@@ -94,6 +94,7 @@ class FsReadTool:
             output=text,
             meta={"path": str(target), "bytes": len(data[:limit])},
             truncated=truncated,
+            trust="untrusted:file",
         )
 
 
@@ -133,6 +134,7 @@ class FsListTool:
             ok=True,
             output=output,
             meta={"path": str(target), "entries": len(entries)},
+            trust="untrusted:file",
         )
 
 

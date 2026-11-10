@@ -56,7 +56,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 - `src/kivi/kernel/` — SQLite, Event Bus, JSONL-логи, аудит.
 - `src/kivi/safety/` — Policy Engine, зоны, approvals; единственный источник
   разрешений на опасные действия. `zones.py` — Protected Zones, `permissions.py` —
-  grant'ы, TTL и риски R0–R4.
+  grant'ы, TTL и риски R0–R4, `trust.py` — метки и envelope, `sanitize.py` —
+  очистка недоверенного текста и redaction секретов.
 - `src/kivi/tools/` — контракт `Tool`, реестр, `ToolExecutor` (Capability Broker),
   `fs.*` и `shell.exec`. Каждый вызов идёт через executor и пишется в аудит.
 - `src/kivi/models/` — registry, Ollama backend, VRAM budget, lease/eviction.

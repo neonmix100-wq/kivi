@@ -80,6 +80,7 @@ class ToolResult:
     artifacts: list[str] = field(default_factory=list)
     meta: dict[str, Any] = field(default_factory=dict)
     truncated: bool = False
+    trust: str = "untrusted:tool"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -89,6 +90,7 @@ class ToolResult:
             "artifacts": list(self.artifacts),
             "meta": dict(self.meta),
             "truncated": self.truncated,
+            "trust": self.trust,
         }
 
 

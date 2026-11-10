@@ -85,6 +85,7 @@ def test_read_returns_file(env: ToolEnv) -> None:
     result = env.run("fs.read", {"path": "docs/note.txt"})
     assert result.ok
     assert result.output == "hello world"
+    assert result.trust == "untrusted:file"
 
 
 def test_read_truncates_at_the_limit(env: ToolEnv) -> None:
@@ -287,3 +288,4 @@ def test_audit_records_every_attempt(env: ToolEnv) -> None:
     assert row["actor"] == "tool"
     assert row["action"] == "tool.fs.read"
     assert row["decision"] == "allow"
+    assert '"trust":"untrusted:file"' in row["details"]

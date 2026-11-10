@@ -258,7 +258,12 @@ class ToolExecutor:
             "tool result",
             target=target,
             digest=digest,
-            details={**details, "ok": result.ok, "truncated": result.truncated},
+            details={
+                **details,
+                "ok": result.ok,
+                "truncated": result.truncated,
+                "trust": result.trust,
+            },
         )
         self._emit(
             "done",
