@@ -214,6 +214,28 @@ def test_say_uses_the_tts_pipeline(tmp_path: Path, monkeypatch) -> None:
     assert main(["say", "привет", "--out", str(target)]) == 0
 
 
+def test_coder_command(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+
+    class FakeCoder:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def run(self, goal, **kwargs):
+            return SimpleNamespace(
+                ok=True,
+                attempts=1,
+                files=("app.py",),
+                test_output="1 passed",
+                last_error="",
+                stopped_reason="passed",
+            )
+
+    monkeypatch.setattr(cli_module, "Coder", FakeCoder)
+    assert main(["coder", "создай проект"]) == 0
+
+
 def test_module_entrypoint_delegates(monkeypatch) -> None:
     import kivi.__main__ as entry
 

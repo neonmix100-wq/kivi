@@ -23,6 +23,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from kivi.brain import KiviBrain
+from kivi.brain.coder import Coder
 from kivi.cloud import (
     CloudBroker,
     CloudError,
@@ -345,12 +346,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
     if not args.prompt and not sys.stdin.isatty():
         console.print('Interactive chat needs a terminal; use: kivi chat "вопрос"')
         return 0
+    models = _registry(paths)
     try:
-        spec = (
-            _registry(paths).require(args.model)
-            if args.model
-            else _registry(paths).default_for("router")
-        )
+        spec = models.require(args.model) if args.model else models.default_for("router")
     except RegistryError as exc:
         console.print(f"[red]model error:[/red] {exc}")
         return 2
@@ -416,7 +414,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
         try:
             with OllamaBackend(timeout=args.timeout) as backend:
                 gateway = ModelGateway(
-                    registry,
+                    models,
                     backend,
                     vram_total_mb=config.model_gateway.vram_total_mb,
                     safety_margin_mb=config.model_gateway.safety_margin_mb,
@@ -515,12 +513,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
 def cmd_serve(args: argparse.Namespace) -> int:
     paths = get_paths()
     config = _config(paths)
+    models = _registry(paths)
     try:
-        spec = (
-            _registry(paths).require(args.model)
-            if args.model
-            else _registry(paths).default_for("router")
-        )
+        spec = models.require(args.model) if args.model else models.default_for("router")
     except RegistryError as exc:
         console.print(f"[red]model error:[/red] {exc}")
         return 2
@@ -554,7 +549,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
             store.add_message("user", message, task_id=task_id)
             with OllamaBackend(timeout=args.timeout) as backend:
                 gateway = ModelGateway(
-                    registry,
+                    models,
                     backend,
                     vram_total_mb=config.model_gateway.vram_total_mb,
                     safety_margin_mb=config.model_gateway.safety_margin_mb,
@@ -623,6 +618,100 @@ def cmd_say(args: argparse.Namespace) -> int:
         except Exception as exc:  # noqa: BLE001 - audio is best effort
             console.print(f"[yellow]playback unavailable:[/yellow] {_plain(str(exc))}")
     return 0
+
+
+def cmd_coder(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    models = _registry(paths)
+    try:
+        spec = models.require(args.model) if args.model else models.default_for("router")
+    except RegistryError as exc:
+        console.print(f"[red]model error:[/red] {exc}")
+        return 2
+    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
+
+    task_id = f"tsk_{uuid.uuid4().hex[:12]}"
+    project = paths.data / "projects" / task_id
+    project.mkdir(parents=True, exist_ok=True)
+    with _state(paths) as (db, bus):
+        try:
+            extra = _zones_extra(paths)
+        except ZoneManifestError as exc:
+            console.print(f"[red]protected zones error:[/red] {exc}")
+            return 1
+        zones = ProtectedZones(project, extra_rules=extra)
+        permissions = PermissionEngine(
+            db,
+            autonomy=config.autonomy,
+            workspace=str(project),
+            events=bus,
+        )
+        executor = ToolExecutor(
+            registry,
+            db,
+            permissions,
+            zones,
+            workspace=project,
+            events=bus,
+            killswitch=_kill_switch(paths, db, bus),
+        )
+
+        def approve(tool: str, payload: dict[str, Any]) -> bool:
+            console.print(f"[yellow]Требуется подтверждение:[/yellow] {tool}")
+            if args.yes:
+                return True
+            try:
+                answer = input("Разрешить? [y/N] ").strip().lower()
+            except EOFError:
+                return False
+            return answer in {"y", "yes", "д", "да"}
+
+        try:
+            with OllamaBackend(timeout=args.timeout) as backend:
+                gateway = ModelGateway(
+                    models,
+                    backend,
+                    vram_total_mb=config.model_gateway.vram_total_mb,
+                    safety_margin_mb=config.model_gateway.safety_margin_mb,
+                    allow_cpu_fallback=config.model_gateway.cpu_fallback,
+                    events=bus,
+                )
+
+                def llm(messages: list[dict[str, str]]) -> str:
+                    options: dict[str, int] = {"num_predict": args.num_predict}
+                    if spec.context > 0:
+                        options["num_ctx"] = spec.context
+                    return gateway.chat(
+                        spec.id,
+                        messages,
+                        keep_alive=args.keep_alive,
+                        options=options,
+                    )
+
+                coder = Coder(
+                    llm,
+                    registry,
+                    executor,
+                    permissions,
+                    max_fixes=args.max_fixes,
+                    test_command=args.test_command,
+                )
+                result = coder.run(args.goal, task_id=task_id, approve=approve)
+        except (BackendError, GatewayError) as exc:
+            console.print(f"[red]model error:[/red] {_plain(str(exc))}")
+            return 1
+
+    console.print(
+        f"coder: ok={result.ok} attempts={result.attempts} "
+        f"files={len(result.files)} reason={result.stopped_reason}"
+    )
+    console.print(f"project: {project}")
+    if result.test_output:
+        console.print(_plain(result.test_output[-4000:]))
+    if result.last_error:
+        console.print(f"[yellow]{_plain(result.last_error)}[/yellow]")
+    return 0 if result.ok else 1
 
 
 def cmd_ask(args: argparse.Namespace) -> int:
@@ -1831,6 +1920,20 @@ def build_parser() -> argparse.ArgumentParser:
     say.add_argument("--out", default="")
     say.add_argument("--play", action="store_true")
     say.set_defaults(func=cmd_say)
+
+    coder = sub.add_parser("coder", help="generate code, run tests and fix up to N times")
+    coder.add_argument("goal")
+    coder.add_argument("-m", "--model", default=None)
+    coder.add_argument("--max-fixes", type=int, default=2)
+    coder.add_argument(
+        "--test-command",
+        default=f'"{sys.executable}" -m pytest -q',
+    )
+    coder.add_argument("--keep-alive", default="5m")
+    coder.add_argument("--timeout", type=float, default=300.0)
+    coder.add_argument("--num-predict", type=int, default=2048)
+    coder.add_argument("--yes", action="store_true")
+    coder.set_defaults(func=cmd_coder)
 
     ask = sub.add_parser("ask", help="ask a local model through the Model Gateway")
     ask.add_argument("prompt", help="prompt text")

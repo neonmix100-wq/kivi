@@ -1,5 +1,6 @@
 """Brain: request routing, planning, execution and verification."""
 
+from kivi.brain.coder import Coder, CoderError, CoderResult
 from kivi.brain.core import BrainResult, KiviBrain
 from kivi.brain.executor import ExecutionResult, PlanExecutor, StepResult
 from kivi.brain.fastpath import FastPath
@@ -9,6 +10,9 @@ from kivi.brain.verifier import Verification, Verifier
 
 __all__ = [
     "BrainResult",
+    "Coder",
+    "CoderError",
+    "CoderResult",
     "ExecutionResult",
     "FastPath",
     "KiviBrain",

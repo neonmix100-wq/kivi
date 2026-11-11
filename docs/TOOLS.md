@@ -82,6 +82,13 @@ elevated broker; до тех пор R2 — обязательный барьер
 | `clipboard.read` | R2 | `clipboard.read` | текст из буфера обмена, санитайзер и redaction |
 | `clipboard.write` | R2 | `clipboard.write` | заменить текст буфера обмена; подтверждение |
 | `screen.capture` | R1 | `screen.capture` | снимок рабочего стола в BMP внутри workspace, `untrusted:vision` |
+| `code.run` | R3 | `code.run` | Python в audit-песочнице + Job Object; сеть/процессы/запись вне workspace запрещены |
+| `repo.index` | R0 | `repo.read` | индекс файлов/символов репозитория, поиск, summary; только workspace |
+| `code.patch` | R1 | `fs.write` | точная замена `old → new` с unified diff и атомарной записью |
+| `git.status` | R0 | `git.read` | фиксированный `git status --porcelain=v1 --branch` |
+| `git.diff` | R0 | `git.read` | `git diff --stat` и diff одного файла |
+| `git.branch` | R2 | `git.branch` | текущая ветка или `git switch -c`; имя валидируется |
+| `git.commit` | R3 | `git.commit` | `git add -- <paths>` + commit; без push/amend/обхода hooks |
 
 `http.get` дополнительно проверяет `security.blocked_hosts` из
 `config/kivi.yaml` (точное имя или glob, например `*.tracker.example`).

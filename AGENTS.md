@@ -51,6 +51,9 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe memory similar "тёплый город" -m bge-m3
 .venv\Scripts\kivi.exe memory vector-sync -m bge-m3
 .venv\Scripts\kivi.exe chat "прочитай README.md"
+.venv\Scripts\kivi.exe coder "создай hello world с тестом"
+.venv\Scripts\kivi.exe tools run code.run --args '{"code":"print(2+2)"}' --approve
+.venv\Scripts\kivi.exe tools run repo.index --args '{"action":"summary"}'
 .venv\Scripts\kivi.exe say "Привет, это Киви."
 .venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\kivi.exe zones status
@@ -74,14 +77,15 @@ Model Gateway (этап 2), ядро и CLI уже работают.
   подписанный HMAC-манифест дополнительных зон, `elevated.py` — allowlist
   admin-операций через UAC.
 - `src/kivi/tools/` — контракт `Tool`, реестр, `ToolExecutor` (Capability Broker),
-  `fs.*`, `shell.exec`, `http.get`, `proc.*`, `clipboard.*`, `screen.capture`.
+  `fs.*`, `shell.exec`, `http.get`, `proc.*`, `clipboard.*`, `screen.capture`,
+  `code.run` (audit-песочница), `repo.index`, `code.patch`, `git.*`.
   Каждый вызов идёт через executor и пишется в аудит.
 - `src/kivi/models/` — registry, Ollama backend, VRAM budget, lease/eviction.
 - `src/kivi/memory/` — SQLite-память (messages/facts/preferences/artifacts,
   FTS5), эмбеддинги + hybrid-search (RRF), LanceDB-индекс, retention/суммаризация/TTL,
   approvals, content-addressed артефакты и Context Builder с бюджетом.
 - `src/kivi/brain/` — planner DAG, validator, executor с approvals/replan,
-  verifier, fastpath и `KiviBrain`.
+  verifier, fastpath, `KiviBrain` и `Coder` (тест-цикл).
 - `src/kivi/senses/` — Silero/Piper TTS и WAV; `src/kivi/interfaces/` — CLI,
   локальный API и 2D-аватар.
 - `tests/unit/` — быстрые тесты без Ollama и сети.

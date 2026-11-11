@@ -58,9 +58,18 @@ def build_registry(
 ) -> ToolRegistry:
     """Create the default registry with the stage-4 tools."""
     from kivi.tools.clipboard import ClipboardReadTool, ClipboardWriteTool
+    from kivi.tools.code import CodeRunTool
     from kivi.tools.fs import FsListTool, FsReadTool, FsWriteTool
+    from kivi.tools.git import (
+        GitBranchTool,
+        GitCommitTool,
+        GitDiffTool,
+        GitStatusTool,
+    )
     from kivi.tools.net import HttpGetTool
+    from kivi.tools.patch import CodePatchTool
     from kivi.tools.proc import ProcKillTool, ProcListTool, ProcStartTool
+    from kivi.tools.repo import RepoIndexTool
     from kivi.tools.screen import ScreenCaptureTool
     from kivi.tools.shell import ShellExecTool
 
@@ -77,6 +86,13 @@ def build_registry(
         ClipboardReadTool(),
         ClipboardWriteTool(),
         ScreenCaptureTool(),
+        CodeRunTool(),
+        RepoIndexTool(),
+        CodePatchTool(),
+        GitStatusTool(),
+        GitDiffTool(),
+        GitBranchTool(),
+        GitCommitTool(),
     ):
         registry.register(tool)
     return registry
