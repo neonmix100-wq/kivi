@@ -29,7 +29,10 @@
 - **Этап 10 (M5 Voice & Avatar) ~65%:** audio/VAD/STT, barge-in, подтверждения,
   voice pipeline, avatar3d/visemes/states, CLI `listen` готовы. Блокеры:
   `assets/wake/kivi.onnx`, `assets/avatar/kivi.vrm`, микрофон и замеры false wake/WER.
-- **Этап 11 (M6 Work CRM) не начат** — можно вести параллельно с M5.
+- **Этап 11 (M6 Work CRM) ~70%:** headless-домен из `ai-agent`, AltCRM CDP
+  adapter, `crm.read/fill/act/task`, CLI и метрики. Блокеры: реальный AltCRM,
+  10 заказов, графическая панель и паритет с extension.
+- **Этап 12 (M7 Cloud Media) не начат** — следующий крупный срез.
 
 ## 2. Этапы
 
@@ -46,7 +49,7 @@
 | 8. M3: Operator | ✅ готово | окна/приложения, UI, system, browser, 20 сценариев | — |
 | 9. M4: Communicator | ✅ готово | Gmail drafts, Telegram bot, CLI, 15 сценариев | — |
 | 10. M5: Voice & Avatar | 🟡 ~65% | audio/VAD/STT, barge-in, avatar3d, CLI | wake ONNX, VRM, микрофон |
-| 11. M6: Work CRM | ⬜ не начат | — | карточки, документы, модуль `work_crm` |
+| 11. M6: Work CRM | 🟡 ~70% | домен, AltCRM CDP, tools, CLI, метрики | реальный CRM, UI-панель |
 | 12. M7: Cloud Media | ⬜ не начат | — | бесплатные image/video-провайдеры |
 | 13. M8: Kivi Shell | ⬜ не начат | — | Explorer-замена, P0/P1, закалка |
 
@@ -86,8 +89,8 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 Сейчас проект стоит на границе **этапа 5 → этапа 6 (M1)**:
 
 - этапы 0–9 закрыты;
-- M5 готов на ~65% (нужны ассеты/железо);
-- следующий крупный срез — M6: Work CRM.
+- M5 ~65%, M6 ~70%;
+- следующий срез — M7: Cloud Media, затем закрытие M5/M6 внешними ресурсами.
 
 Формальный трекер `kivi_context.py stage` показывает этап 0, потому что
 единственный открытый чекбокс — baseline. Это не отражает реальный прогресс;
@@ -145,24 +148,28 @@ Playwright-браузер с отдельным профилем и защито
 Gmail OAuth (только чтение и черновики), `mail.*`, Telegram-бот с allowlist и
 rate limit, CLI. 10 почтовых и 5 Telegram-сценариев.
 
-### P5 — этап 10 (M5: Voice & Avatar), частично
+### P5 — M5: Voice & Avatar, частично
 
 10. **Voice & Avatar:** код audio/VAD/STT, barge-in, pipeline, avatar3d готов;
     нужны `kivi.onnx`, `kivi.vrm`, микрофон и замеры false wake/WER.
-11. Work CRM, Cloud Media, Kivi Shell — следующий срез.
+
+### P6 — M6: Work CRM, частично
+
+11. **Work CRM:** домен, AltCRM CDP, `crm.read/fill/act/task`, CLI, метрики;
+    нужны реальный AltCRM, 10 заказов, графическая панель и паритет.
 
 ## 6. Следующий шаг
 
 ```
-этапы 0–9 ✅ + M5 ~65%
+этапы 0–9 ✅ + M5 ~65% + M6 ~70%
    │
-   ├─► M6 Work CRM: домен ─► AltCRM ─► сценарии
+   ├─► M7 Cloud Media: image/video-провайдеры
    │
-   └─► блок M5: ONNX wake + VRM + микрофон
+   └─► блоки: ONNX+VRM+микрофон, реальный AltCRM
 ```
 
-M5 — программный слой готов, ассеты и железо блокируют приёмку. Следующий
-вертикальный срез — **M6: Work CRM**.
+M5/M6 — программные слои готовы, внешние ресурсы блокируют приёмку.
+Следующий срез — **M7: Cloud Media**.
 
 ## 7. Риски
 

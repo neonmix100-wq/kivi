@@ -57,6 +57,7 @@ def build_registry(
     blocked_hosts: tuple[str, ...] | list[str] = (),
 ) -> ToolRegistry:
     """Create the default registry with the stage-4 tools."""
+    from kivi.modules.work_crm.tools import build_crm_tools
     from kivi.tools.browser import (
         BrowserClickTool,
         BrowserCloseTool,
@@ -150,6 +151,7 @@ def build_registry(
         BrowserCloseTool(browser_session),
         *build_mail_tools(),
         *build_telegram_tools(),
+        *build_crm_tools(),
     ):
         registry.register(tool)
     return registry

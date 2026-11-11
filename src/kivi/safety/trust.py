@@ -31,6 +31,7 @@ TrustLevel = Literal[
     "untrusted:os",
     "untrusted:ui",
     "untrusted:email",
+    "untrusted:crm",
     "tainted:memory",
 ]
 
@@ -48,6 +49,7 @@ TRUST_LEVELS: frozenset[str] = frozenset(
         "untrusted:os",
         "untrusted:ui",
         "untrusted:email",
+        "untrusted:crm",
         "tainted:memory",
     }
 )
@@ -70,6 +72,7 @@ SOURCE_LEVELS: dict[str, TrustLevel] = {
     "os": "untrusted:os",
     "ui": "untrusted:ui",
     "email": "untrusted:email",
+    "crm": "untrusted:crm",
     "memory": "tainted:memory",
 }
 

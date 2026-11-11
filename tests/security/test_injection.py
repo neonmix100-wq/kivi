@@ -162,7 +162,8 @@ def test_every_trust_level_is_known() -> None:
     assert "untrusted:os" in TRUST_LEVELS
     assert "untrusted:ui" in TRUST_LEVELS
     assert "untrusted:email" in TRUST_LEVELS
-    assert len(TRUST_LEVELS) == 13
+    assert "untrusted:crm" in TRUST_LEVELS
+    assert len(TRUST_LEVELS) == 14
 
     def fixed() -> datetime:
         return datetime(2026, 11, 10, 12, 0, tzinfo=UTC)

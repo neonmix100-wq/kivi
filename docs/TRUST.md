@@ -21,6 +21,7 @@
 | Окна/процессы ОС | `untrusted:os` | нет |
 | UI Automation | `untrusted:ui` | нет |
 | Письмо/вложение | `untrusted:email` | нет |
+| Карточка CRM | `untrusted:crm` | нет |
 | Память/RAG | `tainted:memory` | нет без проверенного источника |
 
 `can_issue_instructions(level)` — единственная проверка, которую использует

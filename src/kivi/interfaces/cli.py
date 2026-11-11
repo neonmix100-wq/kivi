@@ -1048,6 +1048,66 @@ def cmd_listen(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_crm(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    action = args.crm_action
+    approved = bool(getattr(args, "approve", False))
+    if action == "read":
+        name, payload, caps = "crm.read", {}, ["crm.read"]
+    elif action == "fill":
+        checklist: dict[str, str] = {}
+        for item in args.field or []:
+            key, separator, value = item.partition("=")
+            if not separator:
+                console.print(f"[red]bad --field:[/red] {item!r}; expected label=value")
+                return 2
+            checklist[key.strip()] = value.strip()
+        name = "crm.fill"
+        payload = {"comment": args.comment or "", "checklist": checklist}
+        caps = ["crm.write"]
+    elif action == "act":
+        rows = []
+        for item in args.row or []:
+            parts = [part.strip() for part in item.split("|")]
+            if len(parts) != 3:
+                console.print(f"[red]bad --row:[/red] {item!r}; expected name|price|warranty")
+                return 2
+            rows.append(
+                {
+                    "name": parts[0],
+                    "price": int(parts[1] or 0),
+                    "warranty": int(parts[2] or 0),
+                }
+            )
+        name, payload, caps = "crm.act", {"rows": rows}, ["crm.write"]
+    else:
+        name = "crm.task"
+        payload = {"comment": args.comment, "when_text": args.when or ""}
+        caps = ["crm.write"]
+
+    if action != "read" and not approved and sys.stdin.isatty():
+        try:
+            approved = input("Заполнить поля в CRM (без сохранения)? [y/N] ").strip().lower() in {
+                "y",
+                "yes",
+                "д",
+                "да",
+            }
+        except EOFError:
+            approved = False
+    try:
+        result = _run_direct_tool(paths, config, name, payload, caps, approved=approved)
+    except RuntimeError as exc:
+        console.print(f"[red]{_plain(str(exc))}[/red]")
+        return 1
+    if not result.ok:
+        console.print(f"[red]crm error:[/red] {_plain(result.error)}")
+        return 1
+    console.print(_plain(result.output))
+    return 0
+
+
 def cmd_ask(args: argparse.Namespace) -> int:
     paths = get_paths()
     config = _config(paths)
@@ -2327,6 +2387,25 @@ def build_parser() -> argparse.ArgumentParser:
     listen.add_argument("--timeout", type=float, default=180.0)
     listen.add_argument("--num-predict", type=int, default=512)
     listen.set_defaults(func=cmd_listen)
+
+    crm = sub.add_parser("crm", help="AltCRM read/fill/act/task without saving")
+    crm_sub = crm.add_subparsers(dest="crm_action", required=True)
+    crm_read = crm_sub.add_parser("read")
+    crm_read.set_defaults(func=cmd_crm)
+    crm_fill = crm_sub.add_parser("fill")
+    crm_fill.add_argument("--comment", default="")
+    crm_fill.add_argument("--field", action="append", default=[])
+    crm_fill.add_argument("--approve", action="store_true")
+    crm_fill.set_defaults(func=cmd_crm)
+    crm_act = crm_sub.add_parser("act")
+    crm_act.add_argument("--row", action="append", required=True)
+    crm_act.add_argument("--approve", action="store_true")
+    crm_act.set_defaults(func=cmd_crm)
+    crm_task = crm_sub.add_parser("task")
+    crm_task.add_argument("--comment", required=True)
+    crm_task.add_argument("--when", default="")
+    crm_task.add_argument("--approve", action="store_true")
+    crm_task.set_defaults(func=cmd_crm)
 
     ask = sub.add_parser("ask", help="ask a local model through the Model Gateway")
     ask.add_argument("prompt", help="prompt text")

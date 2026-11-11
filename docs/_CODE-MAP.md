@@ -1,6 +1,6 @@
 ---
 tags: [kivi, code, moc]
-updated: 2026-11-11
+updated: 2026-11-12
 generated: true
 ---
 
@@ -57,7 +57,7 @@ generated: true
 | `src.kivi.interfaces.api` | 320 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
 | `src.kivi.interfaces.avatar3d` | 637 | 3D avatar (VRM) state, viseme lip-sync and a loopback web renderer. |
-| `src.kivi.interfaces.cli` | 2612 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 2691 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -98,6 +98,15 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.modules.__init__` | 1 | Versioned plugins: work_crm, mail, telegram, media. |
+| `src.kivi.modules.work_crm.__init__` | 95 | Headless Work CRM domain extracted from the old ``ai-agent`` Work mode. |
+| `src.kivi.modules.work_crm.altcrm` | 1098 | AltCRM adapter over Playwright/CDP with a strict no-save, no-send policy. |
+| `src.kivi.modules.work_crm.coach` | 204 | Coaching prompts for Work CRM: pre-call briefs and live hints. |
+| `src.kivi.modules.work_crm.drafts` | 197 | Deterministic CRM drafts built only from verified call facts. |
+| `src.kivi.modules.work_crm.extractor` | 260 | Headless facts extraction from call transcripts using an injected LLM callable. |
+| `src.kivi.modules.work_crm.history` | 267 | Per-order call history: transcripts and structured summaries on disk. |
+| `src.kivi.modules.work_crm.metrics` | 114 | Thread-safe automation metrics for the Work CRM module. |
+| `src.kivi.modules.work_crm.schema` | 293 | Work CRM facts schema and anti-hallucination quote checks. |
+| `src.kivi.modules.work_crm.tools` | 590 | ``crm.*`` tools: read, fill, act rows and task form through AltCRM. |
 
 ## safety
 
@@ -110,7 +119,7 @@ generated: true
 | `src.kivi.safety.permissions` | 224 | Permission Engine: task grants, risk levels and allow/confirm/deny. |
 | `src.kivi.safety.policy` | 227 | A4-Bounded policy checks. |
 | `src.kivi.safety.sanitize` | 257 | Sanitizer for untrusted content. |
-| `src.kivi.safety.trust` | 223 | Trust labels and envelope rendering for external content. |
+| `src.kivi.safety.trust` | 226 | Trust labels and envelope rendering for external content. |
 | `src.kivi.safety.zone_manifest` | 237 | Signed Protected Zones manifest. |
 | `src.kivi.safety.zones` | 233 | Protected Zones: hard-deny paths and escape checks. |
 
@@ -139,7 +148,7 @@ generated: true
 | `src.kivi.tools.net` | 209 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
 | `src.kivi.tools.patch` | 209 | Exact-text patch tool: replace a counted occurrence inside one UTF-8 file. |
 | `src.kivi.tools.proc` | 278 | Process list tool: names and memory only, never command lines. |
-| `src.kivi.tools.registry` | 158 | Tool registry: one place that knows which tools exist. |
+| `src.kivi.tools.registry` | 160 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.repo` | 524 | Repository index: a read-only map of the text files inside the workspace. |
 | `src.kivi.tools.screen` | 306 | Screen capture tool: save the desktop as a BMP inside the workspace. |
 | `src.kivi.tools.shell` | 132 | Shell tool: one approved process, no shell expansion, minimal environment. |
@@ -150,7 +159,7 @@ generated: true
 
 ## Тесты
 
-Всего файлов: **58**.
+Всего файлов: **61**.
 
 - `tests/scenarios/test_m1_scenarios.py`
 - `tests/scenarios/test_m3_browser.py`
@@ -159,6 +168,7 @@ generated: true
 - `tests/scenarios/test_m4_telegram.py`
 - `tests/security/test_injection.py`
 - `tests/unit/test_admin_cli.py`
+- `tests/unit/test_altcrm.py`
 - `tests/unit/test_api.py`
 - `tests/unit/test_audio.py`
 - `tests/unit/test_avatar2d.py`
@@ -174,6 +184,7 @@ generated: true
 - `tests/unit/test_code_tool.py`
 - `tests/unit/test_coder.py`
 - `tests/unit/test_config.py`
+- `tests/unit/test_crm_tools.py`
 - `tests/unit/test_db.py`
 - `tests/unit/test_doctor.py`
 - `tests/unit/test_elevated.py`
@@ -208,5 +219,6 @@ generated: true
 - `tests/unit/test_vram.py`
 - `tests/unit/test_watchdog.py`
 - `tests/unit/test_windows.py`
+- `tests/unit/test_work_crm_domain.py`
 - `tests/unit/test_zone_manifest.py`
 - `tests/unit/test_zones.py`

@@ -56,6 +56,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe mail status
 .venv\Scripts\kivi.exe telegram status
 .venv\Scripts\kivi.exe listen --mic --push-to-talk
+.venv\Scripts\kivi.exe crm read
 .venv\Scripts\kivi.exe tools run window.list --args '{"limit":10}'
 .venv\Scripts\kivi.exe tools run system.volume.get
 .venv\Scripts\kivi.exe tools run code.run --args '{"code":"print(2+2)"}' --approve
@@ -89,6 +90,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
   Каждый вызов идёт через executor и пишется в аудит.
 - `src/kivi/integrations/` — Gmail OAuth и Telegram Bot API; секреты только
   в env/приватных файлах, без логов.
+- `src/kivi/modules/work_crm/` — headless Work CRM: факты, черновики, коуч,
+  история, AltCRM CDP и инструменты `crm.*`.
 - `src/kivi/models/` — registry, Ollama backend, VRAM budget, lease/eviction.
 - `src/kivi/memory/` — SQLite-память (messages/facts/preferences/artifacts,
   FTS5), эмбеддинги + hybrid-search (RRF), LanceDB-индекс, retention/суммаризация/TTL,

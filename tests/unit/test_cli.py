@@ -270,6 +270,31 @@ def test_listen_command_uses_voice_session(tmp_path: Path, monkeypatch) -> None:
     assert main(["listen", "--mic", "--turns", "1"]) == 0
 
 
+def test_crm_read_and_fill_commands(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+    seen: list[tuple[str, dict, bool]] = []
+
+    def fake_tool(paths_arg, config, name, payload, caps, *, approved=False):
+        seen.append((name, payload, approved))
+        return SimpleNamespace(ok=True, output="ok")
+
+    monkeypatch.setattr(cli_module, "_run_direct_tool", fake_tool)
+    assert main(["crm", "read"]) == 0
+    assert main(
+        [
+            "crm",
+            "fill",
+            "--field",
+            "Согласованные сроки ремонта=2 недели",
+            "--approve",
+        ]
+    ) == 0
+    assert seen[0][0] == "crm.read"
+    assert seen[1][0] == "crm.fill"
+    assert seen[1][2] is True
+
+
 def test_module_entrypoint_delegates(monkeypatch) -> None:
     import kivi.__main__ as entry
 

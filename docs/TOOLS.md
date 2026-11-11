@@ -117,6 +117,10 @@ elevated broker; до тех пор R2 — обязательный барьер
 | `telegram.status` | R0 | `telegram.read` | getMe без токена в выводе |
 | `telegram.updates` | R0 | `telegram.read` | входящие updates, `untrusted:message` |
 | `telegram.send` | R2 | `telegram.send` | allowlist чатов, rate limit, redaction |
+| `crm.read` | R1 | `crm.read` | карточка заказа AltCRM через CDP, `untrusted:crm` |
+| `crm.fill` | R2 | `crm.write` | комментарий/чек-лист; **не сохраняет** |
+| `crm.act` | R2 | `crm.write` | строки акта; **не сохраняет** |
+| `crm.task` | R2 | `crm.write` | форма задачи; создание задачи вручную |
 
 `http.get` дополнительно проверяет `security.blocked_hosts` из
 `config/kivi.yaml` (точное имя или glob, например `*.tracker.example`).
