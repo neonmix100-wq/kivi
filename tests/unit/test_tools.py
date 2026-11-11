@@ -57,6 +57,14 @@ def env(tmp_path: Path, workspace: Path) -> ToolEnv:
 def test_registry_exposes_specs() -> None:
     registry = build_registry()
     assert registry.names() == (
+        "app.launch",
+        "app.terminate",
+        "browser.click",
+        "browser.close",
+        "browser.download",
+        "browser.fill",
+        "browser.open",
+        "browser.read",
         "clipboard.read",
         "clipboard.write",
         "code.patch",
@@ -75,6 +83,22 @@ def test_registry_exposes_specs() -> None:
         "repo.index",
         "screen.capture",
         "shell.exec",
+        "system.lock",
+        "system.notify",
+        "system.restart",
+        "system.shutdown",
+        "system.sleep",
+        "system.volume.get",
+        "system.volume.set",
+        "ui.click",
+        "ui.find",
+        "ui.hotkey",
+        "ui.type",
+        "window.close",
+        "window.focus",
+        "window.list",
+        "window.maximize",
+        "window.minimize",
     )
     read = next(spec for spec in registry.specs() if spec.name == "fs.read")
     assert read.risk == "R0"

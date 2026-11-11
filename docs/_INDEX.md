@@ -24,6 +24,7 @@ generated: true
 | [[ARCHITECTURE]] | 60.2 KB | 18 | Версия: 0.2 (проектирование). Целевая платформа: Windows 11, один пользователь, один ПК. Персона: Kivi, женский голос, 3D-аватар. Долгосрочно — псевдо-ОС поверх Windows, позже Linux. |
 | [[BASELINE]] | 7.8 KB | 8 | Дата первого замера: 08.11.2026. Baseline моделей: 11.11.2026 (см. §5). |
 | [[BENCH-GATEWAY]] | 4.0 KB | 5 | Дата: 2026-11-10. Машина: Windows 11, NVIDIA GPU с 8192 МБ VRAM (NVML), Ollama на 127.0.0.1:11434. Модели измерены на этой машине: qwen3.5:4b (router, ~3800 МБ), qwen2.5-coder:7b (code, ~4700 МБ при 8K), bge-m3 (embeddin… |
+| [[BROWSER]] | 22.0 KB | 11 | Браузер — это управляемая вкладка Chrome, а не «руки» модели. Kivi открывает страницу, читает видимый текст, нажимает, заполняет поля и скачивает файлы только через типизированные инструменты и ToolExecutor. JavaScript-в… |
 | [[CLOUD]] | 4.9 KB | 5 | Облако — заёмная мощность, не режим по умолчанию. Вызов проходит проверки: режим, политика данных, бюджет, квота. Ключи хранятся только в env. |
 | [[CODER-TOOLS]] | 8.0 KB | 6 | M2 coder tooling adds three read/write surfaces to the tool layer: |
 | [[CODER]] | 15.7 KB | 8 | M2-срез цикла написания кода. Модель предлагает набор файлов, Coder проверяет пути и размеры, пишет файлы только через ToolExecutor, запускает тесты и при неудаче просит модель исправить код — не больше maxfixes раз. |
@@ -33,16 +34,19 @@ generated: true
 | [[MEMORY]] | 7.5 KB | 7 | Память Kivi — это SQLite плюс файлы артефактов. Первый срез даёт сообщения, факты, предпочтения, content-addressed артефакты, FTS5-поиск и Context Builder. Векторная база и эмбеддинги подключаются следующим срезом. |
 | [[MODULES]] | 9.7 KB | 9 | Цель: подключать возможности (например, workcrm из D:\ai-agent) так, чтобы их можно было обновлять, тестировать и откатывать, не переписывая ядро. |
 | [[OPEN-QUESTIONS]] | 9.4 KB | 11 | Версия: после второй итерации ответов, 09.11.2026. Полные решения — в docs/DECISIONS.md. Безопасность — docs/SECURITY.md. Shell — docs/SHELL.md. |
+| [[OPERATOR-SYSTEM]] | 15.4 KB | 11 | Версия: 0.1 (11.11.2026). Стадия 8 / M3: Operator. Связанные документы: docs/TOOLS.md, docs/SECURITY.md, docs/ELEVATED.md, docs/STATUS.md. |
+| [[OPERATOR-UI]] | 12.6 KB | 9 | Version: 0.1 (11.11.2026). Stage: M3. Related: docs/TOOLS.md, docs/SECURITY.md, docs/CODER-TOOLS.md. |
+| [[OPERATOR-WINDOWS]] | 16.9 KB | 11 | Версия: 0.1 (11.11.2026). Стадия M3 «Operator PC control». Связанные документы: TOOLS.md, SECURITY.md, TRUST.md, ROADMAP.md, STATUS.md. |
 | [[PERSONA]] | 17.4 KB | 7 | Правило по умолчанию: |
 | [[PLANNER]] | 21.8 KB | 11 | Документ описывает M1-контур глубокого и быстрого пути: |
 | [[REUSE-AUDIT]] | 8.9 KB | 9 | Дата: 08.11.2026. Проверены соседние проекты на диске D:. |
-| [[ROADMAP]] | 33.6 KB | 21 | Версия: 0.2 (после решений от 08.11.2026). Оценки — для одного разработчика с ИИ-помощником, 10–15 часов в неделю. Первый полезный текстовый Kivi — 6–8 недель; полный v1 — 6–9 месяцев. |
+| [[ROADMAP]] | 34.1 KB | 21 | Версия: 0.2 (после решений от 08.11.2026). Оценки — для одного разработчика с ИИ-помощником, 10–15 часов в неделю. Первый полезный текстовый Kivi — 6–8 недель; полный v1 — 6–9 месяцев. |
 | [[SANDBOX]] | 24.6 KB | 9 | code.run запускает сгенерированный Python в best-effort песочнице. Это первый шаг M2 Coder: код изолирован на уровне Python-аудита и ресурсных лимитов Windows, но это не граница безопасности ОС. Полная изоляция — WSL2 ил… |
 | [[SECURITY]] | 26.4 KB | 11 | Версия: 0.1 (09.11.2026). Связанные документы: docs/DECISIONS.md, docs/ARCHITECTURE.md, docs/MODULES.md, docs/SHELL.md. |
 | [[SHELL]] | 22.6 KB | 15 | Версия: 0.1 (09.11.2026). Связанные документы: docs/ARCHITECTURE.md, docs/SECURITY.md, docs/ROADMAP.md. |
-| [[STATUS]] | 10.8 KB | 8 | Дата среза: 11.11.2026. Дорожная карта: ROADMAP. Тесты: 392, ruff чистый. Репозиторий собирается, kivi doctor работает. |
-| [[TOOLS]] | 11.8 KB | 10 | Инструмент — единственный способ, которым Kivi меняет что-то вне своего процесса. Контракт, права и аудит появились раньше первого инструмента: это инвариант проекта, а не надстройка. |
-| [[TRUST]] | 5.4 KB | 6 | Всё, что приходит извне, попадает в контекст только с меткой происхождения. Метка ставится до модели и сохраняется в аудите. Правило простое: файл, сайт, письмо, вывод инструмента и картинка могут сообщать факты, но не м… |
+| [[STATUS]] | 11.2 KB | 8 | Дата среза: 11.11.2026. Дорожная карта: ROADMAP. Тесты: 392, ruff чистый. Репозиторий собирается, kivi doctor работает. |
+| [[TOOLS]] | 13.9 KB | 10 | Инструмент — единственный способ, которым Kivi меняет что-то вне своего процесса. Контракт, права и аудит появились раньше первого инструмента: это инвариант проекта, а не надстройка. |
+| [[TRUST]] | 5.5 KB | 6 | Всё, что приходит извне, попадает в контекст только с меткой происхождения. Метка ставится до модели и сохраняется в аудите. Правило простое: файл, сайт, письмо, вывод инструмента и картинка могут сообщать факты, но не м… |
 | [[VECTOR]] | 2.0 KB | 4 | SQLite остаётся источником истины: эмбеддинги пишутся в таблицу embeddings. LanceDB — опциональный ANN-кэш для больших баз. Без него Kivi работает на SQLite + cosine-переборе. |
 | [[VOICE-AVATAR]] | 12.1 KB | 4 | Этап 6 (M1). Документ описывает два новых модуля: |
 | [[VOICE-CLONING]] | 17.2 KB | 8 | Статус: черновик плана, 09.11.2026. Связанные документы: docs/PERSONA.md, docs/DECISIONS.md, docs/SECURITY.md. |
@@ -106,6 +110,22 @@ generated: true
 - [[BENCH-GATEWAY#Что показал первый прогон|Что показал первый прогон]]
 - [[BENCH-GATEWAY#Выводы|Выводы]]
 - [[BENCH-GATEWAY#Что делать дальше|Что делать дальше]]
+
+## [[BROWSER|Браузер (M3): Playwright, отдельный профиль, untrusted-контент]]
+
+> Браузер — это управляемая вкладка Chrome, а не «руки» модели. Kivi открывает страницу, читает видимый текст, нажимает, заполняет поля и скачивает файлы только через типизированные инструменты и ToolExecutor. JavaScript-в…
+
+- [[BROWSER#1. Архитектура|1. Архитектура]]
+- [[BROWSER#2. Профиль и запуск|2. Профиль и запуск]]
+- [[BROWSER#3. URL и SSRF-политика|3. URL и SSRF-политика]]
+- [[BROWSER#4. Селекторы и клавиши|4. Селекторы и клавиши]]
+- [[BROWSER#5. Скачивания|5. Скачивания]]
+- [[BROWSER#6. Модель prompt injection|6. Модель prompt injection]]
+- [[BROWSER#7. Инструменты|7. Инструменты]]
+- [[BROWSER#8. API контроллера|8. API контроллера]]
+- [[BROWSER#9. Ограничения|9. Ограничения]]
+- [[BROWSER#10. Тесты|10. Тесты]]
+- [[BROWSER#11. Интеграция|11. Интеграция]]
 
 ## [[CLOUD|Cloud Broker]]
 
@@ -223,6 +243,52 @@ generated: true
 - [[OPEN-QUESTIONS#9. Аватар и концепт|9. Аватар и концепт]]
 - [[OPEN-QUESTIONS#10. Резервные копии и автозапуск|10. Резервные копии и автозапуск]]
 - [[OPEN-QUESTIONS#Шаблон ответа|Шаблон ответа]]
+
+## [[OPERATOR-SYSTEM|Operator: системные инструменты (уведомления, громкость, питание)]]
+
+> Версия: 0.1 (11.11.2026). Стадия 8 / M3: Operator. Связанные документы: docs/TOOLS.md, docs/SECURITY.md, docs/ELEVATED.md, docs/STATUS.md.
+
+- [[OPERATOR-SYSTEM#1. Назначение и границы|1. Назначение и границы]]
+- [[OPERATOR-SYSTEM#2. Контракт backend|2. Контракт backend]]
+- [[OPERATOR-SYSTEM#3. Инструменты|3. Инструменты]]
+- [[OPERATOR-SYSTEM#4. Права и approvals|4. Права и approvals]]
+- [[OPERATOR-SYSTEM#5. Уведомления и fallback|5. Уведомления и fallback]]
+- [[OPERATOR-SYSTEM#6. Громкость и mute|6. Громкость и mute]]
+- [[OPERATOR-SYSTEM#7. Питание и блокировка|7. Питание и блокировка]]
+- [[OPERATOR-SYSTEM#8. Аудит|8. Аудит]]
+- [[OPERATOR-SYSTEM#9. Интеграция (registry/CLI не изменялись)|9. Интеграция (registry/CLI не изменялись)]]
+- [[OPERATOR-SYSTEM#10. Реальные smoke-команды|10. Реальные smoke-команды]]
+- [[OPERATOR-SYSTEM#11. Проверка|11. Проверка]]
+
+## [[OPERATOR-UI|Operator UI automation (`ui.*`)]]
+
+> Version: 0.1 (11.11.2026). Stage: M3. Related: docs/TOOLS.md, docs/SECURITY.md, docs/CODER-TOOLS.md.
+
+- [[OPERATOR-UI#1. Architecture|1. Architecture]]
+- [[OPERATOR-UI#2. Tools|2. Tools]]
+- [[OPERATOR-UI#3. Safety model|3. Safety model]]
+- [[OPERATOR-UI#4. Coordinate and secret policy|4. Coordinate and secret policy]]
+- [[OPERATOR-UI#5. Failsafe|5. Failsafe]]
+- [[OPERATOR-UI#6. Risks|6. Risks]]
+- [[OPERATOR-UI#7. Limitations|7. Limitations]]
+- [[OPERATOR-UI#8. Integration|8. Integration]]
+- [[OPERATOR-UI#9. Tests|9. Tests]]
+
+## [[OPERATOR-WINDOWS|Operator PC: окна и приложения (M3)]]
+
+> Версия: 0.1 (11.11.2026). Стадия M3 «Operator PC control». Связанные документы: TOOLS.md, SECURITY.md, TRUST.md, ROADMAP.md, STATUS.md.
+
+- [[OPERATOR-WINDOWS#1. Назначение|1. Назначение]]
+- [[OPERATOR-WINDOWS#2. Слои|2. Слои]]
+- [[OPERATOR-WINDOWS#3. Инструменты|3. Инструменты]]
+- [[OPERATOR-WINDOWS#4. Как резолвится окно|4. Как резолвится окно]]
+- [[OPERATOR-WINDOWS#5. Защищённые процессы|5. Защищённые процессы]]
+- [[OPERATOR-WINDOWS#6. Политика app.launch|6. Политика app.launch]]
+- [[OPERATOR-WINDOWS#7. app.terminate|7. app.terminate]]
+- [[OPERATOR-WINDOWS#8. Аудит и trust|8. Аудит и trust]]
+- [[OPERATOR-WINDOWS#9. Проверка|9. Проверка]]
+- [[OPERATOR-WINDOWS#10. Интеграция|10. Интеграция]]
+- [[OPERATOR-WINDOWS#11. Ограничения|11. Ограничения]]
 
 ## [[PERSONA|Kivi: персона, голос, аватар]]
 

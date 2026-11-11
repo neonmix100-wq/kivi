@@ -48,7 +48,7 @@ generated: true
 | `src.kivi.interfaces.__init__` | 21 | User-facing interfaces: CLI, API, voice, tray, avatar. |
 | `src.kivi.interfaces.api` | 320 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
-| `src.kivi.interfaces.cli` | 2202 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 2277 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -101,7 +101,7 @@ generated: true
 | `src.kivi.safety.permissions` | 224 | Permission Engine: task grants, risk levels and allow/confirm/deny. |
 | `src.kivi.safety.policy` | 227 | A4-Bounded policy checks. |
 | `src.kivi.safety.sanitize` | 257 | Sanitizer for untrusted content. |
-| `src.kivi.safety.trust` | 214 | Trust labels and envelope rendering for external content. |
+| `src.kivi.safety.trust` | 220 | Trust labels and envelope rendering for external content. |
 | `src.kivi.safety.zone_manifest` | 237 | Signed Protected Zones manifest. |
 | `src.kivi.safety.zones` | 233 | Protected Zones: hard-deny paths and escape checks. |
 
@@ -118,6 +118,7 @@ generated: true
 | --- | ---: | --- |
 | `src.kivi.tools.__init__` | 29 | Tools: files, shell, processes, browser, code, media and OS control. |
 | `src.kivi.tools.base` | 143 | Tool contract: typed arguments, previews and structured results. |
+| `src.kivi.tools.browser` | 1018 | Playwright browser automation with a managed profile and untrusted output. |
 | `src.kivi.tools.clipboard` | 205 | Clipboard tools: explicit, confirmed access to the Windows clipboard. |
 | `src.kivi.tools.code` | 627 | ``code.run``: run generated Python in a best-effort process sandbox. |
 | `src.kivi.tools.executor` | 288 | Capability Broker: the only path from a proposed tool call to the OS. |
@@ -126,22 +127,28 @@ generated: true
 | `src.kivi.tools.net` | 209 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
 | `src.kivi.tools.patch` | 209 | Exact-text patch tool: replace a counted occurrence inside one UTF-8 file. |
 | `src.kivi.tools.proc` | 278 | Process list tool: names and memory only, never command lines. |
-| `src.kivi.tools.registry` | 101 | Tool registry: one place that knows which tools exist. |
+| `src.kivi.tools.registry` | 154 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.repo` | 524 | Repository index: a read-only map of the text files inside the workspace. |
 | `src.kivi.tools.screen` | 306 | Screen capture tool: save the desktop as a BMP inside the workspace. |
 | `src.kivi.tools.shell` | 132 | Shell tool: one approved process, no shell expansion, minimal environment. |
+| `src.kivi.tools.system` | 636 | System tools: notifications, volume and power control for the Operator stage. |
+| `src.kivi.tools.ui` | 698 | Operator UI automation: mouse, keyboard and window-text lookup. |
+| `src.kivi.tools.windows` | 1010 | Windows desktop control: top-level windows and application processes. |
 
 ## Тесты
 
-Всего файлов: **43**.
+Всего файлов: **49**.
 
 - `tests/scenarios/test_m1_scenarios.py`
+- `tests/scenarios/test_m3_browser.py`
+- `tests/scenarios/test_m3_pc.py`
 - `tests/security/test_injection.py`
 - `tests/unit/test_admin_cli.py`
 - `tests/unit/test_api.py`
 - `tests/unit/test_avatar2d.py`
 - `tests/unit/test_bench_gateway.py`
 - `tests/unit/test_brain.py`
+- `tests/unit/test_browser.py`
 - `tests/unit/test_cli.py`
 - `tests/unit/test_clipboard.py`
 - `tests/unit/test_cloud.py`
@@ -171,10 +178,13 @@ generated: true
 - `tests/unit/test_registry.py`
 - `tests/unit/test_repo_tools.py`
 - `tests/unit/test_screen.py`
+- `tests/unit/test_system_tools.py`
 - `tests/unit/test_tools.py`
 - `tests/unit/test_tts.py`
+- `tests/unit/test_ui.py`
 - `tests/unit/test_vector_index.py`
 - `tests/unit/test_vram.py`
 - `tests/unit/test_watchdog.py`
+- `tests/unit/test_windows.py`
 - `tests/unit/test_zone_manifest.py`
 - `tests/unit/test_zones.py`

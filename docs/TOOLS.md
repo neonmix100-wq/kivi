@@ -89,6 +89,27 @@ elevated broker; до тех пор R2 — обязательный барьер
 | `git.diff` | R0 | `git.read` | `git diff --stat` и diff одного файла |
 | `git.branch` | R2 | `git.branch` | текущая ветка или `git switch -c`; имя валидируется |
 | `git.commit` | R3 | `git.commit` | `git add -- <paths>` + commit; без push/amend/обхода hooks |
+| `window.list` | R0 | `window.read` | окна: handle, pid, процесс, заголовок, состояние |
+| `window.focus` | R1 | `window.control` | фокус по handle или уникальному заголовку |
+| `window.minimize/maximize` | R1 | `window.control` | свернуть/развернуть окно |
+| `window.close` | R2 | `window.control` | WM_CLOSE с подтверждением; системные процессы запрещены |
+| `app.launch` | R2 | `app.launch` | запуск `.exe` без shell, argv, подтверждение |
+| `app.terminate` | R2 | `app.terminate` | завершение проверенного процесса |
+| `ui.click` | R2 | `ui.control` | клик по координатам, подтверждение, bounds |
+| `ui.type` | R2 | `ui.control` | ввод текста, секреты запрещены, redaction |
+| `ui.hotkey` | R2 | `ui.control` | whitelist клавиш, Ctrl+Alt+Del запрещён |
+| `ui.find` | R1 | `ui.read` | поиск текста/элементов через UIA, без кликов |
+| `system.notify` | R1 | `system.notify` | toast через PowerShell, fallback beep, redaction |
+| `system.volume.get` | R0 | `system.volume` | громкость 0..100 |
+| `system.volume.set` | R1 | `system.volume` | уровень/delta/mute |
+| `system.lock` | R2 | `system.power` | блокировка рабочей станции |
+| `system.sleep` | R3 | `system.power` | сон, подтверждение |
+| `system.shutdown/restart` | R4 | `system.power` | всегда deny политикой |
+| `browser.open` | R1 | `browser.control` | HTTP(S) через Playwright/Chrome, SSRF-защита |
+| `browser.read` | R1 | `browser.read` | текст страницы, `untrusted:web`, sanitize/redaction |
+| `browser.click/fill` | R2 | `browser.control` | CSS-селектор, подтверждение, без JS |
+| `browser.download` | R2 | `browser.download` | скачивание в `data/downloads` |
+| `browser.close` | R0 | `browser.control` | закрыть сессию, идемпотентно |
 
 `http.get` дополнительно проверяет `security.blocked_hosts` из
 `config/kivi.yaml` (точное имя или glob, например `*.tracker.example`).

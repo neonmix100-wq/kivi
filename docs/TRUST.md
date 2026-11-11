@@ -18,6 +18,8 @@
 | Вывод инструмента | `untrusted:tool` | нет |
 | OCR/картинка | `untrusted:vision` | нет |
 | Сгенерированный код | `untrusted:code` | нет |
+| Окна/процессы ОС | `untrusted:os` | нет |
+| UI Automation | `untrusted:ui` | нет |
 | Память/RAG | `tainted:memory` | нет без проверенного источника |
 
 `can_issue_instructions(level)` — единственная проверка, которую использует

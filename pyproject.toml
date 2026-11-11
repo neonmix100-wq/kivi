@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kivi"
-version = "0.15.0"
+version = "0.16.0"
 description = "Kivi - local-first AI assistant for Windows"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -29,6 +29,16 @@ gpu = [
 vector = [
     "lancedb>=0.41",
     "pyarrow>=26.0",
+]
+operator = [
+    "pywinauto>=0.6.9",
+    "pyautogui>=0.9.54",
+    "pycaw>=20260927",
+    "comtypes>=1.5",
+    "pywin32>=312",
+]
+browser = [
+    "playwright>=1.65",
 ]
 
 [project.scripts]

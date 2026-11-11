@@ -159,7 +159,9 @@ def test_every_corpus_file_is_sanitizable_and_untrusted() -> None:
 
 def test_every_trust_level_is_known() -> None:
     assert "untrusted:code" in TRUST_LEVELS
-    assert len(TRUST_LEVELS) == 10
+    assert "untrusted:os" in TRUST_LEVELS
+    assert "untrusted:ui" in TRUST_LEVELS
+    assert len(TRUST_LEVELS) == 12
 
     def fixed() -> datetime:
         return datetime(2026, 11, 10, 12, 0, tzinfo=UTC)

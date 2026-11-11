@@ -52,6 +52,9 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe memory vector-sync -m bge-m3
 .venv\Scripts\kivi.exe chat "прочитай README.md"
 .venv\Scripts\kivi.exe coder "создай hello world с тестом"
+.venv\Scripts\kivi.exe browse https://example.com
+.venv\Scripts\kivi.exe tools run window.list --args '{"limit":10}'
+.venv\Scripts\kivi.exe tools run system.volume.get
 .venv\Scripts\kivi.exe tools run code.run --args '{"code":"print(2+2)"}' --approve
 .venv\Scripts\kivi.exe tools run repo.index --args '{"action":"summary"}'
 .venv\Scripts\kivi.exe say "Привет, это Киви."
@@ -78,7 +81,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
   admin-операций через UAC.
 - `src/kivi/tools/` — контракт `Tool`, реестр, `ToolExecutor` (Capability Broker),
   `fs.*`, `shell.exec`, `http.get`, `proc.*`, `clipboard.*`, `screen.capture`,
-  `code.run` (audit-песочница), `repo.index`, `code.patch`, `git.*`.
+  `code.run` (audit-песочница), `repo.index`, `code.patch`, `git.*`,
+  `window.*`, `app.*`, `ui.*`, `system.*`, `browser.*`.
   Каждый вызов идёт через executor и пишется в аудит.
 - `src/kivi/models/` — registry, Ollama backend, VRAM budget, lease/eviction.
 - `src/kivi/memory/` — SQLite-память (messages/facts/preferences/artifacts,

@@ -14,7 +14,7 @@ import time
 import uuid
 import wave
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 
@@ -712,6 +712,58 @@ def cmd_coder(args: argparse.Namespace) -> int:
     if result.last_error:
         console.print(f"[yellow]{_plain(result.last_error)}[/yellow]")
     return 0 if result.ok else 1
+
+
+def cmd_browse(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
+    task_id = f"tsk_{uuid.uuid4().hex[:12]}"
+    with _state(paths) as (db, bus):
+        try:
+            extra = _zones_extra(paths)
+        except ZoneManifestError as exc:
+            console.print(f"[red]protected zones error:[/red] {exc}")
+            return 1
+        zones = ProtectedZones(paths.root, extra_rules=extra)
+        permissions = PermissionEngine(
+            db,
+            autonomy=config.autonomy,
+            workspace=str(paths.root),
+            events=bus,
+        )
+        executor = ToolExecutor(
+            registry,
+            db,
+            permissions,
+            zones,
+            workspace=paths.root,
+            events=bus,
+            killswitch=_kill_switch(paths, db, bus),
+        )
+        grant = permissions.issue(task_id, ["browser.control", "browser.read"])
+        try:
+            opened = executor.run(
+                "browser.open",
+                {"url": args.url},
+                grant=grant,
+            )
+            if not opened.ok:
+                console.print(f"[red]browser error:[/red] {_plain(opened.error)}")
+                return 1
+            console.print(_plain(opened.output))
+            read = executor.run(
+                "browser.read",
+                {"selector": args.selector, "max_chars": args.max_chars},
+                grant=grant,
+            )
+        finally:
+            executor.run("browser.close", {}, grant=grant)
+    if not read.ok:
+        console.print(f"[red]browser error:[/red] {_plain(read.error)}")
+        return 1
+    console.print(_plain(read.output))
+    return 0
 
 
 def cmd_ask(args: argparse.Namespace) -> int:
@@ -1935,6 +1987,12 @@ def build_parser() -> argparse.ArgumentParser:
     coder.add_argument("--yes", action="store_true")
     coder.set_defaults(func=cmd_coder)
 
+    browse = sub.add_parser("browse", help="open a URL, read page text and close")
+    browse.add_argument("url")
+    browse.add_argument("--selector", default="body")
+    browse.add_argument("--max-chars", type=int, default=4000)
+    browse.set_defaults(func=cmd_browse)
+
     ask = sub.add_parser("ask", help="ask a local model through the Model Gateway")
     ask.add_argument("prompt", help="prompt text")
     ask.add_argument("-m", "--model", default=None, help="model id from config/models.yaml")
@@ -2188,7 +2246,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _configure_console() -> None:
+    """Use UTF-8 on the Windows console so Russian tool output is readable."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+        except Exception:  # noqa: BLE001 - best effort
+            pass
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            with suppress(OSError, ValueError):
+                reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
+    _configure_console()
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

@@ -57,6 +57,15 @@ def build_registry(
     blocked_hosts: tuple[str, ...] | list[str] = (),
 ) -> ToolRegistry:
     """Create the default registry with the stage-4 tools."""
+    from kivi.tools.browser import (
+        BrowserClickTool,
+        BrowserCloseTool,
+        BrowserDownloadTool,
+        BrowserFillTool,
+        BrowserOpenTool,
+        BrowserReadTool,
+        BrowserSession,
+    )
     from kivi.tools.clipboard import ClipboardReadTool, ClipboardWriteTool
     from kivi.tools.code import CodeRunTool
     from kivi.tools.fs import FsListTool, FsReadTool, FsWriteTool
@@ -72,8 +81,28 @@ def build_registry(
     from kivi.tools.repo import RepoIndexTool
     from kivi.tools.screen import ScreenCaptureTool
     from kivi.tools.shell import ShellExecTool
+    from kivi.tools.system import (
+        SystemLockTool,
+        SystemNotifyTool,
+        SystemRestartTool,
+        SystemShutdownTool,
+        SystemSleepTool,
+        SystemVolumeGetTool,
+        SystemVolumeSetTool,
+    )
+    from kivi.tools.ui import UiClickTool, UiFindTool, UiHotkeyTool, UiTypeTool
+    from kivi.tools.windows import (
+        AppLaunchTool,
+        AppTerminateTool,
+        WindowCloseTool,
+        WindowFocusTool,
+        WindowListTool,
+        WindowMaximizeTool,
+        WindowMinimizeTool,
+    )
 
     registry = ToolRegistry()
+    browser_session = BrowserSession()
     for tool in (
         FsReadTool(),
         FsListTool(),
@@ -93,6 +122,30 @@ def build_registry(
         GitDiffTool(),
         GitBranchTool(),
         GitCommitTool(),
+        WindowListTool(),
+        WindowFocusTool(),
+        WindowMinimizeTool(),
+        WindowMaximizeTool(),
+        WindowCloseTool(),
+        AppLaunchTool(),
+        AppTerminateTool(),
+        UiClickTool(),
+        UiTypeTool(),
+        UiHotkeyTool(),
+        UiFindTool(),
+        SystemNotifyTool(),
+        SystemVolumeGetTool(),
+        SystemVolumeSetTool(),
+        SystemLockTool(),
+        SystemSleepTool(),
+        SystemShutdownTool(),
+        SystemRestartTool(),
+        BrowserOpenTool(browser_session),
+        BrowserReadTool(browser_session),
+        BrowserClickTool(browser_session),
+        BrowserFillTool(browser_session),
+        BrowserDownloadTool(browser_session),
+        BrowserCloseTool(browser_session),
     ):
         registry.register(tool)
     return registry

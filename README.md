@@ -1,14 +1,14 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–7 закрыты (v0.15). Работают `kivi doctor`, `kivi models`,
-> `kivi ask`, `kivi chat`, `kivi serve`, `kivi say`, `kivi coder`, `kivi embed`,
-> `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`, `kivi memory`,
-> `kivi elevated`, `kivi killswitch`, `kivi hotkey`, `kivi zones`, реестр
-> моделей, VRAM-бюджет, lease/eviction, watchdog, SQLite, Event Bus, аудит,
-> Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
+> **Статус:** этапы 0–8 закрыты (v0.16). Работают `kivi doctor`, `kivi models`,
+> `kivi ask`, `kivi chat`, `kivi serve`, `kivi say`, `kivi coder`, `kivi browse`,
+> `kivi embed`, `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`,
+> `kivi memory`, `kivi elevated`, `kivi killswitch`, `kivi hotkey`, `kivi zones`,
+> реестр моделей, VRAM-бюджет, lease/eviction, watchdog, SQLite, Event Bus,
+> аудит, Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
 > санитайзер, kill switch, elevated broker, память с FTS5/hybrid/LanceDB,
-> M1 planner/TTS/2D-аватар и M2 Coder с песочницей, патчами и git.
-> Осталось: M3 Operator, OCR/PDF-читатели, живой облачный вызов.
+> M1 planner/TTS/2D-аватар, M2 Coder и M3 Operator (окна, UI, system, браузер).
+> Осталось: M4 Communicator, OCR/PDF-читатели, живой облачный вызов.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Быстрый старт
@@ -34,6 +34,9 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe memory vector-sync -m bge-m3
 .venv\Scripts\kivi.exe chat "прочитай README.md"
 .venv\Scripts\kivi.exe coder "создай hello world с тестом"
+.venv\Scripts\kivi.exe browse https://example.com
+.venv\Scripts\kivi.exe tools run window.list --args '{"limit":10}'
+.venv\Scripts\kivi.exe tools run system.volume.get
 .venv\Scripts\kivi.exe say "Привет, это Киви." --play
 .venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\python.exe -m pytest -q
@@ -145,6 +148,10 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/CODER.md`](docs/CODER.md) | Coder loop: генерация, тесты, исправления |
 | [`docs/CODER-TOOLS.md`](docs/CODER-TOOLS.md) | `repo.index`, `code.patch`, git-инструменты |
 | [`docs/SANDBOX.md`](docs/SANDBOX.md) | `code.run`: audit hook, Job Object, ограничения |
+| [`docs/OPERATOR-WINDOWS.md`](docs/OPERATOR-WINDOWS.md) | Окна, приложения, фокус, закрытие |
+| [`docs/OPERATOR-UI.md`](docs/OPERATOR-UI.md) | UI Automation: клики, ввод, горячие клавиши |
+| [`docs/OPERATOR-SYSTEM.md`](docs/OPERATOR-SYSTEM.md) | Уведомления, громкость, питание |
+| [`docs/BROWSER.md`](docs/BROWSER.md) | Playwright, профиль, SSRF и prompt injection |
 | [`docs/SHELL.md`](docs/SHELL.md) | Kivi Shell: замена Explorer, паритет, fail-safe |
 | [`docs/PERSONA.md`](docs/PERSONA.md) | Kivi: характер, голос, аватар, одежда, липсинк |
 | [`docs/VOICE-CLONING.md`](docs/VOICE-CLONING.md) | Улучшение Silero, согласие, датасет и пайплайн клонирования голоса |
