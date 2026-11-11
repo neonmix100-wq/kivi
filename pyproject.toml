@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kivi"
-version = "0.16.0"
+version = "0.17.0"
 description = "Kivi - local-first AI assistant for Windows"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -39,6 +39,10 @@ operator = [
 ]
 browser = [
     "playwright>=1.65",
+]
+mail = [
+    "google-api-python-client>=2.202",
+    "google-auth-oauthlib>=1.5",
 ]
 
 [project.scripts]

@@ -75,6 +75,7 @@ def build_registry(
         GitDiffTool,
         GitStatusTool,
     )
+    from kivi.tools.mail import build_mail_tools
     from kivi.tools.net import HttpGetTool
     from kivi.tools.patch import CodePatchTool
     from kivi.tools.proc import ProcKillTool, ProcListTool, ProcStartTool
@@ -90,6 +91,7 @@ def build_registry(
         SystemVolumeGetTool,
         SystemVolumeSetTool,
     )
+    from kivi.tools.telegram import build_telegram_tools
     from kivi.tools.ui import UiClickTool, UiFindTool, UiHotkeyTool, UiTypeTool
     from kivi.tools.windows import (
         AppLaunchTool,
@@ -146,6 +148,8 @@ def build_registry(
         BrowserFillTool(browser_session),
         BrowserDownloadTool(browser_session),
         BrowserCloseTool(browser_session),
+        *build_mail_tools(),
+        *build_telegram_tools(),
     ):
         registry.register(tool)
     return registry

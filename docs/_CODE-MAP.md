@@ -41,6 +41,14 @@ generated: true
 | `src.kivi.cloud.providers` | 121 | Cloud providers: metadata only, never secrets. |
 | `src.kivi.cloud.scout` | 545 | Cloud Scout: free-provider discovery, cards and manual confirmation. |
 
+## integrations
+
+| Модуль | Строк | Ответственность |
+| --- | ---: | --- |
+| `src.kivi.integrations.__init__` | 0 | — |
+| `src.kivi.integrations.gmail` | 901 | Gmail integration: OAuth with readonly + compose, drafts and reading only. |
+| `src.kivi.integrations.telegram` | 516 | Telegram Bot API integration: bot-only, allowlisted and rate-limited. |
+
 ## interfaces
 
 | Модуль | Строк | Ответственность |
@@ -48,7 +56,7 @@ generated: true
 | `src.kivi.interfaces.__init__` | 21 | User-facing interfaces: CLI, API, voice, tray, avatar. |
 | `src.kivi.interfaces.api` | 320 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
-| `src.kivi.interfaces.cli` | 2277 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 2462 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -101,7 +109,7 @@ generated: true
 | `src.kivi.safety.permissions` | 224 | Permission Engine: task grants, risk levels and allow/confirm/deny. |
 | `src.kivi.safety.policy` | 227 | A4-Bounded policy checks. |
 | `src.kivi.safety.sanitize` | 257 | Sanitizer for untrusted content. |
-| `src.kivi.safety.trust` | 220 | Trust labels and envelope rendering for external content. |
+| `src.kivi.safety.trust` | 223 | Trust labels and envelope rendering for external content. |
 | `src.kivi.safety.zone_manifest` | 237 | Signed Protected Zones manifest. |
 | `src.kivi.safety.zones` | 233 | Protected Zones: hard-deny paths and escape checks. |
 
@@ -124,24 +132,28 @@ generated: true
 | `src.kivi.tools.executor` | 288 | Capability Broker: the only path from a proposed tool call to the OS. |
 | `src.kivi.tools.fs` | 221 | Filesystem tools: read, list and write inside the workspace. |
 | `src.kivi.tools.git` | 348 | Fixed git operations: status, diff, branch and commit. |
+| `src.kivi.tools.mail` | 472 | Gmail tools: list, search, read, save an attachment and create a draft. |
 | `src.kivi.tools.net` | 209 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
 | `src.kivi.tools.patch` | 209 | Exact-text patch tool: replace a counted occurrence inside one UTF-8 file. |
 | `src.kivi.tools.proc` | 278 | Process list tool: names and memory only, never command lines. |
-| `src.kivi.tools.registry` | 154 | Tool registry: one place that knows which tools exist. |
+| `src.kivi.tools.registry` | 158 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.repo` | 524 | Repository index: a read-only map of the text files inside the workspace. |
 | `src.kivi.tools.screen` | 306 | Screen capture tool: save the desktop as a BMP inside the workspace. |
 | `src.kivi.tools.shell` | 132 | Shell tool: one approved process, no shell expansion, minimal environment. |
 | `src.kivi.tools.system` | 636 | System tools: notifications, volume and power control for the Operator stage. |
+| `src.kivi.tools.telegram` | 352 | Telegram tools: status, incoming updates and an allowlisted send. |
 | `src.kivi.tools.ui` | 698 | Operator UI automation: mouse, keyboard and window-text lookup. |
 | `src.kivi.tools.windows` | 1010 | Windows desktop control: top-level windows and application processes. |
 
 ## Тесты
 
-Всего файлов: **49**.
+Всего файлов: **55**.
 
 - `tests/scenarios/test_m1_scenarios.py`
 - `tests/scenarios/test_m3_browser.py`
 - `tests/scenarios/test_m3_pc.py`
+- `tests/scenarios/test_m4_mail.py`
+- `tests/scenarios/test_m4_telegram.py`
 - `tests/security/test_injection.py`
 - `tests/unit/test_admin_cli.py`
 - `tests/unit/test_api.py`
@@ -163,11 +175,13 @@ generated: true
 - `tests/unit/test_events.py`
 - `tests/unit/test_gateway.py`
 - `tests/unit/test_git_tools.py`
+- `tests/unit/test_gmail.py`
 - `tests/unit/test_hotkey.py`
 - `tests/unit/test_http_tool.py`
 - `tests/unit/test_killswitch.py`
 - `tests/unit/test_knowledge.py`
 - `tests/unit/test_lifecycle.py`
+- `tests/unit/test_mail_tools.py`
 - `tests/unit/test_memory.py`
 - `tests/unit/test_ollama.py`
 - `tests/unit/test_patch_tool.py`
@@ -179,6 +193,8 @@ generated: true
 - `tests/unit/test_repo_tools.py`
 - `tests/unit/test_screen.py`
 - `tests/unit/test_system_tools.py`
+- `tests/unit/test_telegram.py`
+- `tests/unit/test_telegram_tools.py`
 - `tests/unit/test_tools.py`
 - `tests/unit/test_tts.py`
 - `tests/unit/test_ui.py`

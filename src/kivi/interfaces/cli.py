@@ -40,6 +40,7 @@ from kivi.cloud import (
 )
 from kivi.config import ConfigError, KiviConfig, load_config
 from kivi.doctor import ollama_models, run_checks, summary
+from kivi.integrations.gmail import GmailAuth, GmailAuthError
 from kivi.interfaces.api import LocalApi
 from kivi.interfaces.avatar2d import (
     AvatarController,
@@ -106,7 +107,7 @@ from kivi.senses import (
     SpeechPipeline,
     TtsError,
 )
-from kivi.tools import ToolExecutor, build_registry
+from kivi.tools import ToolExecutor, ToolResult, build_registry
 
 console = Console()
 
@@ -763,6 +764,149 @@ def cmd_browse(args: argparse.Namespace) -> int:
         console.print(f"[red]browser error:[/red] {_plain(read.error)}")
         return 1
     console.print(_plain(read.output))
+    return 0
+
+
+def _run_direct_tool(
+    paths: Paths,
+    config: KiviConfig,
+    name: str,
+    args: dict[str, Any],
+    capabilities: list[str],
+    *,
+    approved: bool = False,
+) -> ToolResult:
+    """Run one tool through the normal executor without a planner."""
+    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
+    task_id = f"tsk_{uuid.uuid4().hex[:12]}"
+    with _state(paths) as (db, bus):
+        try:
+            extra = _zones_extra(paths)
+        except ZoneManifestError as exc:
+            raise RuntimeError(str(exc)) from exc
+        zones = ProtectedZones(paths.root, extra_rules=extra)
+        permissions = PermissionEngine(
+            db,
+            autonomy=config.autonomy,
+            workspace=str(paths.root),
+            events=bus,
+        )
+        executor = ToolExecutor(
+            registry,
+            db,
+            permissions,
+            zones,
+            workspace=paths.root,
+            events=bus,
+            killswitch=_kill_switch(paths, db, bus),
+        )
+        grant = permissions.issue(task_id, capabilities)
+        return executor.run(name, args, grant=grant, approved=approved)
+
+
+def cmd_mail(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    if args.mail_action == "status":
+        auth = GmailAuth()
+        console.print(f"token: {'present' if auth.has_token else 'missing'} ({auth.token_path})")
+        secret_state = "present" if auth.client_secret_path.is_file() else "missing"
+        console.print(f"client secret: {secret_state}")
+        console.print("scopes: gmail.readonly + gmail.compose; send is disabled")
+        return 0
+    if args.mail_action == "auth":
+        try:
+            credentials = GmailAuth().authorize()
+        except GmailAuthError as exc:
+            console.print(f"[red]gmail auth error:[/red] {_plain(str(exc))}")
+            return 1
+        console.print(f"authorized: {getattr(credentials, 'scopes', 'ok')}")
+        return 0
+
+    action = args.mail_action
+    approved = bool(getattr(args, "approve", False))
+    if action in {"list", "search"}:
+        name = "mail.list" if action == "list" else "mail.search"
+        query = args.query or ""
+        payload = {"query": query, "max_results": args.limit}
+    elif action == "read":
+        name, payload = "mail.read", {"message_id": args.message_id}
+    elif action == "attachment":
+        name = "mail.attachment"
+        payload = {
+            "message_id": args.message_id,
+            "attachment_id": args.attachment_id,
+        }
+    else:
+        name = "mail.draft"
+        payload = {
+            "to": list(args.to or []),
+            "subject": args.subject,
+            "body": args.body,
+        }
+        if not approved and sys.stdin.isatty():
+            try:
+                approved = input("Создать черновик? [y/N] ").strip().lower() in {
+                    "y",
+                    "yes",
+                    "д",
+                    "да",
+                }
+            except EOFError:
+                approved = False
+    try:
+        result = _run_direct_tool(
+            paths,
+            config,
+            name,
+            payload,
+            ["mail.read", "mail.draft"],
+            approved=approved,
+        )
+    except RuntimeError as exc:
+        console.print(f"[red]{_plain(str(exc))}[/red]")
+        return 1
+    if not result.ok:
+        console.print(f"[red]mail error:[/red] {_plain(result.error)}")
+        return 1
+    console.print(_plain(result.output))
+    return 0
+
+
+def cmd_telegram(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    action = args.telegram_action
+    if action == "status":
+        name, payload, caps = "telegram.status", {}, ["telegram.read"]
+    elif action == "updates":
+        name = "telegram.updates"
+        payload = {"limit": args.limit}
+        caps = ["telegram.read"]
+    else:
+        name = "telegram.send"
+        payload = {"chat_id": args.chat_id, "text": args.text}
+        caps = ["telegram.send"]
+    approved = bool(getattr(args, "approve", False))
+    if action == "send" and not approved and sys.stdin.isatty():
+        try:
+            approved = input("Отправить сообщение? [y/N] ").strip().lower() in {
+                "y",
+                "yes",
+                "д",
+                "да",
+            }
+        except EOFError:
+            approved = False
+    try:
+        result = _run_direct_tool(paths, config, name, payload, caps, approved=approved)
+    except RuntimeError as exc:
+        console.print(f"[red]{_plain(str(exc))}[/red]")
+        return 1
+    if not result.ok:
+        console.print(f"[red]telegram error:[/red] {_plain(result.error)}")
+        return 1
+    console.print(_plain(result.output))
     return 0
 
 
@@ -1992,6 +2136,47 @@ def build_parser() -> argparse.ArgumentParser:
     browse.add_argument("--selector", default="body")
     browse.add_argument("--max-chars", type=int, default=4000)
     browse.set_defaults(func=cmd_browse)
+
+    mail = sub.add_parser("mail", help="Gmail read/search/drafts (no send)")
+    mail_sub = mail.add_subparsers(dest="mail_action", required=True)
+    mail_status = mail_sub.add_parser("status")
+    mail_status.set_defaults(func=cmd_mail)
+    mail_auth = mail_sub.add_parser("auth", help="run the OAuth consent flow")
+    mail_auth.set_defaults(func=cmd_mail, mail_action="auth")
+    mail_list = mail_sub.add_parser("list")
+    mail_list.add_argument("query", nargs="?", default="")
+    mail_list.add_argument("-n", "--limit", type=int, default=10)
+    mail_list.set_defaults(func=cmd_mail)
+    mail_search = mail_sub.add_parser("search")
+    mail_search.add_argument("query")
+    mail_search.add_argument("-n", "--limit", type=int, default=10)
+    mail_search.set_defaults(func=cmd_mail)
+    mail_read = mail_sub.add_parser("read")
+    mail_read.add_argument("message_id")
+    mail_read.set_defaults(func=cmd_mail)
+    mail_attachment = mail_sub.add_parser("attachment")
+    mail_attachment.add_argument("message_id")
+    mail_attachment.add_argument("attachment_id")
+    mail_attachment.set_defaults(func=cmd_mail)
+    mail_draft = mail_sub.add_parser("draft")
+    mail_draft.add_argument("--to", action="append", required=True)
+    mail_draft.add_argument("--subject", required=True)
+    mail_draft.add_argument("--body", required=True)
+    mail_draft.add_argument("--approve", action="store_true")
+    mail_draft.set_defaults(func=cmd_mail)
+
+    telegram = sub.add_parser("telegram", help="Telegram bot status/updates/send")
+    telegram_sub = telegram.add_subparsers(dest="telegram_action", required=True)
+    telegram_status = telegram_sub.add_parser("status")
+    telegram_status.set_defaults(func=cmd_telegram)
+    telegram_updates = telegram_sub.add_parser("updates")
+    telegram_updates.add_argument("-n", "--limit", type=int, default=10)
+    telegram_updates.set_defaults(func=cmd_telegram)
+    telegram_send = telegram_sub.add_parser("send")
+    telegram_send.add_argument("chat_id", type=int)
+    telegram_send.add_argument("text")
+    telegram_send.add_argument("--approve", action="store_true")
+    telegram_send.set_defaults(func=cmd_telegram)
 
     ask = sub.add_parser("ask", help="ask a local model through the Model Gateway")
     ask.add_argument("prompt", help="prompt text")

@@ -23,7 +23,10 @@
 - **Этап 8 (M3 Operator) закрыт:** окна/приложения, UI Automation + pyautogui,
   системные уведомления/громкость/питание, Playwright-браузер с отдельным
   профилем и SSRF/prompt-injection защитой; 10 ПК- и 10 браузерных сценариев.
-- **Этап 9 (Communicator) не начат** — следующий крупный срез.
+- **Этап 9 (M4 Communicator) закрыт:** Gmail OAuth readonly+compose без send,
+  `mail.list/search/read/attachment/draft`, Telegram-бот с allowlist и rate limit,
+  CLI `kivi mail`/`kivi telegram`; 10+5 сценариев.
+- **Этап 10 (Voice & Avatar) не начат** — следующий крупный срез.
 
 ## 2. Этапы
 
@@ -38,7 +41,7 @@
 | 6. M1: Core Kivi | ✅ готово | planner DAG, fastpath, chat, API, Silero/TTS, 2D-аватар, 22 сценария | — |
 | 7. M2: Coder | ✅ готово | code.run sandbox, repo.index, code.patch, git, Coder loop, CLI | WSL2/Sandbox — апгрейд |
 | 8. M3: Operator | ✅ готово | окна/приложения, UI, system, browser, 20 сценариев | — |
-| 9. M4: Communicator | ⬜ не начат | — | Gmail-черновики, Telegram-бот |
+| 9. M4: Communicator | ✅ готово | Gmail drafts, Telegram bot, CLI, 15 сценариев | — |
 | 10. M5: Voice & Avatar | ⬜ не начат | — | wake-word, STT, 3D-VRM, липсинк |
 | 11. M6: Work CRM | ⬜ не начат | — | карточки, документы, модуль `work_crm` |
 | 12. M7: Cloud Media | ⬜ не начат | — | бесплатные image/video-провайдеры |
@@ -79,9 +82,9 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 
 Сейчас проект стоит на границе **этапа 5 → этапа 6 (M1)**:
 
-- этапы 0–8 закрыты;
-- прикладной слой, память, M1, M2 и M3 готовы;
-- следующий крупный вертикальный срез — M4: Communicator.
+- этапы 0–9 закрыты;
+- прикладной слой, память и M1–M4 готовы;
+- следующий крупный вертикальный срез — M5: Voice & Avatar.
 
 Формальный трекер `kivi_context.py stage` показывает этап 0, потому что
 единственный открытый чекбокс — baseline. Это не отражает реальный прогресс;
@@ -134,24 +137,28 @@ Playwright-браузер с отдельным профилем и защито
 10 ПК- и 10 браузерных сценариев, live-smoke `window.list`, `system.volume.get`,
 `browser.open/read`.
 
-### P4 — этап 9 (M4: Communicator) и далее
+### ✅ P4 — M4: Communicator закрыт
 
-9. **Communicator:** Gmail-черновики (`auto_send=false`), Telegram-бот.
-10. Voice & Avatar: wake-word, STT, 3D-VRM.
+Gmail OAuth (только чтение и черновики), `mail.*`, Telegram-бот с allowlist и
+rate limit, CLI. 10 почтовых и 5 Telegram-сценариев.
+
+### P5 — этап 10 (M5: Voice & Avatar) и далее
+
+10. **Voice & Avatar:** wake-word, STT, 3D-VRM.
 11. Work CRM, Cloud Media, Kivi Shell.
 
 ## 6. Следующий шаг
 
 ```
-этапы 0–8 ✅
+этапы 0–9 ✅
    │
-   ├─► M4 Communicator: Gmail drafts ─► Telegram ─► сценарии
+   ├─► M5 Voice & Avatar: wake-word ─► STT ─► 3D-VRM
    │
    └─► backlog: OCR/PDF, approvals → PermissionEngine
 ```
 
-M1–M3 закрыты: planner, chat/serve, TTS, аватар, coder, Operator и браузер.
-Следующий срез — **M4: Communicator**.
+M1–M4 закрыты: planner, chat/serve, TTS, аватар, coder, Operator, браузер,
+Gmail-черновики и Telegram. Следующий срез — **M5: Voice & Avatar**.
 
 ## 7. Риски
 

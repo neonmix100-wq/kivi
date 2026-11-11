@@ -25,6 +25,7 @@ build/
 # local model/config overrides
 config/local.*
 config/secrets.*
+config/gmail-client.json
 
 # private data: voice consent, dataset, cloned checkpoints
 private/

@@ -1,14 +1,15 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–8 закрыты (v0.16). Работают `kivi doctor`, `kivi models`,
+> **Статус:** этапы 0–9 закрыты (v0.17). Работают `kivi doctor`, `kivi models`,
 > `kivi ask`, `kivi chat`, `kivi serve`, `kivi say`, `kivi coder`, `kivi browse`,
-> `kivi embed`, `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`,
-> `kivi memory`, `kivi elevated`, `kivi killswitch`, `kivi hotkey`, `kivi zones`,
-> реестр моделей, VRAM-бюджет, lease/eviction, watchdog, SQLite, Event Bus,
-> аудит, Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
-> санитайзер, kill switch, elevated broker, память с FTS5/hybrid/LanceDB,
-> M1 planner/TTS/2D-аватар, M2 Coder и M3 Operator (окна, UI, system, браузер).
-> Осталось: M4 Communicator, OCR/PDF-читатели, живой облачный вызов.
+> `kivi mail`, `kivi telegram`, `kivi embed`, `kivi cloud status/ask/scout/handoff`,
+> `kivi tools list/run`, `kivi memory`, `kivi elevated`, `kivi killswitch`,
+> `kivi hotkey`, `kivi zones`, реестр моделей, VRAM-бюджет, lease/eviction,
+> watchdog, SQLite, Event Bus, аудит, Policy Engine, Protected Zones,
+> risk-политика R0–R4, trust labels, санитайзер, kill switch, elevated broker,
+> память с FTS5/hybrid/LanceDB, M1 planner/TTS/2D-аватар, M2 Coder, M3 Operator
+> и M4 Communicator (Gmail-черновики, Telegram-бот).
+> Осталось: M5 Voice & Avatar, OCR/PDF-читатели, живой облачный вызов.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Быстрый старт
@@ -35,6 +36,9 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe chat "прочитай README.md"
 .venv\Scripts\kivi.exe coder "создай hello world с тестом"
 .venv\Scripts\kivi.exe browse https://example.com
+.venv\Scripts\kivi.exe mail status
+.venv\Scripts\kivi.exe mail list -n 5
+.venv\Scripts\kivi.exe telegram status
 .venv\Scripts\kivi.exe tools run window.list --args '{"limit":10}'
 .venv\Scripts\kivi.exe tools run system.volume.get
 .venv\Scripts\kivi.exe say "Привет, это Киви." --play
@@ -152,6 +156,8 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/OPERATOR-UI.md`](docs/OPERATOR-UI.md) | UI Automation: клики, ввод, горячие клавиши |
 | [`docs/OPERATOR-SYSTEM.md`](docs/OPERATOR-SYSTEM.md) | Уведомления, громкость, питание |
 | [`docs/BROWSER.md`](docs/BROWSER.md) | Playwright, профиль, SSRF и prompt injection |
+| [`docs/MAIL.md`](docs/MAIL.md) | Gmail OAuth, чтение, поиск, черновики без отправки |
+| [`docs/TELEGRAM.md`](docs/TELEGRAM.md) | Telegram-бот, allowlist, rate limits |
 | [`docs/SHELL.md`](docs/SHELL.md) | Kivi Shell: замена Explorer, паритет, fail-safe |
 | [`docs/PERSONA.md`](docs/PERSONA.md) | Kivi: характер, голос, аватар, одежда, липсинк |
 | [`docs/VOICE-CLONING.md`](docs/VOICE-CLONING.md) | Улучшение Silero, согласие, датасет и пайплайн клонирования голоса |

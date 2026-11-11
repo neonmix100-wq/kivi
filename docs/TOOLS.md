@@ -110,6 +110,13 @@ elevated broker; до тех пор R2 — обязательный барьер
 | `browser.click/fill` | R2 | `browser.control` | CSS-селектор, подтверждение, без JS |
 | `browser.download` | R2 | `browser.download` | скачивание в `data/downloads` |
 | `browser.close` | R0 | `browser.control` | закрыть сессию, идемпотентно |
+| `mail.list/search` | R0 | `mail.read` | список/поиск писем, `untrusted:email` |
+| `mail.read` | R0 | `mail.read` | заголовки, plain-text тело, метаданные вложений |
+| `mail.attachment` | R1 | `mail.read` | сохранить вложение в `data/attachments`, лимит 20 МБ |
+| `mail.draft` | R2 | `mail.draft` | создать черновик; **отправки нет** |
+| `telegram.status` | R0 | `telegram.read` | getMe без токена в выводе |
+| `telegram.updates` | R0 | `telegram.read` | входящие updates, `untrusted:message` |
+| `telegram.send` | R2 | `telegram.send` | allowlist чатов, rate limit, redaction |
 
 `http.get` дополнительно проверяет `security.blocked_hosts` из
 `config/kivi.yaml` (точное имя или glob, например `*.tracker.example`).
