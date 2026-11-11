@@ -26,7 +26,10 @@
 - **Этап 9 (M4 Communicator) закрыт:** Gmail OAuth readonly+compose без send,
   `mail.list/search/read/attachment/draft`, Telegram-бот с allowlist и rate limit,
   CLI `kivi mail`/`kivi telegram`; 10+5 сценариев.
-- **Этап 10 (Voice & Avatar) не начат** — следующий крупный срез.
+- **Этап 10 (M5 Voice & Avatar) ~65%:** audio/VAD/STT, barge-in, подтверждения,
+  voice pipeline, avatar3d/visemes/states, CLI `listen` готовы. Блокеры:
+  `assets/wake/kivi.onnx`, `assets/avatar/kivi.vrm`, микрофон и замеры false wake/WER.
+- **Этап 11 (M6 Work CRM) не начат** — можно вести параллельно с M5.
 
 ## 2. Этапы
 
@@ -42,7 +45,7 @@
 | 7. M2: Coder | ✅ готово | code.run sandbox, repo.index, code.patch, git, Coder loop, CLI | WSL2/Sandbox — апгрейд |
 | 8. M3: Operator | ✅ готово | окна/приложения, UI, system, browser, 20 сценариев | — |
 | 9. M4: Communicator | ✅ готово | Gmail drafts, Telegram bot, CLI, 15 сценариев | — |
-| 10. M5: Voice & Avatar | ⬜ не начат | — | wake-word, STT, 3D-VRM, липсинк |
+| 10. M5: Voice & Avatar | 🟡 ~65% | audio/VAD/STT, barge-in, avatar3d, CLI | wake ONNX, VRM, микрофон |
 | 11. M6: Work CRM | ⬜ не начат | — | карточки, документы, модуль `work_crm` |
 | 12. M7: Cloud Media | ⬜ не начат | — | бесплатные image/video-провайдеры |
 | 13. M8: Kivi Shell | ⬜ не начат | — | Explorer-замена, P0/P1, закалка |
@@ -83,8 +86,8 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 Сейчас проект стоит на границе **этапа 5 → этапа 6 (M1)**:
 
 - этапы 0–9 закрыты;
-- прикладной слой, память и M1–M4 готовы;
-- следующий крупный вертикальный срез — M5: Voice & Avatar.
+- M5 готов на ~65% (нужны ассеты/железо);
+- следующий крупный срез — M6: Work CRM.
 
 Формальный трекер `kivi_context.py stage` показывает этап 0, потому что
 единственный открытый чекбокс — baseline. Это не отражает реальный прогресс;
@@ -142,23 +145,24 @@ Playwright-браузер с отдельным профилем и защито
 Gmail OAuth (только чтение и черновики), `mail.*`, Telegram-бот с allowlist и
 rate limit, CLI. 10 почтовых и 5 Telegram-сценариев.
 
-### P5 — этап 10 (M5: Voice & Avatar) и далее
+### P5 — этап 10 (M5: Voice & Avatar), частично
 
-10. **Voice & Avatar:** wake-word, STT, 3D-VRM.
-11. Work CRM, Cloud Media, Kivi Shell.
+10. **Voice & Avatar:** код audio/VAD/STT, barge-in, pipeline, avatar3d готов;
+    нужны `kivi.onnx`, `kivi.vrm`, микрофон и замеры false wake/WER.
+11. Work CRM, Cloud Media, Kivi Shell — следующий срез.
 
 ## 6. Следующий шаг
 
 ```
-этапы 0–9 ✅
+этапы 0–9 ✅ + M5 ~65%
    │
-   ├─► M5 Voice & Avatar: wake-word ─► STT ─► 3D-VRM
+   ├─► M6 Work CRM: домен ─► AltCRM ─► сценарии
    │
-   └─► backlog: OCR/PDF, approvals → PermissionEngine
+   └─► блок M5: ONNX wake + VRM + микрофон
 ```
 
-M1–M4 закрыты: planner, chat/serve, TTS, аватар, coder, Operator, браузер,
-Gmail-черновики и Telegram. Следующий срез — **M5: Voice & Avatar**.
+M5 — программный слой готов, ассеты и железо блокируют приёмку. Следующий
+вертикальный срез — **M6: Work CRM**.
 
 ## 7. Риски
 

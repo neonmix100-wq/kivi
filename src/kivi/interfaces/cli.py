@@ -107,6 +107,17 @@ from kivi.senses import (
     SpeechPipeline,
     TtsError,
 )
+from kivi.senses.audio import (
+    AudioUnavailable,
+    EnergyVad,
+    SoundDeviceSource,
+    SttUnavailable,
+    TextWakeWordDetector,
+    VadSegmenter,
+    WakeWordUnavailable,
+    WhisperTranscriber,
+)
+from kivi.senses.voice import VoiceSession
 from kivi.tools import ToolExecutor, ToolResult, build_registry
 
 console = Console()
@@ -907,6 +918,133 @@ def cmd_telegram(args: argparse.Namespace) -> int:
         console.print(f"[red]telegram error:[/red] {_plain(result.error)}")
         return 1
     console.print(_plain(result.output))
+    return 0
+
+
+def _microphone_available() -> bool:
+    """Return False when sounddevice has no input device or probe hangs."""
+    result: list[bool] = []
+
+    def probe() -> None:
+        try:
+            import sounddevice
+
+            sounddevice.query_devices(kind="input")
+            result.append(True)
+        except Exception:  # noqa: BLE001 - missing portaudio/device
+            result.append(False)
+
+    worker = threading.Thread(target=probe, daemon=True)
+    worker.start()
+    worker.join(1.5)
+    return bool(result and result[0])
+
+
+def cmd_listen(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    if not args.mic:
+        console.print(
+            "[yellow]voice:[/yellow] microphone capture is opt-in; add --mic "
+            "to open the default input device"
+        )
+        return 1
+    if not _microphone_available():
+        console.print(
+            "[red]voice error:[/red] no microphone/input device is available; "
+            "use `kivi say` for TTS or test the pipeline with fakes"
+        )
+        return 1
+    models = _registry(paths)
+    try:
+        spec = models.require(args.model) if args.model else models.default_for("router")
+    except RegistryError as exc:
+        console.print(f"[red]model error:[/red] {exc}")
+        return 2
+    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
+    task_id = f"voice-{uuid.uuid4().hex[:12]}"
+    with _state(paths) as (db, bus):
+        try:
+            extra = _zones_extra(paths)
+        except ZoneManifestError as exc:
+            console.print(f"[red]protected zones error:[/red] {exc}")
+            return 1
+        zones = ProtectedZones(paths.root, extra_rules=extra)
+        permissions = PermissionEngine(
+            db,
+            autonomy=config.autonomy,
+            workspace=str(paths.root),
+            events=bus,
+        )
+        executor = ToolExecutor(
+            registry,
+            db,
+            permissions,
+            zones,
+            workspace=paths.root,
+            events=bus,
+            killswitch=_kill_switch(paths, db, bus),
+        )
+        store = _memory(paths, db)
+        builder = ContextBuilder(store)
+        pipeline = _speech_pipeline(config) if args.speak else None
+
+        with OllamaBackend(timeout=args.timeout) as backend:
+            gateway = ModelGateway(
+                models,
+                backend,
+                vram_total_mb=config.model_gateway.vram_total_mb,
+                safety_margin_mb=config.model_gateway.safety_margin_mb,
+                allow_cpu_fallback=config.model_gateway.cpu_fallback,
+                events=bus,
+            )
+
+            def llm(messages: list[dict[str, str]]) -> str:
+                options: dict[str, int] = {"num_predict": args.num_predict}
+                if spec.context > 0:
+                    options["num_ctx"] = spec.context
+                return gateway.chat(
+                    spec.id,
+                    messages,
+                    keep_alive=args.keep_alive,
+                    options=options,
+                )
+
+            brain = KiviBrain(llm, registry, executor, permissions)
+
+            def answer(text: str) -> str:
+                context = builder.build(text, task_id=task_id)
+                result = brain.ask(text, context=context.text, task_id=task_id)
+                return result.answer
+
+            def speak(text: str) -> None:
+                if pipeline is not None:
+                    _speak(text, pipeline, cache=paths.cache / "tts")
+
+            session = VoiceSession(
+                SoundDeviceSource(),
+                VadSegmenter(EnergyVad()),
+                WhisperTranscriber(args.whisper_model),
+                answer=answer,
+                speak=speak,
+                wake=TextWakeWordDetector().detect,
+                max_turns=args.turns,
+            )
+            turns = 0
+            try:
+                while turns < args.turns:
+                    turn = session.run_once(push_to_talk=args.push_to_talk)
+                    if not turn.addressed and not turn.text:
+                        continue
+                    turns += 1
+                    console.print(f"[dim]Вы:[/dim] {_plain(turn.text)}")
+                    console.print(f"[cyan]Kivi:[/cyan] {_plain(turn.answer)}")
+                    console.print(f"[dim]{turn.metrics.as_dict()}[/dim]")
+                    if turn.stopped:
+                        break
+            except (AudioUnavailable, SttUnavailable, WakeWordUnavailable) as exc:
+                console.print(f"[red]voice error:[/red] {_plain(str(exc))}")
+                return 1
     return 0
 
 
@@ -2177,6 +2315,18 @@ def build_parser() -> argparse.ArgumentParser:
     telegram_send.add_argument("text")
     telegram_send.add_argument("--approve", action="store_true")
     telegram_send.set_defaults(func=cmd_telegram)
+
+    listen = sub.add_parser("listen", help="voice input with VAD, STT and wake word")
+    listen.add_argument("-m", "--model", default=None)
+    listen.add_argument("--whisper-model", default="small")
+    listen.add_argument("--push-to-talk", action="store_true")
+    listen.add_argument("--mic", action="store_true", help="open the default microphone")
+    listen.add_argument("--turns", type=int, default=1)
+    listen.add_argument("--speak", action="store_true")
+    listen.add_argument("--keep-alive", default="5m")
+    listen.add_argument("--timeout", type=float, default=180.0)
+    listen.add_argument("--num-predict", type=int, default=512)
+    listen.set_defaults(func=cmd_listen)
 
     ask = sub.add_parser("ask", help="ask a local model through the Model Gateway")
     ask.add_argument("prompt", help="prompt text")

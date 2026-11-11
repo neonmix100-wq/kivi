@@ -55,6 +55,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe browse https://example.com
 .venv\Scripts\kivi.exe mail status
 .venv\Scripts\kivi.exe telegram status
+.venv\Scripts\kivi.exe listen --mic --push-to-talk
 .venv\Scripts\kivi.exe tools run window.list --args '{"limit":10}'
 .venv\Scripts\kivi.exe tools run system.volume.get
 .venv\Scripts\kivi.exe tools run code.run --args '{"code":"print(2+2)"}' --approve
@@ -94,8 +95,9 @@ Model Gateway (этап 2), ядро и CLI уже работают.
   approvals, content-addressed артефакты и Context Builder с бюджетом.
 - `src/kivi/brain/` — planner DAG, validator, executor с approvals/replan,
   verifier, fastpath, `KiviBrain` и `Coder` (тест-цикл).
-- `src/kivi/senses/` — Silero/Piper TTS и WAV; `src/kivi/interfaces/` — CLI,
-  локальный API и 2D-аватар.
+- `src/kivi/senses/` — Silero/Piper TTS, audio/VAD/faster-whisper STT,
+  wake-word и voice pipeline; `src/kivi/interfaces/` — CLI, локальный API,
+  2D-аватар и 3D-VRM слой.
 - `tests/unit/` — быстрые тесты без Ollama и сети.
 
 ## Инварианты

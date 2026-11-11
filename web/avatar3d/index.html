@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Kivi — 3D avatar</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --kivi-teal: #48e0cf;
+        --kivi-panel: rgba(8, 20, 24, 0.74);
+        --kivi-border: rgba(72, 224, 207, 0.28);
+        --kivi-text: #eafcf8;
+        --kivi-muted: #9fc2bd;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: transparent;
+      }
+
+      body {
+        font: 12px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif;
+        color: var(--kivi-text);
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      #stage {
+        position: fixed;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        outline: none;
+      }
+
+      .hud {
+        position: fixed;
+        left: 14px;
+        bottom: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        padding: 6px 8px;
+        border: 1px solid var(--kivi-border);
+        border-radius: 10px;
+        background: var(--kivi-panel);
+        backdrop-filter: blur(8px);
+      }
+
+      .pill {
+        padding: 2px 7px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--kivi-muted);
+        font-size: 11px;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+
+      #state-pill {
+        border-color: var(--kivi-border);
+        color: var(--kivi-teal);
+        text-transform: lowercase;
+      }
+
+      #viseme-pill {
+        min-width: 42px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+
+      #source-pill {
+        color: #ffe6a8;
+      }
+
+      #message {
+        position: fixed;
+        left: 14px;
+        bottom: 60px;
+        max-width: min(540px, calc(100vw - 28px));
+        margin: 0;
+        padding: 5px 8px;
+        border-radius: 8px;
+        background: rgba(8, 20, 24, 0.6);
+        color: var(--kivi-muted);
+        font-size: 11px;
+        pointer-events: none;
+      }
+
+      #always-on-top-hint {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        max-width: min(360px, calc(100vw - 28px));
+        margin: 0;
+        padding: 5px 8px;
+        border-radius: 8px;
+        background: rgba(8, 20, 24, 0.6);
+        color: rgba(159, 194, 189, 0.85);
+        font-size: 10px;
+        text-align: right;
+      }
+
+      #boot-error {
+        position: fixed;
+        left: 14px;
+        right: 14px;
+        bottom: 14px;
+        z-index: 10;
+        padding: 10px 12px;
+        border: 1px solid rgba(255, 128, 144, 0.5);
+        border-radius: 10px;
+        background: rgba(74, 15, 28, 0.94);
+        color: #ffe3e8;
+        font-size: 12px;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      @media (max-width: 640px) {
+        #always-on-top-hint {
+          display: none;
+        }
+
+        #message {
+          bottom: 58px;
+        }
+      }
+    </style>
+
+    <!--
+      No build step: the browser resolves bare module specifiers through the
+      import map below. It requires network access to unpkg.com. To work fully
+      offline, install the same versions into web/avatar3d/node_modules and
+      replace the three URLs with local paths (see README.md).
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/",
+          "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@3.5.5/lib/three-vrm.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="stage" aria-label="Kivi, трёхмерный аватар"></canvas>
+
+    <div class="hud" aria-live="polite">
+      <span id="state-pill" class="pill">idle</span>
+      <span id="viseme-pill" class="pill">CLOSED</span>
+      <span id="source-pill" class="pill">starting…</span>
+    </div>
+
+    <p id="message">Загружаю three.js с unpkg.com…</p>
+    <p id="always-on-top-hint">
+      Always-on-top: используйте Picture-in-Picture браузера или менеджер окон.
+      Веб-страница не может закрепить себя поверх других окон.
+    </p>
+    <div id="boot-error" role="alert" hidden></div>
+
+    <script>
+      // Boot hint only. Avatar state is never evaluated as JavaScript.
+      window.__kiviAvatarReady = false;
+      window.setTimeout(function () {
+        if (window.__kiviAvatarReady) return;
+        var message = document.getElementById("message");
+        if (message) {
+          message.textContent =
+            "three.js всё ещё загружается. Нужен доступ к unpkg.com или локальные " +
+            "npm-зависимости (см. README.md).";
+        }
+      }, 8000);
+    </script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -56,7 +56,8 @@ generated: true
 | `src.kivi.interfaces.__init__` | 21 | User-facing interfaces: CLI, API, voice, tray, avatar. |
 | `src.kivi.interfaces.api` | 320 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
-| `src.kivi.interfaces.cli` | 2462 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.avatar3d` | 637 | 3D avatar (VRM) state, viseme lip-sync and a loopback web renderer. |
+| `src.kivi.interfaces.cli` | 2612 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -118,7 +119,9 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.senses.__init__` | 21 | Senses: voice, hearing, vision and text input. |
+| `src.kivi.senses.audio` | 1095 | Local audio input: capture, voice activity detection, STT and wake words. |
 | `src.kivi.senses.tts` | 485 | Local text-to-speech engines and the sentence streaming pipeline. |
+| `src.kivi.senses.voice` | 727 | Voice session orchestration: wake gate, barge-in, confirmations and metrics. |
 
 ## tools
 
@@ -147,7 +150,7 @@ generated: true
 
 ## Тесты
 
-Всего файлов: **55**.
+Всего файлов: **58**.
 
 - `tests/scenarios/test_m1_scenarios.py`
 - `tests/scenarios/test_m3_browser.py`
@@ -157,7 +160,9 @@ generated: true
 - `tests/security/test_injection.py`
 - `tests/unit/test_admin_cli.py`
 - `tests/unit/test_api.py`
+- `tests/unit/test_audio.py`
 - `tests/unit/test_avatar2d.py`
+- `tests/unit/test_avatar3d.py`
 - `tests/unit/test_bench_gateway.py`
 - `tests/unit/test_brain.py`
 - `tests/unit/test_browser.py`
@@ -199,6 +204,7 @@ generated: true
 - `tests/unit/test_tts.py`
 - `tests/unit/test_ui.py`
 - `tests/unit/test_vector_index.py`
+- `tests/unit/test_voice.py`
 - `tests/unit/test_vram.py`
 - `tests/unit/test_watchdog.py`
 - `tests/unit/test_windows.py`

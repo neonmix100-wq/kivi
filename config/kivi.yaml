@@ -41,7 +41,7 @@ voice:
 
 avatar:
   mode: 2d                   # none | 2d | vrm
-  vrm: assets/kivi.vrm
+  vrm: assets/avatar/kivi.vrm
   lip_sync: amplitude        # amplitude | viseme
   always_on_top: true
   display: desktop           # desktop | window | second_monitor

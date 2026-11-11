@@ -94,7 +94,7 @@ class AvatarSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     mode: Literal["none", "2d", "vrm"] = "2d"
-    vrm: Path = Path("assets/kivi.vrm")
+    vrm: Path = Path("assets/avatar/kivi.vrm")
     lip_sync: Literal["amplitude", "viseme"] = "amplitude"
     always_on_top: bool = True
     display: Literal["desktop", "window", "second_monitor"] = "desktop"

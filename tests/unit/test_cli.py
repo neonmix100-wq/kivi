@@ -236,6 +236,40 @@ def test_coder_command(tmp_path: Path, monkeypatch) -> None:
     assert main(["coder", "создай проект"]) == 0
 
 
+def test_listen_command_uses_voice_session(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+    monkeypatch.setattr(cli_module, "_microphone_available", lambda: True)
+
+    class FakeSession:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def run_once(self, push_to_talk=False):
+            return SimpleNamespace(
+                addressed=True,
+                text="привет",
+                answer="ответ",
+                stopped=False,
+                metrics=SimpleNamespace(as_dict=lambda: {"total_ms": 1.0}),
+            )
+
+    for name in (
+        "SoundDeviceSource",
+        "VadSegmenter",
+        "EnergyVad",
+        "WhisperTranscriber",
+    ):
+        monkeypatch.setattr(cli_module, name, lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        cli_module,
+        "TextWakeWordDetector",
+        lambda *args, **kwargs: SimpleNamespace(detect=lambda text: True),
+    )
+    monkeypatch.setattr(cli_module, "VoiceSession", FakeSession)
+    assert main(["listen", "--mic", "--turns", "1"]) == 0
+
+
 def test_module_entrypoint_delegates(monkeypatch) -> None:
     import kivi.__main__ as entry
 

@@ -1,15 +1,16 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–9 закрыты (v0.17). Работают `kivi doctor`, `kivi models`,
-> `kivi ask`, `kivi chat`, `kivi serve`, `kivi say`, `kivi coder`, `kivi browse`,
-> `kivi mail`, `kivi telegram`, `kivi embed`, `kivi cloud status/ask/scout/handoff`,
-> `kivi tools list/run`, `kivi memory`, `kivi elevated`, `kivi killswitch`,
-> `kivi hotkey`, `kivi zones`, реестр моделей, VRAM-бюджет, lease/eviction,
-> watchdog, SQLite, Event Bus, аудит, Policy Engine, Protected Zones,
-> risk-политика R0–R4, trust labels, санитайзер, kill switch, elevated broker,
-> память с FTS5/hybrid/LanceDB, M1 planner/TTS/2D-аватар, M2 Coder, M3 Operator
-> и M4 Communicator (Gmail-черновики, Telegram-бот).
-> Осталось: M5 Voice & Avatar, OCR/PDF-читатели, живой облачный вызов.
+> **Статус:** этапы 0–9 закрыты, M5 ~65% (v0.18). Работают `kivi doctor`,
+> `kivi models`, `kivi ask`, `kivi chat`, `kivi serve`, `kivi say`, `kivi coder`,
+> `kivi browse`, `kivi mail`, `kivi telegram`, `kivi listen`, `kivi embed`,
+> `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`, `kivi memory`,
+> `kivi elevated`, `kivi killswitch`, `kivi hotkey`, `kivi zones`, реестр
+> моделей, VRAM-бюджет, lease/eviction, watchdog, SQLite, Event Bus, аудит,
+> Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
+> санитайзер, kill switch, elevated broker, память с FTS5/hybrid/LanceDB,
+> M1 planner/TTS/2D-аватар, M2 Coder, M3 Operator и M4 Communicator.
+> M5: audio/VAD/STT, barge-in, avatar3d готовы; нужны wake ONNX, VRM-ассет и микрофон.
+> Осталось: M6 Work CRM, OCR/PDF-читатели, живой облачный вызов.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Быстрый старт
@@ -39,6 +40,7 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe mail status
 .venv\Scripts\kivi.exe mail list -n 5
 .venv\Scripts\kivi.exe telegram status
+.venv\Scripts\kivi.exe listen --mic --push-to-talk
 .venv\Scripts\kivi.exe tools run window.list --args '{"limit":10}'
 .venv\Scripts\kivi.exe tools run system.volume.get
 .venv\Scripts\kivi.exe say "Привет, это Киви." --play
@@ -158,6 +160,9 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/BROWSER.md`](docs/BROWSER.md) | Playwright, профиль, SSRF и prompt injection |
 | [`docs/MAIL.md`](docs/MAIL.md) | Gmail OAuth, чтение, поиск, черновики без отправки |
 | [`docs/TELEGRAM.md`](docs/TELEGRAM.md) | Telegram-бот, allowlist, rate limits |
+| [`docs/VOICE-INPUT.md`](docs/VOICE-INPUT.md) | Audio, VAD, faster-whisper, wake-word |
+| [`docs/VOICE-PIPELINE.md`](docs/VOICE-PIPELINE.md) | VoiceSession, barge-in, подтверждения |
+| [`docs/AVATAR3D.md`](docs/AVATAR3D.md) | 3D-VRM слой, виземы, состояния, fallback |
 | [`docs/SHELL.md`](docs/SHELL.md) | Kivi Shell: замена Explorer, паритет, fail-safe |
 | [`docs/PERSONA.md`](docs/PERSONA.md) | Kivi: характер, голос, аватар, одежда, липсинк |
 | [`docs/VOICE-CLONING.md`](docs/VOICE-CLONING.md) | Улучшение Silero, согласие, датасет и пайплайн клонирования голоса |

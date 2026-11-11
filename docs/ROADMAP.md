@@ -58,10 +58,11 @@
 | 7 | ✅ закрыт | — |
 | 8 | ✅ закрыт | — |
 | 9 | ✅ закрыт | — |
-| 10–13 | ⬜ не начаты | см. этапы 10–13 |
+| 10 | 🟡 ~65% | ONNX wake, VRM-ассет, микрофон |
+| 11–13 | ⬜ не начаты | см. этапы 11–13 |
 
-Текущая точка: **этапы 0–9 закрыты → этап 10 (M5: Voice & Avatar)**. Следующий
-крупный срез — wake-word, STT и 3D-VRM.
+Текущая точка: **этапы 0–9 закрыты, M5 ~65% → этап 11 (M6: Work CRM)**.
+M5 заблокирован ассетами (VRM, wake ONNX) и железом; Work CRM можно вести параллельно.
 
 ---
 
@@ -375,19 +376,25 @@ Kivi не может отправить данные из denylist.
 
 ## 13. Этап 10 — M5: Voice & Avatar (10–14 дней)
 
-- [ ] Wake-word «Kivi» (openWakeWord) + push-to-talk.
-- [ ] Silero VAD + streaming STT faster-whisper.
-- [ ] Barge-in: «Kivi, стоп».
-- [ ] Голосовые подтверждения.
+- [x] Wake-word «Kivi» (openWakeWord) + push-to-talk: код готов, **кастомная ONNX-модель отсутствует**.
+- [x] Silero VAD + streaming STT faster-whisper: код и сегментация готовы; модель STT скачивается при первом запуске.
+- [x] Barge-in: «Kivi, стоп».
+- [x] Голосовые подтверждения.
 - [ ] **3D-VRM аватар**: 18 лет, 156 см, бирюзовые волосы/глаза, реалистичный аниме,
-      без аксессуаров; VRoid Studio → Blender → VRM 1.0.
-- [ ] Одежда: **вариант №5 Summer casual** (светло-мятный сарафан, короткий кардиган, сандалии).
-- [ ] three.js + `@pixiv/three-vrm`.
-- [ ] Липсинк: амплитуда → виземы; blendshapes `A/I/U/E/O`.
-- [ ] Анимации: idle, listening, thinking, speaking, happy, error.
-- [ ] Прозрачное окно, always-on-top, пауза рендера.
-- [ ] Рабочий стол + отдельное окно + второй монитор; скрытие по команде.
-- [ ] Метрики: false wake, WER, latency, VRAM аватара.
+      без аксессуаров; VRoid Studio → Blender → VRM 1.0. **Ассета нет** — есть 3D-слой и procedural fallback.
+- [ ] Одежда: **вариант №5 Summer casual** (светло-мятный сарафан, короткий кардиган, сандалии). **Ассета нет**.
+- [x] three.js + `@pixiv/three-vrm`: frontend/import-map готов, нужен `npm install`.
+- [x] Липсинк: амплитуда → виземы; blendshapes `A/I/U/E/O`.
+- [x] Анимации: idle, listening, thinking, speaking, happy, error.
+- [x] Прозрачное окно, always-on-top, пауза рендера: подсказки/логика в web-слое, не нативное окно.
+- [ ] Рабочий стол + отдельное окно + второй монитор; скрытие по команде. **Не реализовано нативно**.
+- [x] Метрики: latency-метрики и оценка VRAM; false wake/WER требуют живого аудио.
+
+**Статус:** 🟡 ~65%. Программный слой (audio/VAD/STT, barge-in, confirmations,
+voice pipeline, avatar3d controller, visemes, states, CLI `listen`) готов и покрыт
+тестами. Блокеры: нет `assets/wake/kivi.onnx`, нет `assets/avatar/kivi.vrm`,
+нет микрофона/аудио в сессии, нет замеров false wake/WER. Детали:
+[VOICE-INPUT](VOICE-INPUT.md), [VOICE-PIPELINE](VOICE-PIPELINE.md), [AVATAR3D](AVATAR3D.md).
 
 **Приёмка:** пробуждение < 1,5 с; простая голосовая команда < 3 с; ложные пробуждения < 1/час;
 «Kivi, стоп» прерывает речь и задачу; аватар синхронизирован с голосом; +100–300 МБ VRAM.
