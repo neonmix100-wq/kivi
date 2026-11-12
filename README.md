@@ -11,7 +11,8 @@
 > аудит, Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
 > санитайзер, kill switch, elevated broker, память с FTS5/hybrid/LanceDB,
 > M1 planner/TTS/2D-аватар, M2 Coder, M3 Operator, M4 Communicator, M6 Work CRM
-> и Qwen3-TTS VoiceDesign/Base голос Kivi.
+> и Qwen3-TTS VoiceDesign/Base голос Kivi; Fish Audio S2.1 Pro Free (Astrea/s)
+> подключается через API при наличии ключа.
 > Новый план: [`docs/PLAN-2026-11-12.md`](docs/PLAN-2026-11-12.md).
 > Осталось: M7 Cloud Media, M5/M6 внешние ресурсы, OCR/PDF.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).

@@ -88,6 +88,7 @@ class VoiceSettings(BaseModel):
     qwen_design_dir: Path = Path("data/models/qwen3-tts/1.7B-VoiceDesign")
     qwen_device: Literal["cuda", "cpu"] = "cuda"
     fish_reference_id: str = "7b220f0a97de48e7a32cf1f09381d0d3"
+    fish_model: str = "s2.1-pro-free"
     fish_base_url: str = "https://api.fish.audio/v1"
     fish_sample_rate: int = 44100
     fish_latency: str = "balanced"

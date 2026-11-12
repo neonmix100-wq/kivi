@@ -38,6 +38,7 @@ class FishTtsError(TtsError):
 @dataclass(frozen=True, slots=True)
 class FishTtsConfig:
     reference_id: str = DEFAULT_REFERENCE_ID
+    model: str = "s2.1-pro-free"
     base_url: str = DEFAULT_BASE_URL
     api_key_env: str = DEFAULT_API_KEY_ENV
     format: str = "wav"
@@ -118,6 +119,7 @@ class FishAudioTts:
                 headers={
                     "Authorization": f"Bearer {self._key()}",
                     "Content-Type": "application/json",
+                    "model": self.config.model,
                 },
                 json=payload,
             )

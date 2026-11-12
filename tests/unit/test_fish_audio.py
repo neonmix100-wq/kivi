@@ -49,6 +49,7 @@ def test_fish_synth_sends_reference_and_writes_wav(tmp_path: Path) -> None:
     assert call["url"].endswith("/v1/tts")
     assert call["json"]["reference_id"] == "7b220f0a97de48e7a32cf1f09381d0d3"
     assert call["headers"]["Authorization"] == "Bearer test"
+    assert call["headers"]["model"] == "s2.1-pro-free"
 
 
 def test_fish_requires_api_key(tmp_path: Path) -> None:

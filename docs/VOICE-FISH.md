@@ -5,7 +5,23 @@ Fish Audio voice ID `7b220f0a97de48e7a32cf1f09381d0d3` — публичный г
 Drama 3.
 
 Это **не локальный файл**. Голос доступен только через Fish Audio API; для
-синтеза нужен ключ и кредиты/план Fish Audio.
+синтеза нужен ключ и доступ к API.
+
+## S2.1 Pro Free — это API-модель
+
+`fish audio s2.1-pro-free` нельзя «установить» как checkpoint: это model string
+облачного Fish API. Kivi отправляет его в заголовке `model`:
+
+```text
+POST https://api.fish.audio/v1/tts
+Authorization: Bearer $FISH_AUDIO_API_KEY
+model: s2.1-pro-free
+```
+
+S2.1 Pro Free: 83 языка, включая русский; ~90 мс TTFA на стандартном API;
+бесплатно по Fair Use до **30.11.2026** (по данным Fish Audio на 13.11.2026),
+без SLA и с возможным retention запросов. Коммерческие ограничения возможны:
+сверяйтесь с условиями Fish Audio.
 
 ## Настройка
 
@@ -14,11 +30,12 @@ $env:FISH_AUDIO_API_KEY = "ваш-ключ"
 ```
 
 Ключ читается только из env, никогда не пишется в `config/` и не коммитится.
-`config/kivi.yaml` хранит только публичный voice ID:
+`config/kivi.yaml` хранит только публичный voice ID и model string:
 
 ```yaml
 voice:
   fish_reference_id: 7b220f0a97de48e7a32cf1f09381d0d3
+  fish_model: s2.1-pro-free
   fish_base_url: https://api.fish.audio/v1
   fish_sample_rate: 44100
   fish_latency: balanced
@@ -52,6 +69,7 @@ voice:
 kivi say --engine fish
   -> POST https://api.fish.audio/v1/tts
      Authorization: Bearer <env>
+     model: s2.1-pro-free
      {"text": ..., "reference_id": ..., "format": "wav", ...}
   -> WAV response
   -> data/cache/tts/fish.wav
@@ -78,7 +96,8 @@ kivi say --engine fish
 
 ## Ограничения
 
-- Нет офлайн-режима: voice ID нельзя скачать как checkpoint.
+- Нет офлайн-режима: voice ID и `s2.1-pro-free` нельзя скачать как checkpoint.
+- Модель/голос доступны, пока Fish Audio держит free tier; проверяйте сроки и лимиты.
 - Неизвестна поддержка русского акцента у конкретного голоса; проверяйте на
   своих фразах.
 - Нет потокового воспроизведения в текущем `TtsEngine`; WAV целиком.

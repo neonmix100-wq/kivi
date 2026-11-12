@@ -660,6 +660,7 @@ def _fish_config(config: KiviConfig, reference_id: str = "") -> FishTtsConfig:
     voice = config.voice
     return FishTtsConfig(
         reference_id=reference_id or voice.fish_reference_id or DEFAULT_REFERENCE_ID,
+        model=voice.fish_model,
         base_url=voice.fish_base_url,
         sample_rate=voice.fish_sample_rate,
         latency=voice.fish_latency,

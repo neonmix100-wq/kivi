@@ -49,14 +49,14 @@ generated: true
 | [[SANDBOX]] | 24.6 KB | 9 | code.run запускает сгенерированный Python в best-effort песочнице. Это первый шаг M2 Coder: код изолирован на уровне Python-аудита и ресурсных лимитов Windows, но это не граница безопасности ОС. Полная изоляция — WSL2 ил… |
 | [[SECURITY]] | 26.4 KB | 11 | Версия: 0.1 (09.11.2026). Связанные документы: docs/DECISIONS.md, docs/ARCHITECTURE.md, docs/MODULES.md, docs/SHELL.md. |
 | [[SHELL]] | 22.6 KB | 15 | Версия: 0.1 (09.11.2026). Связанные документы: docs/ARCHITECTURE.md, docs/SECURITY.md, docs/ROADMAP.md. |
-| [[STATUS]] | 14.3 KB | 9 | Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1395, ruff чистый. kivi doctor и kivi models работают. |
+| [[STATUS]] | 14.3 KB | 9 | Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1401, ruff чистый. kivi doctor и kivi models работают. |
 | [[TELEGRAM]] | 18.3 KB | 10 | Kivi общается с Telegram только через Bot API и только тремя методами: getMe, getUpdates, sendMessage. User-account (MTProto, вход по номеру телефона) не поддерживается и не будет добавлен: это другой протокол, другие ри… |
 | [[TOOLS]] | 15.0 KB | 10 | Инструмент — единственный способ, которым Kivi меняет что-то вне своего процесса. Контракт, права и аудит появились раньше первого инструмента: это инвариант проекта, а не надстройка. |
 | [[TRUST]] | 5.6 KB | 6 | Всё, что приходит извне, попадает в контекст только с меткой происхождения. Метка ставится до модели и сохраняется в аудите. Правило простое: файл, сайт, письмо, вывод инструмента и картинка могут сообщать факты, но не м… |
 | [[VECTOR]] | 2.0 KB | 4 | SQLite остаётся источником истины: эмбеддинги пишутся в таблицу embeddings. LanceDB — опциональный ANN-кэш для больших баз. Без него Kivi работает на SQLite + cosine-переборе. |
 | [[VOICE-AVATAR]] | 12.1 KB | 4 | Этап 6 (M1). Документ описывает два новых модуля: |
 | [[VOICE-CLONING]] | 17.2 KB | 8 | Статус: черновик плана, 09.11.2026. Связанные документы: docs/PERSONA.md, docs/DECISIONS.md, docs/SECURITY.md. |
-| [[VOICE-FISH]] | 3.4 KB | 6 | Fish Audio voice ID 7b220f0a97de48e7a32cf1f09381d0d3 — публичный голос Astrea/s из Voice Library: Female, Young, Character, движок Fish Audio Drama 3. |
+| [[VOICE-FISH]] | 4.3 KB | 7 | Fish Audio voice ID 7b220f0a97de48e7a32cf1f09381d0d3 — публичный голос Astrea/s из Voice Library: Female, Young, Character, движок Fish Audio Drama 3. |
 | [[VOICE-INPUT]] | 30.8 KB | 14 | Статус: библиотека M5 готова, CLI не изменён. Модуль: src/kivi/senses/audio.py. Тесты: tests/unit/testaudio.py (50 тестов). Оркестрация хода и barge-in: VOICE-PIPELINE.md. |
 | [[VOICE-PIPELINE]] | 20.9 KB | 8 | Статус: черновик M5, 11.11.2026. Модуль: src/kivi/senses/voice.py. Тесты: tests/unit/testvoice.py. |
 | [[VOICE-QWEN]] | 7.4 KB | 8 | Модуль kivi.senses.qwentts добавляет Qwen3-TTS 1.7B как полноценный TtsEngine. Он состоит из двух стадий: |
@@ -492,7 +492,7 @@ generated: true
 
 ## [[STATUS|Статус проекта Kivi]]
 
-> Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1395, ruff чистый. kivi doctor и kivi models работают.
+> Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1401, ruff чистый. kivi doctor и kivi models работают.
 
 - [[STATUS#0. Железо на 12.11.2026|0. Железо на 12.11.2026]]
 - [[STATUS#1. Краткий ответ|1. Краткий ответ]]
@@ -580,6 +580,7 @@ generated: true
 
 > Fish Audio voice ID 7b220f0a97de48e7a32cf1f09381d0d3 — публичный голос Astrea/s из Voice Library: Female, Young, Character, движок Fish Audio Drama 3.
 
+- [[VOICE-FISH#S2.1 Pro Free — это API-модель|S2.1 Pro Free — это API-модель]]
 - [[VOICE-FISH#Настройка|Настройка]]
 - [[VOICE-FISH#Синтез|Синтез]]
 - [[VOICE-FISH#Как это работает|Как это работает]]

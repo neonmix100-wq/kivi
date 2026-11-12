@@ -14,7 +14,7 @@ generated: true
 | --- | ---: | --- |
 | `src.kivi.__init__` | 3 | Kivi - local-first AI assistant. |
 | `src.kivi.__main__` | 8 | Allow ``python -m kivi``. |
-| `src.kivi.config` | 229 | Typed configuration for Kivi. |
+| `src.kivi.config` | 230 | Typed configuration for Kivi. |
 | `src.kivi.doctor` | 208 | Environment diagnostics for ``kivi doctor``. |
 | `src.kivi.elevated_helper` | 255 | Elevated helper: execute exactly one allowlisted operation. |
 | `src.kivi.paths` | 68 | Filesystem layout for Kivi runtime data. |
@@ -57,7 +57,7 @@ generated: true
 | `src.kivi.interfaces.api` | 320 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
 | `src.kivi.interfaces.avatar3d` | 637 | 3D avatar (VRM) state, viseme lip-sync and a loopback web renderer. |
-| `src.kivi.interfaces.cli` | 2818 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 2819 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -129,7 +129,7 @@ generated: true
 | --- | ---: | --- |
 | `src.kivi.senses.__init__` | 31 | Senses: voice, hearing, vision and text input. |
 | `src.kivi.senses.audio` | 1095 | Local audio input: capture, voice activity detection, STT and wake words. |
-| `src.kivi.senses.fish_audio` | 170 | Fish Audio cloud TTS engine. |
+| `src.kivi.senses.fish_audio` | 172 | Fish Audio cloud TTS engine. |
 | `src.kivi.senses.qwen_tts` | 289 | Qwen3-TTS voice engine for Kivi. |
 | `src.kivi.senses.tts` | 485 | Local text-to-speech engines and the sentence streaming pipeline. |
 | `src.kivi.senses.voice` | 727 | Voice session orchestration: wake gate, barge-in, confirmations and metrics. |

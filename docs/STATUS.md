@@ -60,9 +60,9 @@
   CLI `kivi mail`/`kivi telegram`; 10+5 сценариев.
 - **Этап 10 (M5 Voice & Avatar) ~70%:** audio/VAD/STT, barge-in, подтверждения,
   voice pipeline, avatar3d/visemes/states, CLI `listen`, **Qwen3-TTS
-  VoiceDesign/Base (3 взрослых тембра)** и **Fish Audio API (Astrea/s)** готовы.
-  Блокеры: `assets/wake/kivi.onnx`, `assets/avatar/kivi.vrm`, микрофон и замеры
-  false wake/WER.
+  VoiceDesign/Base (3 взрослых тембра)** и **Fish Audio S2.1 Pro Free /
+  Astrea/s (API)** готовы. Блокеры: `assets/wake/kivi.onnx`,
+  `assets/avatar/kivi.vrm`, микрофон и замеры false wake/WER.
 - **Этап 11 (M6 Work CRM) ~70%:** headless-домен из `ai-agent`, AltCRM CDP
   adapter, `crm.read/fill/act/task`, CLI и метрики. Блокеры: реальный AltCRM,
   10 заказов, графическая панель и паритет с extension.
