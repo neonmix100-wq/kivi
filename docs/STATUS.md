@@ -1,7 +1,23 @@
 # Статус проекта Kivi
 
-Дата среза: **11.11.2026**. Дорожная карта: [ROADMAP](ROADMAP.md).
-Тесты: **392**, `ruff` чистый. Репозиторий собирается, `kivi doctor` работает.
+Дата среза: **12.11.2026**. Дорожная карта: [ROADMAP](ROADMAP.md).
+Новый план после перепроверки железа: [PLAN-2026-11-12](PLAN-2026-11-12.md).
+Тесты: **1387**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
+
+## 0. Железо на 12.11.2026
+
+| Компонент | Значение |
+|---|---|
+| CPU | Intel Core i3-14100F, 4/8 |
+| RAM | 31,8 ГБ |
+| GPU | **NVIDIA RTX 4060 Ti, 16 380 МБ VRAM** |
+| Свободно VRAM | ~14,5 ГБ в простое |
+| Диски | C: 75,7 ГБ свободно; D: 120,3 ГБ свободно (оба SSD) |
+| ОС / Python / Ollama | Windows 11 26200 / 3.12.10 / 0.40.16 |
+
+Главное изменение: **+8 ГБ VRAM**. 8B Q5, 7B coder @16k, Whisper и 3D-аватар
+теперь помещаются; SDXL можно запускать отдельным этапом. Подробно:
+[BASELINE](BASELINE.md), [PLAN](PLAN-2026-11-12.md).
 
 ## 1. Краткий ответ
 
@@ -14,7 +30,6 @@
 - **Этап 5 закрыт:** память, FTS5, эмбеддинги, hybrid-search, Context Builder,
   импорт, суммаризация, TTL, approvals API и LanceDB-индекс готовы.
   Автоподключение approvals к PermissionEngine — отдельный backlog.
-- **Этап 0** закрыт: baseline §5 заполнен (SDXL/whisper отмечены как n/a).
 - **Этап 6 (M1) закрыт:** planner DAG, fast/deep path, `kivi chat`, `kivi serve`,
   Silero TTS, 2D-аватар и 22 сценарных теста. p50 fastpath — 0.84 с.
 - **Этап 7 (M2 Coder) закрыт:** `code.run` в Python-песочнице, `repo.index`,
@@ -38,7 +53,7 @@
 
 | Этап | Статус | Что готово | Что осталось |
 |---|---|---|---|
-| 0. Baseline | ✅ закрыт | ADR, решения, `OLLAMA_MODELS`, замер пяти моделей; SDXL/whisper n/a | — |
+| 0. Baseline | ✅ закрыт | ADR, решения, `OLLAMA_MODELS`, baseline 5 моделей; **12.11 перепроверен на 16 ГБ** | — |
 | 1. Скелет ядра | ✅ готово | конфиг, SQLite/миграции, Event Bus, JSONL, CLI, `doctor` | — |
 | 2. Model Gateway | ✅ готово | registry, Ollama, NVML, lease/eviction, watchdog, CPU fallback, benchmark 20 переключений | — |
 | 3. Cloud Broker | ✅ готово | провайдеры, квоты, `QuotaExhausted`, handoff, Scout, `cloud ask/scout/handoff` | живой ключ (внешнее) |
@@ -48,7 +63,7 @@
 | 7. M2: Coder | ✅ готово | code.run sandbox, repo.index, code.patch, git, Coder loop, CLI | WSL2/Sandbox — апгрейд |
 | 8. M3: Operator | ✅ готово | окна/приложения, UI, system, browser, 20 сценариев | — |
 | 9. M4: Communicator | ✅ готово | Gmail drafts, Telegram bot, CLI, 15 сценариев | — |
-| 10. M5: Voice & Avatar | 🟡 ~65% | audio/VAD/STT, barge-in, avatar3d, CLI | wake ONNX, VRM, микрофон |
+| 10. M5: Voice & Avatar | 🟡 ~65% | audio/VAD/STT, barge-in, avatar3d, CLI | wake ONNX, VRM, микрофон; 16 ГБ снимают VRAM-блок |
 | 11. M6: Work CRM | 🟡 ~70% | домен, AltCRM CDP, tools, CLI, метрики | реальный CRM, UI-панель |
 | 12. M7: Cloud Media | ⬜ не начат | — | бесплатные image/video-провайдеры |
 | 13. M8: Kivi Shell | ⬜ не начат | — | Explorer-замена, P0/P1, закалка |
@@ -86,15 +101,17 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 
 ## 4. Где мы находимся
 
-Сейчас проект стоит на границе **этапа 5 → этапа 6 (M1)**:
+После перепроверки 12.11.2026:
 
 - этапы 0–9 закрыты;
-- M5 ~65%, M6 ~70%;
-- следующий срез — M7: Cloud Media, затем закрытие M5/M6 внешними ресурсами.
+- M5 ~65% (нет VRM, wake ONNX, микрофона);
+- M6 ~70% (нет реального AltCRM и UI-панели);
+- 16 ГБ VRAM снимают прежнее ограничение: 8B Q5, 7B coder @16k, Whisper
+  и 3D-аватар помещаются;
+- следующий приоритет — **M7 Cloud Media**: SDXL теперь реалистичен локально;
+- параллельно: 14B Q4, затем закрытие M5/M6 внешними ресурсами.
 
-Формальный трекер `kivi_context.py stage` показывает этап 0, потому что
-единственный открытый чекбокс — baseline. Это не отражает реальный прогресс;
-приоритет — закрыть baseline и elevated broker, затем M1.
+Детальный новый график — [PLAN-2026-11-12](PLAN-2026-11-12.md).
 
 ## 5. Что предстоит
 
@@ -177,7 +194,7 @@ M5/M6 — программные слои готовы, внешние ресу�
 |---|---|---|
 | песочница Coder без сети/изоляции | утечка или запись вне workspace | WSL2/Windows Sandbox, монтирование только workspace, лимиты |
 | planner начнёт обходить Policy Engine | безопасность | все tools только через `ToolExecutor`, тесты на обход |
-| VRAM 8 ГБ при 8B + аватар + браузер | M1/Coder демо | квантование, выгрузка, CPU fallback |
+| VRAM 16 ГБ, но deepseek@16k 15,5 ГБ и 14B@16k | OOM/вытеснение | 8192 для deepseek, 7B coder — дефолт |
 | elevated allowlist слишком узкий | admin-задачи | расширять только ревью и тестами |
 | OCR/PDF-библиотеки тянут зависимости | backlog | ставить optional extra, не в ядро |
 

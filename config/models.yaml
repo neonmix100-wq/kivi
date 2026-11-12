@@ -1,15 +1,16 @@
 # Model registry for Kivi (stage 2).
 # Footprints are estimates until benchmarked; the gateway replaces them with
-# measured peak VRAM. Keep only models that actually exist in the backend.
+# measured peak VRAM. Values below are for the RTX 4060 Ti 16 GB (12.11.2026).
+# Keep only models that actually exist in the backend.
 
 models:
   - id: qwen3.5:4b
     backend: ollama
     tier: 0
     role: router
-    vram_mb: 3800
+    vram_mb: 7800
     ram_mb: 1200
-    context: 4096
+    context: 8192
     exclusive: false
     notes: fast path, may stay resident
 
@@ -17,7 +18,7 @@ models:
     backend: ollama
     tier: 1
     role: chat
-    vram_mb: 5800
+    vram_mb: 9500
     ram_mb: 1500
     context: 8192
     exclusive: true
@@ -26,7 +27,7 @@ models:
     backend: ollama
     tier: 1
     role: chat
-    vram_mb: 6500
+    vram_mb: 10200
     ram_mb: 1700
     context: 8192
     exclusive: true
@@ -53,16 +54,16 @@ models:
     backend: ollama
     tier: 2
     role: code
-    vram_mb: 4700
+    vram_mb: 9000
     ram_mb: 1400
-    context: 8192
+    context: 16384
     exclusive: true
 
   - id: deepseek-coder:6.7b
     backend: ollama
     tier: 2
     role: code
-    vram_mb: 4000
+    vram_mb: 7600
     ram_mb: 1300
     context: 8192
     exclusive: true

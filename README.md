@@ -1,17 +1,18 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–9 закрыты, M5 ~65%, M6 ~70% (v0.19). Работают
-> `kivi doctor`, `kivi models`, `kivi ask`, `kivi chat`, `kivi serve`, `kivi say`,
-> `kivi coder`, `kivi browse`, `kivi mail`, `kivi telegram`, `kivi listen`,
-> `kivi crm`, `kivi embed`, `kivi cloud status/ask/scout/handoff`,
-> `kivi tools list/run`, `kivi memory`, `kivi elevated`, `kivi killswitch`,
-> `kivi hotkey`, `kivi zones`, реестр моделей, VRAM-бюджет, lease/eviction,
-> watchdog, SQLite, Event Bus, аудит, Policy Engine, Protected Zones,
-> risk-политика R0–R4, trust labels, санитайзер, kill switch, elevated broker,
-> память с FTS5/hybrid/LanceDB, M1 planner/TTS/2D-аватар, M2 Coder,
-> M3 Operator, M4 Communicator и M6 Work CRM (домен + AltCRM CDP).
-> M5: audio/VAD/STT, barge-in, avatar3d готовы; нужны wake ONNX, VRM и микрофон.
-> Осталось: M7 Cloud Media, OCR/PDF, живой облачный вызов.
+> **Статус:** этапы 0–9 закрыты, M5 ~65%, M6 ~70% (v0.19). Железо
+> перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q5/14B/SDXL/Whisper
+> стали реалистичны. Работают `kivi doctor`, `kivi models`, `kivi ask`,
+> `kivi chat`, `kivi serve`, `kivi say`, `kivi coder`, `kivi browse`,
+> `kivi mail`, `kivi telegram`, `kivi listen`, `kivi crm`, `kivi embed`,
+> `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`, `kivi memory`,
+> `kivi elevated`, `kivi killswitch`, `kivi hotkey`, `kivi zones`, реестр
+> моделей, VRAM-бюджет, lease/eviction, watchdog, SQLite, Event Bus, аудит,
+> Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
+> санитайзер, kill switch, elevated broker, память с FTS5/hybrid/LanceDB,
+> M1 planner/TTS/2D-аватар, M2 Coder, M3 Operator, M4 Communicator и M6 Work CRM.
+> Новый план: [`docs/PLAN-2026-11-12.md`](docs/PLAN-2026-11-12.md).
+> Осталось: M7 Cloud Media, M5/M6 внешние ресурсы, OCR/PDF.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Быстрый старт
@@ -66,26 +67,24 @@ py -3.12 -m venv .venv
 - локальные модели в приоритете; облако — только бесплатные лимиты;
 - в перспективе — псевдо-ОС (Kivi Shell) поверх Windows, позже — Linux.
 
-## 2. Железо (замерено 08.11.2026)
+## 2. Железо (перепроверено 12.11.2026)
 
 | Компонент | Значение | Вывод |
 |---|---|---|
 | CPU | Intel Core i3-14100F, 4 ядра / 8 потоков | Хватит для ядра, TTS, эмбеддингов; CPU-инференс LLM — fallback |
-| RAM | 31,8 ГБ | Достаточно; резерв 10 ГБ под ОС/браузер |
-| GPU | NVIDIA RTX 3060 Ti, **8 ГБ VRAM** | Главное ограничение; планируется RTX 4070 12 ГБ |
-| Диск C | 95,5 ГБ свободно | Не для моделей |
-| Диск D | 126,6 ГБ свободно (на 08.11) | Планируется внутренний M.2 NVMe 1 ТБ |
+| RAM | 31,8 ГБ | Достаточно; свободно ~18,5 ГБ |
+| GPU | **NVIDIA RTX 4060 Ti, 16 380 МБ VRAM** | 8B Q5, 7B coder @16k, Whisper и 3D-аватар помещаются |
+| Диск C | 475,9 ГБ, свободно 75,7 ГБ (SSD) | Не для моделей |
+| Диск D | 465,7 ГБ, свободно 120,3 ГБ (SSD) | Модели и кэш; датасеты — позже |
 | ОС | Windows 11 Pro 26200 | Windows Sandbox есть; WSL2 не установлен |
-| Python | 3.10 (default) и 3.12 через `py` | Брать **3.12** |
-| Ollama | установлена, модели на `D:\ollama_models` | База для LLM уже есть |
+| Python | 3.12.10 в `.venv` | Рабочая версия |
+| Ollama | 0.40.16, модели на `D:\ollama_models` | База для LLM уже есть |
 
-На момент замера **5,8 из 8 ГБ VRAM заняты** (Chrome, Telegram, NVIDIA Broadcast, Ollama).
-Свободно ~1,8 ГБ. Kivi обязана считать бюджет по фактически свободной VRAM.
+В простое занято ~1,6 ГБ VRAM, свободно **~14,5 ГБ**. Kivi обязана считать
+бюджет по фактически свободной VRAM и держать одну тяжёлую модель.
 
-**Планируемый апгрейд:** GPU **RTX 4070 12 ГБ** (выбрана, ещё не куплена) + внутренний SSD M.2 1 ТБ.
-
-**Важно:** ранее рассматривалась MSI RTX 3070, но у неё **8 ГБ VRAM**, а не 12 ГБ.
-Пользователь отказался от неё в пользу RTX 4070 12 ГБ. Рекомендации — в `docs/BASELINE.md`, раздел 8.
+Новый baseline: [BASELINE.md](docs/BASELINE.md) §5. План после перепроверки:
+[PLAN-2026-11-12.md](docs/PLAN-2026-11-12.md).
 
 ## 3. Ключевая идея — «послойное развёртывание»
 
@@ -143,6 +142,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Слои, Model Gateway, Cloud Broker, память, безопасность, структура |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Этапы, milestone'ы, критерии приёмки, первые 14 дней |
 | [`docs/STATUS.md`](docs/STATUS.md) | Текущий статус, сделанное, backlog и критический путь |
+| [`docs/PLAN-2026-11-12.md`](docs/PLAN-2026-11-12.md) | Новый план после перепроверки 16 ГБ |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Принятые решения, A4-Bounded, admin, облако, приоритеты |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Модель угроз, prompt injection, egress, тесты |
 | [`docs/TOOLS.md`](docs/TOOLS.md) | Контракт Tool, Permission Engine, Protected Zones, риски R0–R4 |
@@ -197,21 +197,17 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 
 ## 9. Следующий шаг
 
-1. ~~Выбрать голос и одежду.~~ Выбрано: Silero `baya`, одежда №5, Shell A, RTX 4070 12 ГБ,
-   Gmail-черновики.
-2. Сравнить `v5_ru` 48 кГц и очищенный вариант с `v4`; зафиксировать настройки TTS.
-3. Подготовить концепт-арт Kivi (turnaround + портрет), затем VRM в VRoid/Blender.
-4. ~~Зафиксировать baseline и собрать скелет.~~ Скелет собран (этап 1), baseline — частично.
-5. ~~Реализовать Model Gateway и первый срез.~~ Сделано: `config/models.yaml`, registry,
-   `kivi ask`, nvidia-smi-бюджет, lease/eviction, события `model.*`.
-6. ~~Watchdog и метрики.~~ Сделано: `GatewayWatchdog`, сверка с `/api/ps`,
-   `gateway.status()`, benchmark-стенд `scripts/bench_gateway.py`.
-7. ~~Cloud Broker (этап 3): реестр, квоты, Scout, handoff.~~ Сделано: `config/cloud.yaml`,
-   `config/cloud-candidates.yaml`, `QuotaExhausted` + SQLite-чекпойнты,
-   `kivi cloud ask/scout/handoff`.
-8. Этап 4: контракт `Tool`, Permission Engine, Protected Zones, Trust labels,
-   Capability Broker, denylist/redaction перед облаком.
-9. Живой облачный вызов с ключом из env и проверка провайдера.
+1. Установить и замерить **14B Q4**, **SDXL** и **faster-whisper large-v3-turbo**
+   на 16 ГБ; обновить registry по фактическим цифрам.
+2. **M7 Cloud Media:** локальный SDXL + бесплатные image/video-провайдеры,
+   10 сценариев.
+3. Закрыть M5 внешними ресурсами: `assets/wake/kivi.onnx`, `assets/avatar/kivi.vrm`,
+   микрофон, замеры false wake/WER.
+4. Закрыть M6 при доступе к реальному AltCRM: 10 заказов, графическая панель,
+   паритет с extension.
+5. Дальше — M8 Kivi Shell и backlog (OCR/PDF, approvals → PermissionEngine).
+
+Полный график — [PLAN-2026-11-12.md](docs/PLAN-2026-11-12.md).
 
 ## 10. Разработка и база знаний
 
