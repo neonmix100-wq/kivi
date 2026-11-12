@@ -86,6 +86,10 @@ py -3.12 -m venv .venv
 Новый baseline: [BASELINE.md](docs/BASELINE.md) §5. План после перепроверки:
 [PLAN-2026-11-12.md](docs/PLAN-2026-11-12.md).
 
+**Установлено 12.11.2026:** `Qwen3-14B Q4` (качественный чат), `Qwen2.5-Coder-14B Q4`
+(код), `Qwen3-VL-8B Q4` (vision), `faster-whisper-large-v3-turbo` (ASR),
+SDXL base 1.0 (image, нужен ComfyUI/SD WebUI).
+
 ## 3. Ключевая идея — «послойное развёртывание»
 
 1. **Сервисы** — ядро и wake-word всегда живы; тяжёлые воркеры по требованию.

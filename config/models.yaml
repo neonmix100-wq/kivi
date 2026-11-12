@@ -32,6 +32,16 @@ models:
     context: 8192
     exclusive: true
 
+  - id: hf.co/Qwen/Qwen3-14B-GGUF:Q4_K_M
+    backend: ollama
+    tier: 1
+    role: chat
+    vram_mb: 14300
+    ram_mb: 1800
+    context: 8192
+    exclusive: true
+    notes: quality chat; measured 14.6 tok/s @8192, 14 295 MB
+
   - id: llama3:8b
     backend: ollama
     tier: 1
@@ -59,23 +69,35 @@ models:
     context: 16384
     exclusive: true
 
+  - id: hf.co/mradermacher/Qwen2.5-Coder-14B-Instruct-GGUF:Q4_K_M
+    backend: ollama
+    tier: 2
+    role: code
+    vram_mb: 15400
+    ram_mb: 1800
+    context: 16384
+    exclusive: true
+    notes: code quality; measured 21.4 tok/s @16k, 15 326 MB
+
   - id: deepseek-coder:6.7b
     backend: ollama
     tier: 2
     role: code
-    vram_mb: 7600
+    vram_mb: 15400
     ram_mb: 1300
-    context: 8192
+    context: 16384
     exclusive: true
+    notes: 15 541 MB @16k; use 8192 unless alone
 
-  - id: qwen2.5vl:3b
+  - id: hf.co/Qwen/Qwen3-VL-8B-Instruct-GGUF:Q4_K_M
     backend: ollama
     tier: 2
     role: vision
-    vram_mb: 3600
-    ram_mb: 1200
+    vram_mb: 7500
+    ram_mb: 1600
     context: 4096
     exclusive: true
+    notes: current vision model; 5.8 GB + projector
 
   - id: faster-whisper-large-v3-turbo-int8
     backend: faster-whisper

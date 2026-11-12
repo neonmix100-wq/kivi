@@ -46,10 +46,17 @@ mail = [
 ]
 voice = [
     "faster-whisper>=1.2",
+    "av>=14,<16",
     "silero-vad>=6.2",
     "sounddevice>=0.5",
     "openwakeword>=0.6",
     "numpy>=1.26",
+]
+image = [
+    "diffusers>=0.43",
+    "transformers>=5.22",
+    "accelerate>=1.15",
+    "safetensors>=0.8",
 ]
 
 [project.scripts]
