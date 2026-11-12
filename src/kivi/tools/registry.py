@@ -77,6 +77,7 @@ def build_registry(
         GitStatusTool,
     )
     from kivi.tools.mail import build_mail_tools
+    from kivi.tools.media import MediaImageTool
     from kivi.tools.net import HttpGetTool
     from kivi.tools.patch import CodePatchTool
     from kivi.tools.proc import ProcKillTool, ProcListTool, ProcStartTool
@@ -152,6 +153,7 @@ def build_registry(
         *build_mail_tools(),
         *build_telegram_tools(),
         *build_crm_tools(),
+        MediaImageTool(),
     ):
         registry.register(tool)
     return registry

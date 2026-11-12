@@ -65,6 +65,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe voice design --out assets\voice-samples\kivi_voice_warm.wav
 .venv\Scripts\kivi.exe say --engine qwen "Привет! Я Киви."
 .venv\Scripts\kivi.exe say --engine fish "Привет! Я Киви."
+.venv\Scripts\kivi.exe voice add --file my_voice.wav --name my-voice --consent --transcript "Привет, это Киви."
+.venv\Scripts\kivi.exe media image "kivi portrait" --width 1024
 .venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\kivi.exe zones status
 ```
@@ -89,7 +91,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 - `src/kivi/tools/` — контракт `Tool`, реестр, `ToolExecutor` (Capability Broker),
   `fs.*`, `shell.exec`, `http.get`, `proc.*`, `clipboard.*`, `screen.capture`,
   `code.run` (audit-песочница), `repo.index`, `code.patch`, `git.*`,
-  `window.*`, `app.*`, `ui.*`, `system.*`, `browser.*`, `mail.*`, `telegram.*`.
+  `window.*`, `app.*`, `ui.*`, `system.*`, `browser.*`, `mail.*`, `telegram.*`, `media.*`.
   Каждый вызов идёт через executor и пишется в аудит.
 - `src/kivi/integrations/` — Gmail OAuth и Telegram Bot API; секреты только
   в env/приватных файлах, без логов.
@@ -101,9 +103,9 @@ Model Gateway (этап 2), ядро и CLI уже работают.
   approvals, content-addressed артефакты и Context Builder с бюджетом.
 - `src/kivi/brain/` — planner DAG, validator, executor с approvals/replan,
   verifier, fastpath, `KiviBrain` и `Coder` (тест-цикл).
-- `src/kivi/senses/` — Silero/Piper/Qwen3-TTS, audio/VAD/faster-whisper STT,
-  wake-word и voice pipeline; `src/kivi/interfaces/` — CLI, локальный API,
-  2D-аватар и 3D-VRM слой.
+- `src/kivi/senses/` — Silero/Piper/Qwen3-TTS/Fish Audio, библиотека голосов,
+  audio/VAD/faster-whisper STT, wake-word и voice pipeline; `src/kivi/interfaces/` — CLI,
+  локальный API, 2D-аватар и 3D-VRM слой.
 - `tests/unit/` — быстрые тесты без Ollama и сети.
 
 ## Инварианты

@@ -57,7 +57,7 @@ generated: true
 | `src.kivi.interfaces.api` | 320 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
 | `src.kivi.interfaces.avatar3d` | 637 | 3D avatar (VRM) state, viseme lip-sync and a loopback web renderer. |
-| `src.kivi.interfaces.cli` | 2819 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 2955 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -127,12 +127,13 @@ generated: true
 
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
-| `src.kivi.senses.__init__` | 31 | Senses: voice, hearing, vision and text input. |
+| `src.kivi.senses.__init__` | 35 | Senses: voice, hearing, vision and text input. |
 | `src.kivi.senses.audio` | 1095 | Local audio input: capture, voice activity detection, STT and wake words. |
 | `src.kivi.senses.fish_audio` | 205 | Fish Audio cloud TTS engine. |
 | `src.kivi.senses.qwen_tts` | 289 | Qwen3-TTS voice engine for Kivi. |
 | `src.kivi.senses.tts` | 485 | Local text-to-speech engines and the sentence streaming pipeline. |
 | `src.kivi.senses.voice` | 727 | Voice session orchestration: wake gate, barge-in, confirmations and metrics. |
+| `src.kivi.senses.voice_library` | 1129 | Local, consent-gated voice reference library. |
 
 ## tools
 
@@ -147,10 +148,11 @@ generated: true
 | `src.kivi.tools.fs` | 221 | Filesystem tools: read, list and write inside the workspace. |
 | `src.kivi.tools.git` | 348 | Fixed git operations: status, diff, branch and commit. |
 | `src.kivi.tools.mail` | 472 | Gmail tools: list, search, read, save an attachment and create a draft. |
+| `src.kivi.tools.media` | 362 | Free image generation through Pollinations (M7 Cloud Media, first slice). |
 | `src.kivi.tools.net` | 209 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
 | `src.kivi.tools.patch` | 209 | Exact-text patch tool: replace a counted occurrence inside one UTF-8 file. |
 | `src.kivi.tools.proc` | 278 | Process list tool: names and memory only, never command lines. |
-| `src.kivi.tools.registry` | 160 | Tool registry: one place that knows which tools exist. |
+| `src.kivi.tools.registry` | 162 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.repo` | 524 | Repository index: a read-only map of the text files inside the workspace. |
 | `src.kivi.tools.screen` | 306 | Screen capture tool: save the desktop as a BMP inside the workspace. |
 | `src.kivi.tools.shell` | 132 | Shell tool: one approved process, no shell expansion, minimal environment. |
@@ -161,7 +163,7 @@ generated: true
 
 ## Тесты
 
-Всего файлов: **63**.
+Всего файлов: **65**.
 
 - `tests/scenarios/test_m1_scenarios.py`
 - `tests/scenarios/test_m3_browser.py`
@@ -201,6 +203,7 @@ generated: true
 - `tests/unit/test_knowledge.py`
 - `tests/unit/test_lifecycle.py`
 - `tests/unit/test_mail_tools.py`
+- `tests/unit/test_media.py`
 - `tests/unit/test_memory.py`
 - `tests/unit/test_ollama.py`
 - `tests/unit/test_patch_tool.py`
@@ -220,6 +223,7 @@ generated: true
 - `tests/unit/test_ui.py`
 - `tests/unit/test_vector_index.py`
 - `tests/unit/test_voice.py`
+- `tests/unit/test_voice_library.py`
 - `tests/unit/test_vram.py`
 - `tests/unit/test_watchdog.py`
 - `tests/unit/test_windows.py`

@@ -121,6 +121,7 @@ elevated broker; до тех пор R2 — обязательный барьер
 | `crm.fill` | R2 | `crm.write` | комментарий/чек-лист; **не сохраняет** |
 | `crm.act` | R2 | `crm.write` | строки акта; **не сохраняет** |
 | `crm.task` | R2 | `crm.write` | форма задачи; создание задачи вручную |
+| `media.image` | R1 | `media.generate` | бесплатный Pollinations (flux/turbo), prompt 1..500, PNG/JPEG/WebP в `data/media` |
 
 `http.get` дополнительно проверяет `security.blocked_hosts` из
 `config/kivi.yaml` (точное имя или glob, например `*.tracker.example`).

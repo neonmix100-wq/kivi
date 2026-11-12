@@ -20,7 +20,7 @@ model_gateway:
     scout_on_quota_exhausted: true
 
 voice:
-  provider: silero
+  provider: fish
   model: v5_ru
   speaker: baya
   sample_rate: 48000

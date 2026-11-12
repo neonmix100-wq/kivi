@@ -13,7 +13,7 @@ CONFIG_PATH = project_root() / "config" / "kivi.yaml"
 def test_repository_config_is_valid() -> None:
     config = load_config(CONFIG_PATH)
     assert config.name == "Kivi"
-    assert config.voice.provider == "silero"
+    assert config.voice.provider == "fish"
     assert config.voice.speaker == "baya"
     assert config.voice.sample_rate == 48000
     assert config.mail.drafts_only is True

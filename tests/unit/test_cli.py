@@ -362,6 +362,26 @@ def test_voice_design_command(tmp_path: Path, monkeypatch) -> None:
     assert main(["voice", "design", "--text", "привет", "--out", str(out)]) == 0
 
 
+def test_media_image_command(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+    seen: list[str] = []
+
+    def fake_tool(paths_arg, config, name, payload, caps, *, approved=False):
+        seen.append(name)
+        return SimpleNamespace(ok=True, output="image: data/media/x.png")
+
+    monkeypatch.setattr(cli_module, "_run_direct_tool", fake_tool)
+    assert main(["media", "image", "kivi portrait", "--width", "512"]) == 0
+    assert seen == ["media.image"]
+
+
+def test_voice_add_requires_consent(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+    assert main(["voice", "add", "--file", "x.wav", "--name", "test"]) == 2
+
+
 def test_module_entrypoint_delegates(monkeypatch) -> None:
     import kivi.__main__ as entry
 

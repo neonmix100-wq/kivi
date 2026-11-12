@@ -15,6 +15,7 @@ from kivi.senses.tts import (
     TtsError,
     TtsResult,
 )
+from kivi.senses.voice_library import VoiceLibrary, VoiceLibraryError, VoiceProfile
 
 __all__ = [
     "NullTts",
@@ -28,4 +29,7 @@ __all__ = [
     "TtsEngine",
     "TtsError",
     "TtsResult",
+    "VoiceLibrary",
+    "VoiceLibraryError",
+    "VoiceProfile",
 ]

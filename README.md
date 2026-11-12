@@ -11,8 +11,8 @@
 > аудит, Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
 > санитайзер, kill switch, elevated broker, память с FTS5/hybrid/LanceDB,
 > M1 planner/TTS/2D-аватар, M2 Coder, M3 Operator, M4 Communicator, M6 Work CRM
-> и Qwen3-TTS VoiceDesign/Base голос Kivi; Fish Audio S2.1 Pro Free (Astrea/s)
-> подключается через API при наличии ключа.
+> и Qwen3-TTS VoiceDesign/Base голос Kivi; **Fish Audio S2.1 Pro Free + Astrea/s
+> сейчас основной голос**. Есть импорт голосов из файлов/URL и `media.image`.
 > Новый план: [`docs/PLAN-2026-11-12.md`](docs/PLAN-2026-11-12.md).
 > Осталось: M7 Cloud Media, M5/M6 внешние ресурсы, OCR/PDF.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
@@ -53,6 +53,9 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe voice design --out assets\voice-samples\kivi_voice_warm.wav
 .venv\Scripts\kivi.exe say --engine qwen "Привет! Я Киви." --play
 .venv\Scripts\kivi.exe say --engine fish "Привет! Я Киви." --play
+.venv\Scripts\kivi.exe voice add --file my_voice.wav --name my-voice --consent --transcript "Привет, это Киви."
+.venv\Scripts\kivi.exe voice list
+.venv\Scripts\kivi.exe media image "kivi portrait, anime style" --width 1024
 .venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
@@ -176,6 +179,9 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/VOICE-PIPELINE.md`](docs/VOICE-PIPELINE.md) | VoiceSession, barge-in, подтверждения |
 | [`docs/VOICE-QWEN.md`](docs/VOICE-QWEN.md) | Qwen3-TTS VoiceDesign/Base, CUDA и замеры |
 | [`docs/VOICE-FISH.md`](docs/VOICE-FISH.md) | Fish Audio voice ID, API-ключ и права |
+| [`docs/VOICE-LIBRARY.md`](docs/VOICE-LIBRARY.md) | Импорт голосов из файлов/URL, consent |
+| [`docs/MEDIA.md`](docs/MEDIA.md) | M7: бесплатная генерация изображений |
+| [`docs/SKILLS-PLUGINS.md`](docs/SKILLS-PLUGINS.md) | Аудит скиллов и плагинов |
 | [`docs/AVATAR3D.md`](docs/AVATAR3D.md) | 3D-VRM слой, виземы, состояния, fallback |
 | [`docs/CRM-DOMAIN.md`](docs/CRM-DOMAIN.md) | Факты, цитаты, черновики, история, метрики |
 | [`docs/CRM-ADAPTER.md`](docs/CRM-ADAPTER.md) | AltCRM CDP: чтение и заполнение без сохранения |

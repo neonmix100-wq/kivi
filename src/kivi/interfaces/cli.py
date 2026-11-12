@@ -131,6 +131,7 @@ from kivi.senses.qwen_tts import (
     QwenVoiceDesigner,
 )
 from kivi.senses.voice import VoiceSession
+from kivi.senses.voice_library import VoiceLibrary, VoiceLibraryError
 from kivi.tools import ToolExecutor, ToolResult, build_registry
 
 console = Console()
@@ -646,11 +647,21 @@ def _qwen_config(
     pitch: float = 0.0,
 ) -> QwenTtsConfig:
     voice = config.voice
+    reference_path = Path(reference) if reference else voice.qwen_reference
+    transcript = reference_text or voice.qwen_reference_text
+    if not reference:
+        try:
+            active = VoiceLibrary(get_paths().data / "voices").active()
+        except VoiceLibraryError:
+            active = None
+        if active is not None:
+            reference_path = active.wav_path(get_paths().data / "voices")
+            transcript = transcript or active.transcript
     return QwenTtsConfig(
         model_dir=voice.qwen_model_dir,
         design_dir=voice.qwen_design_dir,
-        reference_wav=Path(reference) if reference else voice.qwen_reference,
-        reference_text=reference_text or voice.qwen_reference_text,
+        reference_wav=reference_path,
+        reference_text=transcript,
         device=voice.qwen_device,
         pitch_semitones=pitch,
     )
@@ -1217,6 +1228,104 @@ def cmd_crm(args: argparse.Namespace) -> int:
         return 1
     if not result.ok:
         console.print(f"[red]crm error:[/red] {_plain(result.error)}")
+        return 1
+    console.print(_plain(result.output))
+    return 0
+
+
+def cmd_voice_library(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    library = VoiceLibrary(paths.data / "voices")
+    action = args.voice_action
+    try:
+        if action == "list":
+            profiles = library.list()
+            if not profiles:
+                console.print("voice library is empty")
+                return 0
+            table = Table("ID", "Name", "Engine", "Duration", "Transcript", "Active")
+            active = library.active()
+            for profile in profiles:
+                table.add_row(
+                    profile.id,
+                    profile.name,
+                    profile.engine,
+                    f"{profile.duration_s:.2f}s",
+                    "yes" if profile.has_transcript else "no",
+                    "yes" if active and active.id == profile.id else "",
+                )
+            console.print(table)
+            return 0
+        if action == "add":
+            if bool(args.file) == bool(args.url):
+                console.print("[red]укажите ровно один источник: --file или --url[/red]")
+                return 2
+            if not args.consent:
+                console.print("[red]нужно явное --consent: у вас есть права на голос[/red]")
+                return 2
+            if args.file:
+                profile = library.add_file(
+                    args.file,
+                    args.name,
+                    transcript=args.transcript,
+                    consent=True,
+                    engine=args.engine,
+                )
+            else:
+                profile = library.add_url(
+                    args.url,
+                    args.name,
+                    transcript=args.transcript,
+                    consent=True,
+                    engine=args.engine,
+                )
+            console.print(f"added: {profile.id} -> {profile.reference_wav}")
+            if not profile.has_transcript:
+                console.print(
+                    "[yellow]transcript пуст: для Qwen clone добавьте --transcript[/yellow]"
+                )
+            return 0
+        if action == "use":
+            profile = library.set_active(args.name)
+            path = library.reference_path(profile)
+            console.print(f"active: {profile.name} -> {path}")
+            return 0
+        if action == "remove":
+            profile = library.remove(args.name)
+            console.print(f"removed: {profile.id}")
+            return 0
+    except VoiceLibraryError as exc:
+        console.print(f"[red]voice library error:[/red] {_plain(str(exc))}")
+        return 1
+    console.print(f"[red]unknown voice action: {action}[/red]")
+    return 2
+
+
+def cmd_media(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    payload = {
+        "prompt": args.prompt,
+        "width": args.width,
+        "height": args.height,
+        "model": args.model,
+        "seed": args.seed,
+    }
+    if args.negative:
+        payload["negative_prompt"] = args.negative
+    try:
+        result = _run_direct_tool(
+            paths,
+            config,
+            "media.image",
+            payload,
+            ["media.generate"],
+        )
+    except RuntimeError as exc:
+        console.print(f"[red]{_plain(str(exc))}[/red]")
+        return 1
+    if not result.ok:
+        console.print(f"[red]media error:[/red] {_plain(result.error)}")
         return 1
     console.print(_plain(result.output))
     return 0
@@ -2442,6 +2551,33 @@ def build_parser() -> argparse.ArgumentParser:
     voice_design.add_argument("--out", default="")
     voice_design.add_argument("--pitch", type=float, default=0.0)
     voice_design.set_defaults(func=cmd_voice_design)
+    voice_list = voice_sub.add_parser("list")
+    voice_list.set_defaults(func=cmd_voice_library)
+    voice_add = voice_sub.add_parser("add", help="import a local/URL voice reference")
+    voice_add.add_argument("--file", default="")
+    voice_add.add_argument("--url", default="")
+    voice_add.add_argument("--name", required=True)
+    voice_add.add_argument("--transcript", default="")
+    voice_add.add_argument("--engine", choices=("qwen", "fish", "silero"), default="qwen")
+    voice_add.add_argument("--consent", action="store_true")
+    voice_add.set_defaults(func=cmd_voice_library)
+    voice_use = voice_sub.add_parser("use")
+    voice_use.add_argument("name")
+    voice_use.set_defaults(func=cmd_voice_library)
+    voice_remove = voice_sub.add_parser("remove")
+    voice_remove.add_argument("name")
+    voice_remove.set_defaults(func=cmd_voice_library)
+
+    media = sub.add_parser("media", help="free image generation")
+    media_sub = media.add_subparsers(dest="media_action", required=True)
+    media_image = media_sub.add_parser("image")
+    media_image.add_argument("prompt")
+    media_image.add_argument("--width", type=int, default=1024)
+    media_image.add_argument("--height", type=int, default=1024)
+    media_image.add_argument("--model", choices=("flux", "turbo"), default="flux")
+    media_image.add_argument("--seed", type=int, default=None)
+    media_image.add_argument("--negative", default="")
+    media_image.set_defaults(func=cmd_media)
 
     coder = sub.add_parser("coder", help="generate code, run tests and fix up to N times")
     coder.add_argument("goal")

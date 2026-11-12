@@ -57,7 +57,7 @@ def test_run_checks_without_external_services(tmp_path: Path, monkeypatch) -> No
     by_name = {check.name: check for check in checks}
 
     assert by_name["Config"].status == "ok"
-    assert "silero/baya" in by_name["Config"].detail
+    assert "fish/baya" in by_name["Config"].detail
     assert by_name["Ollama"].status == "ok"
     assert by_name["SD WebUI"].status == "warn"
     assert by_name["Data dir"].status == "ok"
