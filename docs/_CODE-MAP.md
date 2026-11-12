@@ -129,7 +129,7 @@ generated: true
 | --- | ---: | --- |
 | `src.kivi.senses.__init__` | 31 | Senses: voice, hearing, vision and text input. |
 | `src.kivi.senses.audio` | 1095 | Local audio input: capture, voice activity detection, STT and wake words. |
-| `src.kivi.senses.fish_audio` | 172 | Fish Audio cloud TTS engine. |
+| `src.kivi.senses.fish_audio` | 205 | Fish Audio cloud TTS engine. |
 | `src.kivi.senses.qwen_tts` | 289 | Qwen3-TTS voice engine for Kivi. |
 | `src.kivi.senses.tts` | 485 | Local text-to-speech engines and the sentence streaming pipeline. |
 | `src.kivi.senses.voice` | 727 | Voice session orchestration: wake gate, barge-in, confirmations and metrics. |

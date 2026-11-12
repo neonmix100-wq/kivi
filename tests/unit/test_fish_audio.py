@@ -7,7 +7,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from kivi.senses.fish_audio import FishAudioTts, FishTtsConfig, FishTtsError
+from kivi.senses.fish_audio import (
+    FishAudioTts,
+    FishTtsConfig,
+    FishTtsError,
+    _normalize_wav,
+)
 
 
 def wav_bytes() -> bytes:
@@ -74,6 +79,22 @@ def test_fish_rejects_non_wav(tmp_path: Path) -> None:
     )
     with pytest.raises(FishTtsError, match="WAV"):
         engine.synth("Привет", tmp_path / "out.wav")
+
+
+def test_fish_repairs_streaming_wav_header(tmp_path: Path) -> None:
+    data = bytearray(wav_bytes())
+    data[40:44] = b"\x00\x00\x00\xff"  # Fish streaming placeholder
+    data[4:8] = b"\x00\x00\x00\xff"
+    normalized = _normalize_wav(bytes(data))
+    assert len(normalized) == len(data)
+    assert normalized[40:44] == (len(data) - 44).to_bytes(4, "little")
+
+    engine = FishAudioTts(
+        FishTtsConfig(api_key="test"),
+        client=FakeClient(content=bytes(data)),
+    )
+    result = engine.synth("Привет", tmp_path / "out.wav")
+    assert result.duration_s == pytest.approx(0.1)
 
 
 def test_fish_rejects_empty_text(tmp_path: Path) -> None:

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import os
+import struct
 import wave
 from collections.abc import Callable
 from contextlib import suppress
@@ -48,10 +49,41 @@ class FishTtsConfig:
     api_key: str = ""
 
 
+def _normalize_wav(data: bytes) -> bytes:
+    """Repair streaming WAV headers with 0xFFFFFFxx placeholder sizes.
+
+    Fish Audio returns a RIFF/WAVE stream whose ``data`` chunk size is
+    ``0xFFFFFF00`` while the actual payload is much smaller.  ``wave`` then
+    reports billions of frames, and some players refuse the file.  Clamp the
+    chunk sizes to the bytes actually received.
+    """
+    if not data.startswith(b"RIFF") or data[8:12] != b"WAVE":
+        return data
+    out = bytearray(data)
+    pos = 12
+    while pos + 8 <= len(out):
+        chunk_id = bytes(out[pos : pos + 4])
+        declared = struct.unpack("<I", out[pos + 4 : pos + 8])[0]
+        if chunk_id == b"data":
+            available = len(out) - (pos + 8)
+            actual = min(declared, available)
+            out[pos + 4 : pos + 8] = struct.pack("<I", actual)
+            end = pos + 8 + actual
+            out[4:8] = struct.pack("<I", max(4, end - 8))
+            return bytes(out[:end])
+        step = 8 + declared + (declared & 1)
+        if step < 8 or pos + step > len(out):
+            break
+        pos += step
+    return data
+
+
 def _duration(data: bytes, fallback_rate: int) -> tuple[int, float]:
+    data = _normalize_wav(data)
     try:
         with wave.open(io.BytesIO(data), "rb") as handle:
-            return handle.getframerate(), handle.getnframes() / float(handle.getframerate())
+            rate = handle.getframerate()
+            return rate, handle.getnframes() / float(rate or 1)
     except (wave.Error, OSError):
         return fallback_rate, 0.0
 
@@ -143,6 +175,7 @@ class FishAudioTts:
             raise FishTtsError("Fish Audio audio exceeds 20 MB")
         if not data.startswith(b"RIFF"):
             raise FishTtsError("Fish Audio did not return a WAV file")
+        data = _normalize_wav(data)
         path = Path(output)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
