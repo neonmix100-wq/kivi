@@ -70,7 +70,7 @@ class CloneSettings(BaseModel):
 class VoiceSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: Literal["silero", "piper", "xtts", "edge"] = "silero"
+    provider: Literal["silero", "piper", "xtts", "edge", "qwen"] = "silero"
     model: str = "v5_ru"
     speaker: str = "baya"
     sample_rate: Literal[8000, 24000, 48000] = 48000
@@ -82,6 +82,11 @@ class VoiceSettings(BaseModel):
     fallback: VoiceFallback = Field(default_factory=VoiceFallback)
     cloud_fallback: bool = False
     clone: CloneSettings = Field(default_factory=CloneSettings)
+    qwen_reference: Path = Path("assets/voice-samples/kivi_anime_ref.wav")
+    qwen_reference_text: str = ""
+    qwen_model_dir: Path = Path("data/models/qwen3-tts/1.7B-Base")
+    qwen_design_dir: Path = Path("data/models/qwen3-tts/1.7B-VoiceDesign")
+    qwen_device: Literal["cuda", "cpu"] = "cuda"
 
     @model_validator(mode="after")
     def _clone_needs_consent(self) -> VoiceSettings:

@@ -117,6 +117,13 @@ from kivi.senses.audio import (
     WakeWordUnavailable,
     WhisperTranscriber,
 )
+from kivi.senses.qwen_tts import (
+    DEFAULT_VOICE_INSTRUCT,
+    QwenTtsConfig,
+    QwenTtsEngine,
+    QwenTtsError,
+    QwenVoiceDesigner,
+)
 from kivi.senses.voice import VoiceSession
 from kivi.tools import ToolExecutor, ToolResult, build_registry
 
@@ -285,6 +292,14 @@ def cmd_models(args: argparse.Namespace) -> int:
 
 
 def _speech_pipeline(config: KiviConfig) -> SpeechPipeline:
+    if config.voice.provider == "qwen":
+        return SpeechPipeline(
+            QwenTtsEngine(_qwen_config(config)),
+            fallback=PiperTts(),
+            enable_fallback=True,
+            speaker=config.voice.speaker,
+            sample_rate=config.voice.sample_rate,
+        )
     if config.voice.provider == "piper":
         return SpeechPipeline(
             PiperTts(),
@@ -609,16 +624,77 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _qwen_config(
+    config: KiviConfig,
+    *,
+    reference: str = "",
+    reference_text: str = "",
+) -> QwenTtsConfig:
+    voice = config.voice
+    return QwenTtsConfig(
+        model_dir=voice.qwen_model_dir,
+        design_dir=voice.qwen_design_dir,
+        reference_wav=Path(reference) if reference else voice.qwen_reference,
+        reference_text=reference_text or voice.qwen_reference_text,
+        device=voice.qwen_device,
+    )
+
+
+def cmd_voice_design(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    target = Path(args.out) if args.out else config.voice.qwen_reference
+    text = args.text or "Привет! Меня зовут Киви. Я твой локальный ассистент."
+    designer = QwenVoiceDesigner(_qwen_config(config))
+    try:
+        result = designer.design(
+            text,
+            target,
+            instruct=args.instruct or DEFAULT_VOICE_INSTRUCT,
+        )
+    except QwenTtsError as exc:
+        console.print(f"[red]voice design error:[/red] {_plain(str(exc))}")
+        return 1
+    console.print(f"voice reference: {result.path} ({result.duration_s:.2f}s)")
+    console.print(f"transcript: {result.path.with_suffix('.txt')}")
+    return 0
+
+
 def cmd_say(args: argparse.Namespace) -> int:
     paths = get_paths()
     config = _config(paths)
     target = Path(args.out) if args.out else paths.cache / "tts"
-    pipeline = _speech_pipeline(config)
-    try:
-        results = pipeline.synthesize(args.text, target)
-    except TtsError as exc:
-        console.print(f"[red]tts error:[/red] {_plain(str(exc))}")
-        return 1
+    engine = args.engine or ("qwen" if config.voice.provider == "qwen" else "silero")
+    if engine == "qwen":
+        output = target if target.suffix else target / "qwen.wav"
+        try:
+            result = QwenTtsEngine(
+                _qwen_config(
+                    config,
+                    reference=args.reference,
+                    reference_text=args.reference_text,
+                )
+            ).synth(args.text, output)
+        except QwenTtsError as exc:
+            console.print(f"[red]qwen tts error:[/red] {_plain(str(exc))}")
+            return 1
+        results = [result]
+    else:
+        if engine == "piper":
+            pipeline = SpeechPipeline(
+                PiperTts(),
+                fallback=None,
+                enable_fallback=False,
+                speaker=config.voice.speaker,
+                sample_rate=config.voice.sample_rate,
+            )
+        else:
+            pipeline = _speech_pipeline(config)
+        try:
+            results = pipeline.synthesize(args.text, target)
+        except TtsError as exc:
+            console.print(f"[red]tts error:[/red] {_plain(str(exc))}")
+            return 1
     for result in results:
         console.print(f"{result.engine}: {result.path} ({result.duration_s:.2f}s)")
     if args.play:
@@ -2309,11 +2385,22 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--num-predict", type=int, default=512)
     serve.set_defaults(func=cmd_serve)
 
-    say = sub.add_parser("say", help="synthesize text with Silero/Piper")
+    say = sub.add_parser("say", help="synthesize text with Silero/Piper/Qwen3-TTS")
     say.add_argument("text")
     say.add_argument("--out", default="")
     say.add_argument("--play", action="store_true")
+    say.add_argument("--engine", choices=("silero", "piper", "qwen"), default="")
+    say.add_argument("--reference", default="", help="Qwen reference WAV")
+    say.add_argument("--reference-text", default="", help="Qwen reference transcript")
     say.set_defaults(func=cmd_say)
+
+    voice = sub.add_parser("voice", help="design and inspect Qwen3-TTS voices")
+    voice_sub = voice.add_subparsers(dest="voice_action", required=True)
+    voice_design = voice_sub.add_parser("design", help="create a reference voice")
+    voice_design.add_argument("--text", default="")
+    voice_design.add_argument("--instruct", default="")
+    voice_design.add_argument("--out", default="")
+    voice_design.set_defaults(func=cmd_voice_design)
 
     coder = sub.add_parser("coder", help="generate code, run tests and fix up to N times")
     coder.add_argument("goal")

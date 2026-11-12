@@ -62,6 +62,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe tools run code.run --args '{"code":"print(2+2)"}' --approve
 .venv\Scripts\kivi.exe tools run repo.index --args '{"action":"summary"}'
 .venv\Scripts\kivi.exe say "Привет, это Киви."
+.venv\Scripts\kivi.exe voice design --out assets\voice-samples\kivi_anime_ref.wav
+.venv\Scripts\kivi.exe say --engine qwen "Привет! Я Киви."
 .venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\kivi.exe zones status
 ```
@@ -98,7 +100,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
   approvals, content-addressed артефакты и Context Builder с бюджетом.
 - `src/kivi/brain/` — planner DAG, validator, executor с approvals/replan,
   verifier, fastpath, `KiviBrain` и `Coder` (тест-цикл).
-- `src/kivi/senses/` — Silero/Piper TTS, audio/VAD/faster-whisper STT,
+- `src/kivi/senses/` — Silero/Piper/Qwen3-TTS, audio/VAD/faster-whisper STT,
   wake-word и voice pipeline; `src/kivi/interfaces/` — CLI, локальный API,
   2D-аватар и 3D-VRM слой.
 - `tests/unit/` — быстрые тесты без Ollama и сети.

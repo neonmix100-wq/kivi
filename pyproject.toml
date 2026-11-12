@@ -58,6 +58,15 @@ image = [
     "accelerate>=1.15",
     "safetensors>=0.8",
 ]
+qwen = [
+    "qwen-tts>=0.1.1",
+    "torch>=2.11",
+    "torchaudio>=2.11",
+    "librosa>=1.0",
+    "soundfile>=0.13",
+    "sox>=1.5",
+    "einops>=0.8",
+]
 
 [project.scripts]
 kivi = "kivi.interfaces.cli:main"

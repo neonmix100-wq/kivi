@@ -58,11 +58,11 @@
 | 7 | ✅ закрыт | — |
 | 8 | ✅ закрыт | — |
 | 9 | ✅ закрыт | — |
-| 10 | 🟡 ~65% | ONNX wake, VRM-ассет, микрофон |
+| 10 | 🟡 ~70% | ONNX wake, VRM-ассет, микрофон |
 | 11 | 🟡 ~70% | реальный AltCRM, UI-панель, паритет |
 | 12–13 | ⬜ не начаты | см. этапы 12–13 |
 
-Текущая точка: **этапы 0–9 закрыты, M5 ~65%, M6 ~70% → этап 12 (M7: Cloud Media)**.
+Текущая точка: **этапы 0–9 закрыты, M5 ~70%, M6 ~70% → этап 12 (M7: Cloud Media)**.
 M5/M6 заблокированы внешними ресурсами (VRM, wake ONNX, реальный AltCRM).
 **12.11.2026:** GPU перепроверена — RTX 4060 Ti **16 ГБ**, baseline обновлён;
 новый план и приоритеты — [PLAN-2026-11-12](PLAN-2026-11-12.md).
@@ -296,6 +296,7 @@ embedder'а, CLI `kivi memory index` и `memory similar` через Ollama/bge-m
 - [x] Planner DAG + validator + executor + verifier + replan.
 - [x] CLI-чат + локальный API.
 - [x] TTS **Silero `baya`** (`v5_ru`, 48 кГц), потоковая озвучка по предложениям; fallback Piper `irina`.
+- [x] **Qwen3-TTS 1.7B VoiceDesign/Base** — оригинальный «аниме»-голос, 3 reference-сэмпла.
 - [x] **2D-аватар-заглушка** с липсинком по амплитуде и состояниями `idle/listening/thinking/speaking/error`.
 - [x] Адаптивная подробность: кратко → «подробнее?».
 - [x] 20 сценарных тестов (22 теста).
@@ -395,9 +396,10 @@ Kivi не может отправить данные из denylist.
 - [ ] Рабочий стол + отдельное окно + второй монитор; скрытие по команде. **Не реализовано нативно**.
 - [x] Метрики: latency-метрики и оценка VRAM; false wake/WER требуют живого аудио.
 
-**Статус:** 🟡 ~65%. Программный слой (audio/VAD/STT, barge-in, confirmations,
-voice pipeline, avatar3d controller, visemes, states, CLI `listen`) готов и покрыт
-тестами. Блокеры: нет `assets/wake/kivi.onnx`, нет `assets/avatar/kivi.vrm`,
+**Статус:** 🟡 ~70%. Программный слой (audio/VAD/STT, barge-in, confirmations,
+voice pipeline, avatar3d controller, visemes, states, CLI `listen`, Qwen3-TTS
+VoiceDesign/Base) готов и покрыт тестами. Блокеры: нет `assets/wake/kivi.onnx`,
+нет `assets/avatar/kivi.vrm`,
 нет микрофона/аудио в сессии, нет замеров false wake/WER. Детали:
 [VOICE-INPUT](VOICE-INPUT.md), [VOICE-PIPELINE](VOICE-PIPELINE.md), [AVATAR3D](AVATAR3D.md).
 

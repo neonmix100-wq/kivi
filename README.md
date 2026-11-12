@@ -3,14 +3,15 @@
 > **Статус:** этапы 0–9 закрыты, M5 ~65%, M6 ~70% (v0.19). Железо
 > перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q4/14B/SDXL/Whisper
 > стали реалистичны. Работают `kivi doctor`, `kivi models`, `kivi ask`,
-> `kivi chat`, `kivi serve`, `kivi say`, `kivi coder`, `kivi browse`,
-> `kivi mail`, `kivi telegram`, `kivi listen`, `kivi crm`, `kivi embed`,
-> `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`, `kivi memory`,
-> `kivi elevated`, `kivi killswitch`, `kivi hotkey`, `kivi zones`, реестр
-> моделей, VRAM-бюджет, lease/eviction, watchdog, SQLite, Event Bus, аудит,
-> Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
+> `kivi chat`, `kivi serve`, `kivi say`, `kivi voice design`, `kivi coder`,
+> `kivi browse`, `kivi mail`, `kivi telegram`, `kivi listen`, `kivi crm`,
+> `kivi embed`, `kivi cloud status/ask/scout/handoff`, `kivi tools list/run`,
+> `kivi memory`, `kivi elevated`, `kivi killswitch`, `kivi hotkey`, `kivi zones`,
+> реестр моделей, VRAM-бюджет, lease/eviction, watchdog, SQLite, Event Bus,
+> аудит, Policy Engine, Protected Zones, risk-политика R0–R4, trust labels,
 > санитайзер, kill switch, elevated broker, память с FTS5/hybrid/LanceDB,
-> M1 planner/TTS/2D-аватар, M2 Coder, M3 Operator, M4 Communicator и M6 Work CRM.
+> M1 planner/TTS/2D-аватар, M2 Coder, M3 Operator, M4 Communicator, M6 Work CRM
+> и Qwen3-TTS VoiceDesign/Base голос Kivi.
 > Новый план: [`docs/PLAN-2026-11-12.md`](docs/PLAN-2026-11-12.md).
 > Осталось: M7 Cloud Media, M5/M6 внешние ресурсы, OCR/PDF.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
@@ -48,6 +49,8 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe tools run window.list --args '{"limit":10}'
 .venv\Scripts\kivi.exe tools run system.volume.get
 .venv\Scripts\kivi.exe say "Привет, это Киви." --play
+.venv\Scripts\kivi.exe voice design --out assets\voice-samples\kivi_anime_ref.wav
+.venv\Scripts\kivi.exe say --engine qwen "Привет! Я Киви." --play
 .venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
@@ -169,6 +172,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/TELEGRAM.md`](docs/TELEGRAM.md) | Telegram-бот, allowlist, rate limits |
 | [`docs/VOICE-INPUT.md`](docs/VOICE-INPUT.md) | Audio, VAD, faster-whisper, wake-word |
 | [`docs/VOICE-PIPELINE.md`](docs/VOICE-PIPELINE.md) | VoiceSession, barge-in, подтверждения |
+| [`docs/VOICE-QWEN.md`](docs/VOICE-QWEN.md) | Qwen3-TTS VoiceDesign/Base, CUDA и замеры |
 | [`docs/AVATAR3D.md`](docs/AVATAR3D.md) | 3D-VRM слой, виземы, состояния, fallback |
 | [`docs/CRM-DOMAIN.md`](docs/CRM-DOMAIN.md) | Факты, цитаты, черновики, история, метрики |
 | [`docs/CRM-ADAPTER.md`](docs/CRM-ADAPTER.md) | AltCRM CDP: чтение и заполнение без сохранения |

@@ -295,6 +295,45 @@ def test_crm_read_and_fill_commands(tmp_path: Path, monkeypatch) -> None:
     assert seen[1][2] is True
 
 
+def test_say_qwen_engine(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+    out = tmp_path / "qwen.wav"
+
+    class FakeEngine:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def synth(self, text, target):
+            target.write_bytes(b"RIFF")
+            return SimpleNamespace(
+                path=target,
+                duration_s=0.2,
+                engine="qwen3-tts",
+            )
+
+    monkeypatch.setattr(cli_module, "QwenTtsEngine", FakeEngine)
+    assert main(["say", "--engine", "qwen", "привет", "--out", str(out)]) == 0
+
+
+def test_voice_design_command(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+    out = tmp_path / "ref.wav"
+
+    class FakeDesigner:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def design(self, text, target, *, instruct):
+            target.write_bytes(b"RIFF")
+            target.with_suffix(".txt").write_text(text, encoding="utf-8")
+            return SimpleNamespace(path=target, duration_s=0.2)
+
+    monkeypatch.setattr(cli_module, "QwenVoiceDesigner", FakeDesigner)
+    assert main(["voice", "design", "--text", "привет", "--out", str(out)]) == 0
+
+
 def test_module_entrypoint_delegates(monkeypatch) -> None:
     import kivi.__main__ as entry
 

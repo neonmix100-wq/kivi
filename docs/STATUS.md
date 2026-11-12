@@ -2,7 +2,7 @@
 
 Дата среза: **12.11.2026**. Дорожная карта: [ROADMAP](ROADMAP.md).
 Новый план после перепроверки железа: [PLAN-2026-11-12](PLAN-2026-11-12.md).
-Тесты: **1387**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
+Тесты: **1395**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
 
 ## 0. Железо на 12.11.2026
 
@@ -12,7 +12,7 @@
 | RAM | 31,8 ГБ |
 | GPU | **NVIDIA RTX 4060 Ti, 16 380 МБ VRAM** |
 | Свободно VRAM | ~14,5 ГБ в простое |
-| Диски | C: 75,7 ГБ свободно; D: 112,7 ГБ свободно (оба SSD) |
+| Диски | C: 75,7 ГБ свободно; D: 100,5 ГБ свободно (оба SSD) |
 | ОС / Python / Ollama | Windows 11 26200 / 3.12.10 / 0.40.16 |
 
 Установлены 12.11.2026:
@@ -24,10 +24,12 @@
 | `Qwen3-VL-8B Q4_K_M` | 5,8 ГБ | vision, 5 575 МБ |
 | `faster-whisper-large-v3-turbo` | 1,54 ГБ | CPU int8, 11,7 с речи |
 | SDXL base 1.0 | 6,46 ГБ | чекпойнт, нужен ComfyUI/SD WebUI |
+| Qwen3-TTS VoiceDesign 1.7B | 4,21 ГБ | голос по описанию, peak 4,1 ГБ |
+| Qwen3-TTS Base 1.7B | 4,23 ГБ | клон reference, 6–8 с на фразу |
 
 Удалены как устаревшие/дублирующие: `llama3:8b`, `qwen2.5:7b-instruct`,
 `deepseek-coder:6.7b`, `Qwen3-8B Q5`, `supergemma4` — освободилось **22,7 ГБ**.
-Осталось 7 Ollama-моделей + ASR + SDXL.
+Осталось 7 Ollama-моделей + Qwen3-TTS + ASR + SDXL.
 
 Главное изменение: **+8 ГБ VRAM**. 8B Q4, 7B coder @16k, Whisper и 3D-аватар
 теперь помещаются; SDXL можно запускать отдельным этапом. 14B — качественный
@@ -56,8 +58,9 @@
 - **Этап 9 (M4 Communicator) закрыт:** Gmail OAuth readonly+compose без send,
   `mail.list/search/read/attachment/draft`, Telegram-бот с allowlist и rate limit,
   CLI `kivi mail`/`kivi telegram`; 10+5 сценариев.
-- **Этап 10 (M5 Voice & Avatar) ~65%:** audio/VAD/STT, barge-in, подтверждения,
-  voice pipeline, avatar3d/visemes/states, CLI `listen` готовы. Блокеры:
+- **Этап 10 (M5 Voice & Avatar) ~70%:** audio/VAD/STT, barge-in, подтверждения,
+  voice pipeline, avatar3d/visemes/states, CLI `listen` и **реальный Qwen3-TTS
+  1.7B VoiceDesign/Base** (3 reference-голоса) готовы. Блокеры:
   `assets/wake/kivi.onnx`, `assets/avatar/kivi.vrm`, микрофон и замеры false wake/WER.
 - **Этап 11 (M6 Work CRM) ~70%:** headless-домен из `ai-agent`, AltCRM CDP
   adapter, `crm.read/fill/act/task`, CLI и метрики. Блокеры: реальный AltCRM,
@@ -78,7 +81,7 @@
 | 7. M2: Coder | ✅ готово | code.run sandbox, repo.index, code.patch, git, Coder loop, CLI | WSL2/Sandbox — апгрейд |
 | 8. M3: Operator | ✅ готово | окна/приложения, UI, system, browser, 20 сценариев | — |
 | 9. M4: Communicator | ✅ готово | Gmail drafts, Telegram bot, CLI, 15 сценариев | — |
-| 10. M5: Voice & Avatar | 🟡 ~65% | audio/VAD/STT, barge-in, avatar3d, CLI | wake ONNX, VRM, микрофон; 16 ГБ снимают VRAM-блок |
+| 10. M5: Voice & Avatar | 🟡 ~70% | audio/VAD/STT, barge-in, avatar3d, Qwen3-TTS, CLI | wake ONNX, VRM, микрофон |
 | 11. M6: Work CRM | 🟡 ~70% | домен, AltCRM CDP, tools, CLI, метрики | реальный CRM, UI-панель |
 | 12. M7: Cloud Media | ⬜ не начат | — | бесплатные image/video-провайдеры |
 | 13. M8: Kivi Shell | ⬜ не начат | — | Explorer-замена, P0/P1, закалка |
@@ -119,10 +122,10 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 После перепроверки 12.11.2026:
 
 - этапы 0–9 закрыты;
-- M5 ~65% (нет VRM, wake ONNX, микрофона);
+- M5 ~70% (Qwen3-TTS готов; нет VRM, wake ONNX, микрофона);
 - M6 ~70% (нет реального AltCRM и UI-панели);
 - 16 ГБ VRAM снимают прежнее ограничение: 8B Q4, 7B coder @16k, Whisper
-  и 3D-аватар помещаются;
+  и 3D-аватар помещаются; Qwen3-TTS 1.7B добавляет ~4,1 ГБ.
 - следующий приоритет — **M7 Cloud Media**: SDXL теперь реалистичен локально;
 - параллельно: 14B Q4, затем закрытие M5/M6 внешними ресурсами.
 
