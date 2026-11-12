@@ -296,7 +296,7 @@ embedder'а, CLI `kivi memory index` и `memory similar` через Ollama/bge-m
 - [x] Planner DAG + validator + executor + verifier + replan.
 - [x] CLI-чат + локальный API.
 - [x] TTS **Silero `baya`** (`v5_ru`, 48 кГц), потоковая озвучка по предложениям; fallback Piper `irina`.
-- [x] **Qwen3-TTS 1.7B VoiceDesign/Base** — оригинальный «аниме»-голос, 3 reference-сэмпла.
+- [x] **Qwen3-TTS 1.7B VoiceDesign/Base** — оригинальный взрослый женский голос, 3 reference-сэмпла.
 - [x] **2D-аватар-заглушка** с липсинком по амплитуде и состояниями `idle/listening/thinking/speaking/error`.
 - [x] Адаптивная подробность: кратко → «подробнее?».
 - [x] 20 сценарных тестов (22 теста).

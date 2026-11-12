@@ -25,7 +25,7 @@ voice:
   speaker: baya
   sample_rate: 48000
   output: assets/voice-samples/silero_v5_baya_48k.wav
-  qwen_reference: assets/voice-samples/kivi_anime_ref.wav
+  qwen_reference: assets/voice-samples/kivi_voice_warm.wav
   qwen_model_dir: data/models/qwen3-tts/1.7B-Base
   qwen_design_dir: data/models/qwen3-tts/1.7B-VoiceDesign
   qwen_device: cuda

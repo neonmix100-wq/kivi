@@ -62,7 +62,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe tools run code.run --args '{"code":"print(2+2)"}' --approve
 .venv\Scripts\kivi.exe tools run repo.index --args '{"action":"summary"}'
 .venv\Scripts\kivi.exe say "Привет, это Киви."
-.venv\Scripts\kivi.exe voice design --out assets\voice-samples\kivi_anime_ref.wav
+.venv\Scripts\kivi.exe voice design --out assets\voice-samples\kivi_voice_warm.wav
 .venv\Scripts\kivi.exe say --engine qwen "Привет! Я Киви."
 .venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\kivi.exe zones status

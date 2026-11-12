@@ -23,12 +23,11 @@ from kivi.senses.tts import TtsError, TtsResult, write_wav
 
 DEFAULT_LANGUAGE = "Russian"
 DEFAULT_VOICE_INSTRUCT = (
-    "Young female voice, 18-20 years old, cute and playful anime-inspired "
-    "timbre: bright, soft, slightly breathy, high pitch, warm smile in the "
-    "voice, natural Russian pronunciation without a cartoonish accent, not "
-    "childish and not sexualized."
+    "Adult female voice, 22-25 years old, medium-low warm alto: soft, calm, "
+    "natural Russian pronunciation, mature and reassuring, slight smile in the "
+    "voice, not childish, not squeaky and not high-pitched."
 )
-DEFAULT_REFERENCE = Path("assets/voice-samples/kivi_anime_ref.wav")
+DEFAULT_REFERENCE = Path("assets/voice-samples/kivi_voice_warm.wav")
 DEFAULT_MODEL_DIR = Path("data/models/qwen3-tts/1.7B-Base")
 DEFAULT_DESIGN_DIR = Path("data/models/qwen3-tts/1.7B-VoiceDesign")
 
@@ -50,6 +49,7 @@ class QwenTtsConfig:
     dtype: str = "bfloat16"
     attn_implementation: str = "eager"
     max_new_tokens: int = 512
+    pitch_semitones: float = 0.0
 
 
 def _torch_dtype(name: str) -> Any:
@@ -82,11 +82,30 @@ def _reference_text(reference: Path, explicit: str) -> str:
     return ""
 
 
-def _write_result(audio: Any, sample_rate: int, output: Path) -> TtsResult:
+def _write_result(
+    audio: Any,
+    sample_rate: int,
+    output: Path,
+    *,
+    pitch_semitones: float = 0.0,
+) -> TtsResult:
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
-    samples = list(_as_numpy(audio))
-    write_wav(path, samples, sample_rate)
+    samples = _as_numpy(audio)
+    if pitch_semitones:
+        try:
+            import librosa
+            import numpy as np
+
+            shifted = librosa.effects.pitch_shift(
+                y=np.asarray(samples, dtype=np.float32),
+                sr=int(sample_rate),
+                n_steps=float(pitch_semitones),
+            )
+        except ImportError as exc:
+            raise QwenTtsError("librosa is required for pitch shifting") from exc
+        samples = shifted
+    write_wav(path, list(samples), sample_rate)
     return TtsResult(
         path=path,
         sample_rate=sample_rate,
@@ -149,7 +168,12 @@ class QwenVoiceDesigner:
             )
         except Exception as exc:  # noqa: BLE001 - model boundary
             raise QwenTtsError(f"voice design failed: {exc}") from exc
-        result = _write_result(wavs[0], int(sample_rate), output)
+        result = _write_result(
+            wavs[0],
+            int(sample_rate),
+            output,
+            pitch_semitones=self.config.pitch_semitones,
+        )
         Path(output).with_suffix(".txt").write_text(cleaned, encoding="utf-8")
         return result
 
@@ -245,7 +269,12 @@ class QwenTtsEngine:
             raise QwenTtsError(f"synthesis failed: {exc}") from exc
         # Qwen controls its own sampling rate; 48 kHz is only a caller hint.
         del sample_rate
-        return _write_result(wavs[0], int(sr), output)
+        return _write_result(
+            wavs[0],
+            int(sr),
+            output,
+            pitch_semitones=self.config.pitch_semitones,
+        )
 
 
 __all__ = [

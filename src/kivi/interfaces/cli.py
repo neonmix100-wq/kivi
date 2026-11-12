@@ -629,6 +629,7 @@ def _qwen_config(
     *,
     reference: str = "",
     reference_text: str = "",
+    pitch: float = 0.0,
 ) -> QwenTtsConfig:
     voice = config.voice
     return QwenTtsConfig(
@@ -637,6 +638,7 @@ def _qwen_config(
         reference_wav=Path(reference) if reference else voice.qwen_reference,
         reference_text=reference_text or voice.qwen_reference_text,
         device=voice.qwen_device,
+        pitch_semitones=pitch,
     )
 
 
@@ -645,7 +647,7 @@ def cmd_voice_design(args: argparse.Namespace) -> int:
     config = _config(paths)
     target = Path(args.out) if args.out else config.voice.qwen_reference
     text = args.text or "Привет! Меня зовут Киви. Я твой локальный ассистент."
-    designer = QwenVoiceDesigner(_qwen_config(config))
+    designer = QwenVoiceDesigner(_qwen_config(config, pitch=args.pitch))
     try:
         result = designer.design(
             text,
@@ -673,6 +675,7 @@ def cmd_say(args: argparse.Namespace) -> int:
                     config,
                     reference=args.reference,
                     reference_text=args.reference_text,
+                    pitch=args.pitch,
                 )
             ).synth(args.text, output)
         except QwenTtsError as exc:
@@ -2392,6 +2395,7 @@ def build_parser() -> argparse.ArgumentParser:
     say.add_argument("--engine", choices=("silero", "piper", "qwen"), default="")
     say.add_argument("--reference", default="", help="Qwen reference WAV")
     say.add_argument("--reference-text", default="", help="Qwen reference transcript")
+    say.add_argument("--pitch", type=float, default=0.0, help="Qwen pitch shift in semitones")
     say.set_defaults(func=cmd_say)
 
     voice = sub.add_parser("voice", help="design and inspect Qwen3-TTS voices")
@@ -2400,6 +2404,7 @@ def build_parser() -> argparse.ArgumentParser:
     voice_design.add_argument("--text", default="")
     voice_design.add_argument("--instruct", default="")
     voice_design.add_argument("--out", default="")
+    voice_design.add_argument("--pitch", type=float, default=0.0)
     voice_design.set_defaults(func=cmd_voice_design)
 
     coder = sub.add_parser("coder", help="generate code, run tests and fix up to N times")

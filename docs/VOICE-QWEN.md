@@ -49,24 +49,35 @@ $env:HF_HOME='D:\AI-assistent\data\hf-cache'
 ```powershell
 .venv\Scripts\kivi.exe voice design `
   --text "Привет! Меня зовут Киви. Я твой локальный ассистент." `
-  --out assets\voice-samples\kivi_anime_ref.wav
+  --out assets\voice-samples\kivi_voice_warm.wav
 ```
 
 По умолчанию используется инструкция:
 
-> Young female voice, 18-20 years old, cute and playful anime-inspired timbre:
-> bright, soft, slightly breathy, high pitch, warm smile in the voice, natural
-> Russian pronunciation without a cartoonish accent, not childish and not
-> sexualized.
+> Adult female voice, 22-25 years old, medium-low warm alto: soft, calm,
+> natural Russian pronunciation, mature and reassuring, slight smile in the
+> voice, not childish, not squeaky and not high-pitched.
 
-Можно передать свою:
+Можно передать свою и понизить тон:
 
 ```powershell
-.venv\Scripts\kivi.exe voice design --instruct "Мягкий игривый женский голос, 19 лет, светлый тембр, лёгкое придыхание, естественный русский" --out assets\voice-samples\kivi_anime_ref.wav
+.venv\Scripts\kivi.exe voice design --instruct "Взрослый женский голос, 24 года, низкое тёплое контральто, спокойный, естественный русский" --pitch -4 --out assets\voice-samples\kivi_voice_deep.wav
 ```
 
-Рядом появится `kivi_anime_ref.txt` — транскрипт reference. Он обязателен для
-клонирования.
+`--pitch` — сдвиг в полутонах (отрицательный — ниже). Для взрослого голоса
+обычно достаточно **-3…-5**; сильнее — риск «мужского» тембра.
+
+Рядом появится `.txt` — транскрипт reference. Он обязателен для клонирования.
+
+Готовые варианты (F0 измерен):
+
+| Файл | Сдвиг | Median F0 |
+|---|---:|---:|
+| `kivi_voice_natural.wav` | −3 | 204 Гц |
+| `kivi_voice_warm.wav` | −4 | 193 Гц |
+| `kivi_voice_deep.wav` | −5 | 182 Гц |
+
+Старые высокие варианты (F0 400+ Гц) удалены как неподходящие.
 
 ## Синтез
 
@@ -77,9 +88,15 @@ $env:HF_HOME='D:\AI-assistent\data\hf-cache'
 По умолчанию:
 
 - Base-модель: `data/models/qwen3-tts/1.7B-Base`;
-- reference: `assets/voice-samples/kivi_anime_ref.wav`;
+- reference: `assets/voice-samples/kivi_voice_warm.wav`;
 - язык: `Russian`;
 - устройство: `cuda` (если CUDA недоступна — ошибка с подсказкой).
+
+Можно выбрать другой reference:
+
+```powershell
+.venv\Scripts\kivi.exe say --engine qwen "Текст" --reference assets\voice-samples\kivi_voice_deep.wav --play
+```
 
 ## Архитектура
 

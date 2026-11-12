@@ -49,7 +49,7 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe tools run window.list --args '{"limit":10}'
 .venv\Scripts\kivi.exe tools run system.volume.get
 .venv\Scripts\kivi.exe say "Привет, это Киви." --play
-.venv\Scripts\kivi.exe voice design --out assets\voice-samples\kivi_anime_ref.wav
+.venv\Scripts\kivi.exe voice design --out assets\voice-samples\kivi_voice_warm.wav
 .venv\Scripts\kivi.exe say --engine qwen "Привет! Я Киви." --play
 .venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\python.exe -m pytest -q

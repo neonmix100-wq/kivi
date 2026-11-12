@@ -82,7 +82,7 @@ class VoiceSettings(BaseModel):
     fallback: VoiceFallback = Field(default_factory=VoiceFallback)
     cloud_fallback: bool = False
     clone: CloneSettings = Field(default_factory=CloneSettings)
-    qwen_reference: Path = Path("assets/voice-samples/kivi_anime_ref.wav")
+    qwen_reference: Path = Path("assets/voice-samples/kivi_voice_warm.wav")
     qwen_reference_text: str = ""
     qwen_model_dir: Path = Path("data/models/qwen3-tts/1.7B-Base")
     qwen_design_dir: Path = Path("data/models/qwen3-tts/1.7B-VoiceDesign")
