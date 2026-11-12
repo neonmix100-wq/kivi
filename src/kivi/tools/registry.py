@@ -83,6 +83,7 @@ def build_registry(
     from kivi.tools.proc import ProcKillTool, ProcListTool, ProcStartTool
     from kivi.tools.repo import RepoIndexTool
     from kivi.tools.screen import ScreenCaptureTool
+    from kivi.tools.sdxl import SdxlTool
     from kivi.tools.shell import ShellExecTool
     from kivi.tools.system import (
         SystemLockTool,
@@ -154,6 +155,7 @@ def build_registry(
         *build_telegram_tools(),
         *build_crm_tools(),
         MediaImageTool(),
+        SdxlTool(),
     ):
         registry.register(tool)
     return registry

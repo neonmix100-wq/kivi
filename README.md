@@ -56,6 +56,7 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe voice add --file my_voice.wav --name my-voice --consent --transcript "Привет, это Киви."
 .venv\Scripts\kivi.exe voice list
 .venv\Scripts\kivi.exe media image "kivi portrait, anime style" --width 1024
+.venv\Scripts\kivi.exe media sdxl "kivi portrait, anime style" --width 1024
 .venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
@@ -181,6 +182,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/VOICE-FISH.md`](docs/VOICE-FISH.md) | Fish Audio voice ID, API-ключ и права |
 | [`docs/VOICE-LIBRARY.md`](docs/VOICE-LIBRARY.md) | Импорт голосов из файлов/URL, consent |
 | [`docs/MEDIA.md`](docs/MEDIA.md) | M7: бесплатная генерация изображений |
+| [`docs/SDXL.md`](docs/SDXL.md) | Локальный SDXL через SD WebUI API |
 | [`docs/SKILLS-PLUGINS.md`](docs/SKILLS-PLUGINS.md) | Аудит скиллов и плагинов |
 | [`docs/AVATAR3D.md`](docs/AVATAR3D.md) | 3D-VRM слой, виземы, состояния, fallback |
 | [`docs/CRM-DOMAIN.md`](docs/CRM-DOMAIN.md) | Факты, цитаты, черновики, история, метрики |

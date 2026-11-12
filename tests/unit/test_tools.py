@@ -87,6 +87,7 @@ def test_registry_exposes_specs() -> None:
         "mail.read",
         "mail.search",
         "media.image",
+        "media.sdxl",
         "proc.kill",
         "proc.list",
         "proc.start",

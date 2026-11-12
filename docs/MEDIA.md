@@ -28,15 +28,14 @@ OCR, не имеет права инструктировать планиров�
 | Проверка статуса, content-type, magic bytes, лимит 10 МБ | ✅ реализовано |
 | Сохранение в `data/media/<uuid>.<ext>` через zone check | ✅ реализовано |
 | `dry_run` без сети | ✅ реализовано |
-| Регистрация в `build_registry` и CLI | ⬜ отдельный срез |
+| Регистрация в `build_registry` и CLI | ✅ `media.image`, `kivi media image` |
 | Планировщик, галерея, повторные попытки, job-очередь | ⬜ нет |
-| Локальный SDXL/ComfyUI | ⬜ не подключён |
+| Локальный SDXL через SD WebUI API | ✅ `media.sdxl`, `kivi media sdxl` |
 | Видео-провайдеры | ⬜ не подключены |
 | Платный API, аккаунт, биллинг | ⬜ нет и не планируется в этом срезе |
 
-Инструмент намеренно не добавлен в `build_registry()` и не имеет
-CLI-команды: это следующий интеграционный шаг, а не часть текущего среза.
-`kivi tools list` его пока не показывает.
+Инструмент зарегистрирован в `build_registry()` и доступен как
+`kivi media image`; `kivi media sdxl` — локальный SDXL через SD WebUI API.
 
 ## 2. Архитектура
 
@@ -226,21 +225,15 @@ BOM и подобные. Это отсекает попытки спрятать
 - Сгенерированное изображение может быть неточным, оскорбительным или
   нарушающим чужие права. Это не доверенный контент и не факт.
 
-## 10. Локальный SDXL/ComfyUI — не подключён
+## 10. Локальный SDXL через SD WebUI API
 
-В проекте есть опциональные зависимости `image` (`diffusers`, `transformers`,
-`accelerate`, `safetensors`) и скачанный чекпойнт SDXL base 1.0, но **раннера
-нет**: `media.image` всегда ходит в Pollinations. Локальный путь потребует:
+`media.sdxl` уже подключён и ходит только на loopback
+`http://127.0.0.1:7860/sdapi/v1/txt2img`. Требуется запущенный SD WebUI с
+`--api` и чекпойнт SDXL base 1.0. VRAM ~7 ГБ: с 8B Q4 одновременно не
+помещается, нужна очередь/выгрузка LLM. Полная инструкция — [SDXL.md](SDXL.md).
 
-- отдельного провайдера/инструмента за тем же интерфейсом (например,
-  `media.local` или стратегия внутри `media.generate`);
-- загрузки SDXL только через `ModelGateway` и с учётом VRAM (16 ГБ хватает
-  на SDXL 1024×1024, но не вместе с 8B Q4);
-- ComfyUI/SD WebUI как внешнего процесса или собственного diffusers-пайплайна;
-- тех же проверок файла, зон и trust-метки.
-
-До этого локальная генерация не является fallback'ом и не упоминается как
-доступная возможность.
+`media.image` (Pollinations) остаётся облачным fallback'ом и не требует GPU.
+ComfyUI не подключён; job-очередь и видео — следующие срезы.
 
 ## 11. Следующие видео-провайдеры — не подключены
 
@@ -260,21 +253,15 @@ BOM и подобные. Это отсекает попытки спрятать
 
 ## 12. Интеграция и тесты
 
-Текущий срез не трогает `src/kivi/tools/registry.py` и CLI. Чтобы включить
-инструмент, в отдельном коммите нужно:
+`MediaImageTool` и `SdxlTool` зарегистрированы в `build_registry()`; CLI:
+`kivi media image` и `kivi media sdxl`. Capability `media.generate` выдаётся
+там, где это разрешено политикой. `docs/TOOLS.md` и индексы обновлены.
 
-1. зарегистрировать `MediaImageTool()` в `build_registry()`;
-2. добавить capability `media.generate` в выдачу grant'ов там, где это
-   разрешено политикой;
-3. добавить строку в таблицу `docs/TOOLS.md` и CLI-команду, если она нужна;
-4. пересобрать `docs/_INDEX.md` и `docs/_CODE-MAP.md`
-   (`python scripts/build_knowledge_index.py`).
-
-Проверки среза:
+Проверки:
 
 ```powershell
-.venv\Scripts\python.exe -m pytest -q tests\unit\test_media.py
-.venv\Scripts\python.exe -m ruff check src\kivi\tools\media.py tests\unit\test_media.py
+.venv\Scripts\python.exe -m pytest -q tests\unit\test_media.py tests\unit\test_sdxl.py
+.venv\Scripts\python.exe -m ruff check src\kivi\tools\media.py src\kivi\tools\sdxl.py
 ```
 
 Тесты не ходят в сеть: клиент собирается на `httpx.MockTransport`. Покрыты

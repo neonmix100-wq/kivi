@@ -1301,6 +1301,42 @@ def cmd_voice_library(args: argparse.Namespace) -> int:
     return 2
 
 
+def cmd_media_sdxl(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    payload = {
+        "prompt": args.prompt,
+        "width": args.width,
+        "height": args.height,
+    }
+    if args.negative:
+        payload["negative_prompt"] = args.negative
+    if args.steps is not None:
+        payload["steps"] = args.steps
+    if args.cfg is not None:
+        payload["cfg_scale"] = args.cfg
+    if args.seed is not None:
+        payload["seed"] = args.seed
+    if args.sampler:
+        payload["sampler"] = args.sampler
+    try:
+        result = _run_direct_tool(
+            paths,
+            config,
+            "media.sdxl",
+            payload,
+            ["media.generate"],
+        )
+    except RuntimeError as exc:
+        console.print(f"[red]{_plain(str(exc))}[/red]")
+        return 1
+    if not result.ok:
+        console.print(f"[red]sdxl error:[/red] {_plain(result.error)}")
+        return 1
+    console.print(_plain(result.output))
+    return 0
+
+
 def cmd_media(args: argparse.Namespace) -> int:
     paths = get_paths()
     config = _config(paths)
@@ -2578,6 +2614,20 @@ def build_parser() -> argparse.ArgumentParser:
     media_image.add_argument("--seed", type=int, default=None)
     media_image.add_argument("--negative", default="")
     media_image.set_defaults(func=cmd_media)
+    media_sdxl = media_sub.add_parser("sdxl", help="local SDXL via SD WebUI API")
+    media_sdxl.add_argument("prompt")
+    media_sdxl.add_argument("--width", type=int, default=1024)
+    media_sdxl.add_argument("--height", type=int, default=1024)
+    media_sdxl.add_argument("--steps", type=int, default=None)
+    media_sdxl.add_argument("--cfg", type=float, default=None)
+    media_sdxl.add_argument("--seed", type=int, default=None)
+    media_sdxl.add_argument(
+        "--sampler",
+        choices=("DPM++ 2M Karras", "Euler a", "DDIM"),
+        default=None,
+    )
+    media_sdxl.add_argument("--negative", default="")
+    media_sdxl.set_defaults(func=cmd_media_sdxl)
 
     coder = sub.add_parser("coder", help="generate code, run tests and fix up to N times")
     coder.add_argument("goal")
