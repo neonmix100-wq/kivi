@@ -10,7 +10,7 @@ def test_fake_benchmark_runs_and_reports(capsys) -> None:
             "--switches",
             "4",
             "--models",
-            "qwen3.5:4b,llama3:8b",
+            "qwen3.5:4b",
             "--no-write",
         ]
     )

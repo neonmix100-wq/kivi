@@ -1,7 +1,7 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
 > **Статус:** этапы 0–9 закрыты, M5 ~65%, M6 ~70% (v0.19). Железо
-> перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q5/14B/SDXL/Whisper
+> перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q4/14B/SDXL/Whisper
 > стали реалистичны. Работают `kivi doctor`, `kivi models`, `kivi ask`,
 > `kivi chat`, `kivi serve`, `kivi say`, `kivi coder`, `kivi browse`,
 > `kivi mail`, `kivi telegram`, `kivi listen`, `kivi crm`, `kivi embed`,
@@ -73,9 +73,9 @@ py -3.12 -m venv .venv
 |---|---|---|
 | CPU | Intel Core i3-14100F, 4 ядра / 8 потоков | Хватит для ядра, TTS, эмбеддингов; CPU-инференс LLM — fallback |
 | RAM | 31,8 ГБ | Достаточно; свободно ~18,5 ГБ |
-| GPU | **NVIDIA RTX 4060 Ti, 16 380 МБ VRAM** | 8B Q5, 7B coder @16k, Whisper и 3D-аватар помещаются |
+| GPU | **NVIDIA RTX 4060 Ti, 16 380 МБ VRAM** | 8B Q4, 7B coder @16k, Whisper и 3D-аватар помещаются |
 | Диск C | 475,9 ГБ, свободно 75,7 ГБ (SSD) | Не для моделей |
-| Диск D | 465,7 ГБ, свободно 120,3 ГБ (SSD) | Модели и кэш; датасеты — позже |
+| Диск D | 465,7 ГБ, свободно 112,7 ГБ (SSD) | Модели и кэш; датасеты — позже |
 | ОС | Windows 11 Pro 26200 | Windows Sandbox есть; WSL2 не установлен |
 | Python | 3.12.10 в `.venv` | Рабочая версия |
 | Ollama | 0.40.16, модели на `D:\ollama_models` | База для LLM уже есть |
