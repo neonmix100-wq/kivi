@@ -2,7 +2,7 @@
 
 Дата среза: **12.11.2026**. Дорожная карта: [ROADMAP](ROADMAP.md).
 Новый план после перепроверки железа: [PLAN-2026-11-12](PLAN-2026-11-12.md).
-Тесты: **1395**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
+Тесты: **1401**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
 
 ## 0. Железо на 12.11.2026
 
@@ -59,9 +59,10 @@
   `mail.list/search/read/attachment/draft`, Telegram-бот с allowlist и rate limit,
   CLI `kivi mail`/`kivi telegram`; 10+5 сценариев.
 - **Этап 10 (M5 Voice & Avatar) ~70%:** audio/VAD/STT, barge-in, подтверждения,
-  voice pipeline, avatar3d/visemes/states, CLI `listen` и **реальный Qwen3-TTS
-  1.7B VoiceDesign/Base** (3 reference-голоса) готовы. Блокеры:
-  `assets/wake/kivi.onnx`, `assets/avatar/kivi.vrm`, микрофон и замеры false wake/WER.
+  voice pipeline, avatar3d/visemes/states, CLI `listen`, **Qwen3-TTS
+  VoiceDesign/Base (3 взрослых тембра)** и **Fish Audio API (Astrea/s)** готовы.
+  Блокеры: `assets/wake/kivi.onnx`, `assets/avatar/kivi.vrm`, микрофон и замеры
+  false wake/WER.
 - **Этап 11 (M6 Work CRM) ~70%:** headless-домен из `ai-agent`, AltCRM CDP
   adapter, `crm.read/fill/act/task`, CLI и метрики. Блокеры: реальный AltCRM,
   10 заказов, графическая панель и паритет с extension.

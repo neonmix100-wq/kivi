@@ -117,6 +117,12 @@ from kivi.senses.audio import (
     WakeWordUnavailable,
     WhisperTranscriber,
 )
+from kivi.senses.fish_audio import (
+    DEFAULT_REFERENCE_ID,
+    FishAudioTts,
+    FishTtsConfig,
+    FishTtsError,
+)
 from kivi.senses.qwen_tts import (
     DEFAULT_VOICE_INSTRUCT,
     QwenTtsConfig,
@@ -292,6 +298,14 @@ def cmd_models(args: argparse.Namespace) -> int:
 
 
 def _speech_pipeline(config: KiviConfig) -> SpeechPipeline:
+    if config.voice.provider == "fish":
+        return SpeechPipeline(
+            FishAudioTts(_fish_config(config)),
+            fallback=PiperTts(),
+            enable_fallback=True,
+            speaker=config.voice.speaker,
+            sample_rate=config.voice.sample_rate,
+        )
     if config.voice.provider == "qwen":
         return SpeechPipeline(
             QwenTtsEngine(_qwen_config(config)),
@@ -642,6 +656,16 @@ def _qwen_config(
     )
 
 
+def _fish_config(config: KiviConfig, reference_id: str = "") -> FishTtsConfig:
+    voice = config.voice
+    return FishTtsConfig(
+        reference_id=reference_id or voice.fish_reference_id or DEFAULT_REFERENCE_ID,
+        base_url=voice.fish_base_url,
+        sample_rate=voice.fish_sample_rate,
+        latency=voice.fish_latency,
+    )
+
+
 def cmd_voice_design(args: argparse.Namespace) -> int:
     paths = get_paths()
     config = _config(paths)
@@ -680,6 +704,16 @@ def cmd_say(args: argparse.Namespace) -> int:
             ).synth(args.text, output)
         except QwenTtsError as exc:
             console.print(f"[red]qwen tts error:[/red] {_plain(str(exc))}")
+            return 1
+        results = [result]
+    elif engine == "fish":
+        output = target if target.suffix else target / "fish.wav"
+        try:
+            result = FishAudioTts(
+                _fish_config(config, reference_id=args.reference_id)
+            ).synth(args.text, output)
+        except FishTtsError as exc:
+            console.print(f"[red]fish audio error:[/red] {_plain(str(exc))}")
             return 1
         results = [result]
     else:
@@ -2392,9 +2426,10 @@ def build_parser() -> argparse.ArgumentParser:
     say.add_argument("text")
     say.add_argument("--out", default="")
     say.add_argument("--play", action="store_true")
-    say.add_argument("--engine", choices=("silero", "piper", "qwen"), default="")
+    say.add_argument("--engine", choices=("silero", "piper", "qwen", "fish"), default="")
     say.add_argument("--reference", default="", help="Qwen reference WAV")
     say.add_argument("--reference-text", default="", help="Qwen reference transcript")
+    say.add_argument("--reference-id", default="", help="Fish Audio voice model id")
     say.add_argument("--pitch", type=float, default=0.0, help="Qwen pitch shift in semitones")
     say.set_defaults(func=cmd_say)
 

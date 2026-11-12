@@ -56,6 +56,7 @@ generated: true
 | [[VECTOR]] | 2.0 KB | 4 | SQLite остаётся источником истины: эмбеддинги пишутся в таблицу embeddings. LanceDB — опциональный ANN-кэш для больших баз. Без него Kivi работает на SQLite + cosine-переборе. |
 | [[VOICE-AVATAR]] | 12.1 KB | 4 | Этап 6 (M1). Документ описывает два новых модуля: |
 | [[VOICE-CLONING]] | 17.2 KB | 8 | Статус: черновик плана, 09.11.2026. Связанные документы: docs/PERSONA.md, docs/DECISIONS.md, docs/SECURITY.md. |
+| [[VOICE-FISH]] | 3.4 KB | 6 | Fish Audio voice ID 7b220f0a97de48e7a32cf1f09381d0d3 — публичный голос Astrea/s из Voice Library: Female, Young, Character, движок Fish Audio Drama 3. |
 | [[VOICE-INPUT]] | 30.8 KB | 14 | Статус: библиотека M5 готова, CLI не изменён. Модуль: src/kivi/senses/audio.py. Тесты: tests/unit/testaudio.py (50 тестов). Оркестрация хода и barge-in: VOICE-PIPELINE.md. |
 | [[VOICE-PIPELINE]] | 20.9 KB | 8 | Статус: черновик M5, 11.11.2026. Модуль: src/kivi/senses/voice.py. Тесты: tests/unit/testvoice.py. |
 | [[VOICE-QWEN]] | 7.4 KB | 8 | Модуль kivi.senses.qwentts добавляет Qwen3-TTS 1.7B как полноценный TtsEngine. Он состоит из двух стадий: |
@@ -574,6 +575,17 @@ generated: true
 - [[VOICE-CLONING#6. Модели и лицензии|6. Модели и лицензии]]
 - [[VOICE-CLONING#7. Приватность и безопасность|7. Приватность и безопасность]]
 - [[VOICE-CLONING#8. Что нужно от пользователя|8. Что нужно от пользователя]]
+
+## [[VOICE-FISH|Fish Audio: облачный голос Astrea/s]]
+
+> Fish Audio voice ID 7b220f0a97de48e7a32cf1f09381d0d3 — публичный голос Astrea/s из Voice Library: Female, Young, Character, движок Fish Audio Drama 3.
+
+- [[VOICE-FISH#Настройка|Настройка]]
+- [[VOICE-FISH#Синтез|Синтез]]
+- [[VOICE-FISH#Как это работает|Как это работает]]
+- [[VOICE-FISH#Права и лицензия|Права и лицензия]]
+- [[VOICE-FISH#Приватность и стоимость|Приватность и стоимость]]
+- [[VOICE-FISH#Ограничения|Ограничения]]
 
 ## [[VOICE-INPUT|Kivi: голосовой ввод (M5)]]
 

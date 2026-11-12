@@ -51,6 +51,7 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe say "Привет, это Киви." --play
 .venv\Scripts\kivi.exe voice design --out assets\voice-samples\kivi_voice_warm.wav
 .venv\Scripts\kivi.exe say --engine qwen "Привет! Я Киви." --play
+.venv\Scripts\kivi.exe say --engine fish "Привет! Я Киви." --play
 .venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe -m ruff check src tests
@@ -173,6 +174,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/VOICE-INPUT.md`](docs/VOICE-INPUT.md) | Audio, VAD, faster-whisper, wake-word |
 | [`docs/VOICE-PIPELINE.md`](docs/VOICE-PIPELINE.md) | VoiceSession, barge-in, подтверждения |
 | [`docs/VOICE-QWEN.md`](docs/VOICE-QWEN.md) | Qwen3-TTS VoiceDesign/Base, CUDA и замеры |
+| [`docs/VOICE-FISH.md`](docs/VOICE-FISH.md) | Fish Audio voice ID, API-ключ и права |
 | [`docs/AVATAR3D.md`](docs/AVATAR3D.md) | 3D-VRM слой, виземы, состояния, fallback |
 | [`docs/CRM-DOMAIN.md`](docs/CRM-DOMAIN.md) | Факты, цитаты, черновики, история, метрики |
 | [`docs/CRM-ADAPTER.md`](docs/CRM-ADAPTER.md) | AltCRM CDP: чтение и заполнение без сохранения |

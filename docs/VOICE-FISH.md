@@ -1,0 +1,85 @@
+# Fish Audio: облачный голос Astrea/s
+
+Fish Audio voice ID `7b220f0a97de48e7a32cf1f09381d0d3` — публичный голос
+**Astrea/s** из Voice Library: Female, Young, Character, движок Fish Audio
+Drama 3.
+
+Это **не локальный файл**. Голос доступен только через Fish Audio API; для
+синтеза нужен ключ и кредиты/план Fish Audio.
+
+## Настройка
+
+```powershell
+$env:FISH_AUDIO_API_KEY = "ваш-ключ"
+```
+
+Ключ читается только из env, никогда не пишется в `config/` и не коммитится.
+`config/kivi.yaml` хранит только публичный voice ID:
+
+```yaml
+voice:
+  fish_reference_id: 7b220f0a97de48e7a32cf1f09381d0d3
+  fish_base_url: https://api.fish.audio/v1
+  fish_sample_rate: 44100
+  fish_latency: balanced
+```
+
+## Синтез
+
+```powershell
+.venv\Scripts\kivi.exe say --engine fish "Привет! Я Киви." --play
+```
+
+Другой публичный voice ID:
+
+```powershell
+.venv\Scripts\kivi.exe say --engine fish --reference-id <id> "Текст" --play
+```
+
+Чтобы Fish Audio стал голосом по умолчанию:
+
+```yaml
+voice:
+  provider: fish
+```
+
+При отсутствии ключа команда завершается ошибкой
+`FISH_AUDIO_API_KEY is not set`, без сетевого запроса.
+
+## Как это работает
+
+```text
+kivi say --engine fish
+  -> POST https://api.fish.audio/v1/tts
+     Authorization: Bearer <env>
+     {"text": ..., "reference_id": ..., "format": "wav", ...}
+  -> WAV response
+  -> data/cache/tts/fish.wav
+```
+
+Модуль: `src/kivi/senses/fish_audio.py`.
+Ответ проверяется на `RIFF`/WAV и лимит 20 МБ; ошибки не печатают ключ.
+
+## Права и лицензия
+
+- Голос создан пользователем Fish Audio, а не Kivi. Перед использованием
+  проверьте разрешение автора и условия Fish Audio; для коммерческого
+  использования может требоваться платный план/лицензия.
+- Не выдавайте синтетический голос за реального человека и не используйте его
+  для обмана/дискредитации.
+- Voice Library может меняться: если ID удалён или privатен, API вернёт ошибку.
+
+## Приватность и стоимость
+
+- Текст уходит на сервер Fish Audio — это осознанное исключение из local-first.
+- Расход кредитов/лимитов зависит от плана; Kivi не вызывает Fish Audio
+  автоматически без явной команды.
+- Локальный fallback: Silero/Piper/Qwen3-TTS.
+
+## Ограничения
+
+- Нет офлайн-режима: voice ID нельзя скачать как checkpoint.
+- Неизвестна поддержка русского акцента у конкретного голоса; проверяйте на
+  своих фразах.
+- Нет потокового воспроизведения в текущем `TtsEngine`; WAV целиком.
+- Не тестировалось без ключа; unit-тесты используют fake HTTP.

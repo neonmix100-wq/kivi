@@ -29,6 +29,10 @@ voice:
   qwen_model_dir: data/models/qwen3-tts/1.7B-Base
   qwen_design_dir: data/models/qwen3-tts/1.7B-VoiceDesign
   qwen_device: cuda
+  fish_reference_id: 7b220f0a97de48e7a32cf1f09381d0d3
+  fish_base_url: https://api.fish.audio/v1
+  fish_sample_rate: 44100
+  fish_latency: balanced
   rate: 1.0
   put_accent: true
   put_yo: true

@@ -316,6 +316,34 @@ def test_say_qwen_engine(tmp_path: Path, monkeypatch) -> None:
     assert main(["say", "--engine", "qwen", "привет", "--out", str(out)]) == 0
 
 
+def test_say_fish_engine(tmp_path: Path, monkeypatch) -> None:
+    paths = make_tools_profile(tmp_path)
+    monkeypatch.setattr(cli_module, "get_paths", lambda: paths)
+    out = tmp_path / "fish.wav"
+
+    class FakeFish:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def synth(self, text, target):
+            target.write_bytes(b"RIFF")
+            return SimpleNamespace(path=target, duration_s=0.2, engine="fish-audio")
+
+    monkeypatch.setattr(cli_module, "FishAudioTts", FakeFish)
+    assert main(
+        [
+            "say",
+            "--engine",
+            "fish",
+            "--reference-id",
+            "7b220f0a97de48e7a32cf1f09381d0d3",
+            "привет",
+            "--out",
+            str(out),
+        ]
+    ) == 0
+
+
 def test_voice_design_command(tmp_path: Path, monkeypatch) -> None:
     paths = make_tools_profile(tmp_path)
     monkeypatch.setattr(cli_module, "get_paths", lambda: paths)

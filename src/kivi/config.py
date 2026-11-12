@@ -70,7 +70,7 @@ class CloneSettings(BaseModel):
 class VoiceSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", protected_namespaces=())
 
-    provider: Literal["silero", "piper", "xtts", "edge", "qwen"] = "silero"
+    provider: Literal["silero", "piper", "xtts", "edge", "qwen", "fish"] = "silero"
     model: str = "v5_ru"
     speaker: str = "baya"
     sample_rate: Literal[8000, 24000, 48000] = 48000
@@ -87,6 +87,10 @@ class VoiceSettings(BaseModel):
     qwen_model_dir: Path = Path("data/models/qwen3-tts/1.7B-Base")
     qwen_design_dir: Path = Path("data/models/qwen3-tts/1.7B-VoiceDesign")
     qwen_device: Literal["cuda", "cpu"] = "cuda"
+    fish_reference_id: str = "7b220f0a97de48e7a32cf1f09381d0d3"
+    fish_base_url: str = "https://api.fish.audio/v1"
+    fish_sample_rate: int = 44100
+    fish_latency: str = "balanced"
 
     @model_validator(mode="after")
     def _clone_needs_consent(self) -> VoiceSettings:
