@@ -1,6 +1,6 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–9 закрыты, M5 ~80%, M6 ~70%, M7 ~50%, M8 ~50% (v0.19). Железо
+> **Статус:** этапы 0–9 закрыты, M5 ~80%, M6 ~75%, M7 ~50%, M8 ~55% (v0.19). Железо
 > перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q4/14B/SDXL/Whisper
 > стали реалистичны. Работают `kivi doctor`, `kivi models`, `kivi ask`,
 > `kivi chat`, `kivi serve`, `kivi say`, `kivi voice design`, `kivi coder`,
@@ -14,7 +14,7 @@
 > и Qwen3-TTS VoiceDesign/Base голос Kivi; **Fish Audio S2.1 Pro Free + Astrea/s
 > сейчас основной голос**. Есть импорт голосов из файлов/URL и `media.image`.
 > Новый план: [`docs/PLAN-2026-11-12.md`](docs/PLAN-2026-11-12.md).
-> Осталось: M7 видео, M6 реальный CRM/UI-панель, M5 wake/VRM,
+> Осталось: M7 видео, M6 реальный AltCRM/паритет, M5 wake/VRM,
 > M8 запись/удаление файлов и Explorer-замена, OCR/PDF.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
 

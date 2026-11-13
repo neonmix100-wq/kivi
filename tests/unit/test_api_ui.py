@@ -39,6 +39,13 @@ def ui_api(tmp_path: Path):
             "content": "# hello",
             "truncated": False,
         },
+        crm_status_handler=lambda: {
+            "connected": False,
+            "hint": "start Chrome",
+            "url": "",
+            "error": "",
+        },
+        crm_read_handler=lambda: {"ok": False, "order": "", "hint": "not connected"},
         history_handler=lambda limit: [
             {"role": "user", "content": f"limit={limit}"},
         ],
@@ -105,6 +112,16 @@ def test_fs_list_and_read(ui_api: LocalApi) -> None:
     assert listing.json()["entries"][0]["name"] == "docs"
     assert reading.status_code == 200
     assert reading.json()["content"] == "# hello"
+
+
+def test_crm_status_and_read(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        status = client.get("/crm/status")
+        reading = client.get("/crm/read")
+    assert status.status_code == 200
+    assert status.json()["connected"] is False
+    assert reading.status_code == 200
+    assert reading.json()["ok"] is False
 
 
 def test_history_limit_and_voices_settings(ui_api: LocalApi) -> None:

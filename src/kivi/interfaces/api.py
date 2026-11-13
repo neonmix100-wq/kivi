@@ -43,6 +43,8 @@ SttHandler = Callable[[bytes], str]
 MediaHandler = Callable[[dict[str, Any]], dict[str, Any]]
 FsListHandler = Callable[[str], dict[str, Any]]
 FsReadHandler = Callable[[str], dict[str, Any]]
+CrmStatusHandler = Callable[[], dict[str, Any]]
+CrmReadHandler = Callable[[], dict[str, Any]]
 HistoryHandler = Callable[[int], list[dict[str, Any]]]
 VoicesHandler = Callable[[], list[dict[str, Any]]]
 SettingsHandler = Callable[[], dict[str, Any]]
@@ -97,6 +99,8 @@ class LocalApi:
         media_handler: MediaHandler | None = None,
         fs_list_handler: FsListHandler | None = None,
         fs_read_handler: FsReadHandler | None = None,
+        crm_status_handler: CrmStatusHandler | None = None,
+        crm_read_handler: CrmReadHandler | None = None,
         history_handler: HistoryHandler | None = None,
         voices_handler: VoicesHandler | None = None,
         settings_handler: SettingsHandler | None = None,
@@ -122,6 +126,8 @@ class LocalApi:
         self._media_handler = media_handler
         self._fs_list_handler = fs_list_handler
         self._fs_read_handler = fs_read_handler
+        self._crm_status_handler = crm_status_handler
+        self._crm_read_handler = crm_read_handler
         self._history_handler = history_handler
         self._voices_handler = voices_handler
         self._settings_handler = settings_handler
@@ -294,6 +300,10 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._handle_fs_list(split.query)
         elif method == "GET" and path == "/fs/read":
             self._handle_fs_read(split.query)
+        elif method == "GET" and path == "/crm/status":
+            self._handle_crm_status()
+        elif method == "GET" and path == "/crm/read":
+            self._handle_crm_read()
         elif method == "GET" and path == "/history":
             self._handle_history(split.query)
         elif method == "GET" and path == "/voices":
@@ -464,6 +474,32 @@ class _ApiHandler(BaseHTTPRequestHandler):
         except Exception:
             logger.warning("fs read failed")
             self._send_json(400, {"error": "cannot read path"})
+            return
+        self._send_json(200, result)
+
+    def _handle_crm_status(self) -> None:
+        api = self.server.api
+        if api._crm_status_handler is None:
+            self._send_json(503, {"error": "crm is not configured"})
+            return
+        try:
+            result = api._crm_status_handler()
+        except Exception:
+            logger.warning("crm status failed")
+            self._send_json(500, {"error": "crm status failed"})
+            return
+        self._send_json(200, result)
+
+    def _handle_crm_read(self) -> None:
+        api = self.server.api
+        if api._crm_read_handler is None:
+            self._send_json(503, {"error": "crm is not configured"})
+            return
+        try:
+            result = api._crm_read_handler()
+        except Exception:
+            logger.warning("crm read failed")
+            self._send_json(500, {"error": "crm read failed"})
             return
         self._send_json(200, result)
 

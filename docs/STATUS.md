@@ -2,7 +2,7 @@
 
 Дата среза: **12.11.2026**. Дорожная карта: [ROADMAP](ROADMAP.md).
 Новый план после перепроверки железа: [PLAN-2026-11-12](PLAN-2026-11-12.md).
-Тесты: **1592**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
+Тесты: **1593**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
 
 ## 0. Железо на 12.11.2026
 
@@ -65,15 +65,14 @@
   озвучивает ответ без аватара**, `audio devices/test`, **голосовой ввод в UI
   через `/transcribe` + локальный Whisper**. Блокеры:
   `assets/wake/kivi.onnx`, `assets/avatar/kivi.vrm`, микрофон и замеры false wake/WER.
-- **Этап 11 (M6 Work CRM) ~70%:** headless-домен из `ai-agent`, AltCRM CDP
-  adapter, `crm.read/fill/act/task`, CLI и метрики. Блокеры: реальный AltCRM,
-  10 заказов, графическая панель и паритет с extension.
+- **Этап 11 (M6 Work CRM) ~75%:** headless-домен, AltCRM CDP adapter,
+  `crm.read/fill/act/task`, **read-only CRM-панель в UI**; реальный AltCRM,
+  10 заказов и паритет extension — блокеры.
 - **Этап 12 (M7 Cloud Media) ~50%:** `media.image`, `media.sdxl`,
   `MediaJobQueue`, **медиа-панель в UI**; видео-провайдера без ключа нет.
-- **Этап 13 (M8 Kivi Shell) ~50%:** локальный веб-интерфейс `kivi ui`,
-  app-окно, трей, чат, история, голоса, настройки, аватар, голосовой ввод,
-  медиа-панель, **read-only файловый обзор**; запись/удаление/Explorer-замена
-  ещё впереди.
+- **Этап 13 (M8 Kivi Shell) ~55%:** Kivi UI, app-окно, трей, чат, история,
+  голоса, настройки, аватар, голосовой ввод, медиа, файлы, CRM; запись/удаление
+  файлов и Explorer-замена ещё впереди.
 
 ## 2. Этапы
 
@@ -90,9 +89,9 @@
 | 8. M3: Operator | ✅ готово | окна/приложения, UI, system, browser, 20 сценариев | — |
 | 9. M4: Communicator | ✅ готово | Gmail drafts, Telegram bot, CLI, 15 сценариев | — |
 | 10. M5: Voice & Avatar | 🟡 ~80% | audio/VAD/STT, barge-in, avatar3d, Qwen3-TTS, Fish Audio, voice library, UI mic | wake ONNX, VRM, замеры |
-| 11. M6: Work CRM | 🟡 ~70% | домен, AltCRM CDP, tools, CLI, метрики | реальный CRM, UI-панель |
+| 11. M6: Work CRM | 🟡 ~75% | домен, AltCRM CDP, tools, CLI, CRM UI panel | реальный CRM, паритет |
 | 12. M7: Cloud Media | 🟡 ~50% | `media.image`, `media.sdxl`, `MediaJobQueue`, UI media panel | видео, UI очереди, ComfyUI |
-| 13. M8: Kivi Shell | 🟡 ~50% | Kivi UI, app-окно, трей, голосовой ввод, медиа, файлы | запись/удаление, Explorer |
+| 13. M8: Kivi Shell | 🟡 ~55% | Kivi UI, app-окно, трей, голос, медиа, файлы, CRM | запись/удаление, Explorer |
 
 ## 3. Что уже сделано
 

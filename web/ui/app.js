@@ -47,7 +47,10 @@ const AVATAR_CAPTIONS = {
   speaking: "Озвучиваю ответ.",
   error: "Не удалось связаться с сервером.",
 };
-const VIEWS = new Set(["chat", "voices", "media", "files", "settings"]);
+const VIEWS = new Set(["chat", "voices", "media", "files", "crm", "settings"]);
+const CRM_FALLBACK_HINT =
+  "Запусти Chrome с --remote-debugging-port=9222 и открой вкладку заказа AltCRM. Kivi читает только открытую страницу.";
+const CRM_ORDER_MAX_CHARS = 120000;
 
 const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const shortDateFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
@@ -101,6 +104,21 @@ const state = {
     previewEpoch: 0,
     previewTrigger: null,
     copyStatus: "",
+  },
+  crm: {
+    statusState: "idle",
+    connected: false,
+    hint: "",
+    url: "",
+    statusError: "",
+    statusDetail: "",
+    readState: "idle",
+    order: "",
+    readError: "",
+    readHint: "",
+    copyStatus: "",
+    statusEpoch: 0,
+    readEpoch: 0,
   },
   sending: false,
   pendingConversationId: null,
@@ -2454,6 +2472,272 @@ function onFilesListKeydown(event) {
 }
 
 /* ------------------------------------------------------------------ */
+/* CRM (GET /crm/status, GET /crm/read)                               */
+/* ------------------------------------------------------------------ */
+
+function normalizeCrmStatus(raw) {
+  const data = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  return {
+    connected: data.connected === true,
+    hint: typeof data.hint === "string" ? data.hint.trim().slice(0, 800) : "",
+    url: typeof data.url === "string" ? data.url.trim().slice(0, 500) : "",
+    error: typeof data.error === "string" ? data.error.trim().slice(0, 300) : "",
+  };
+}
+
+function describeCrmError(error, context) {
+  if (!(error instanceof ApiError)) {
+    return `Не удалось выполнить ${context}: ${
+      error instanceof Error ? error.message : "неизвестная ошибка"
+    }.`;
+  }
+  if (error.status === 503) {
+    return "CRM не настроен на сервере (503). Запустите Kivi с поддержкой CRM и обновите страницу.";
+  }
+  if (error.status === 404) return `Сервер не поддерживает ${error.path || context} (404).`;
+  if (error.status === 400) {
+    return `Сервер отклонил запрос${error.code ? `: ${error.code}` : ""}.`;
+  }
+  if (error.status >= 500) return `Сервер Kivi сообщил об ошибке (${error.status}).`;
+  return describeApiError(error, context);
+}
+
+async function loadCrmStatus({ force = false } = {}) {
+  if (state.crm.statusState === "checking") return;
+  const epoch = ++state.crm.statusEpoch;
+  state.crm.statusState = "checking";
+  state.crm.statusError = "";
+  state.crm.statusDetail = "";
+  renderCrm();
+  updateViewHeader();
+
+  try {
+    const data = await apiRequest("/crm/status", { timeout: 8000 });
+    if (epoch !== state.crm.statusEpoch) return;
+    const status = normalizeCrmStatus(data);
+    state.crm.connected = status.connected;
+    state.crm.hint = status.hint || (status.connected ? "" : CRM_FALLBACK_HINT);
+    state.crm.url = status.url;
+    state.crm.statusDetail = status.error;
+    state.crm.statusState = status.connected ? "ready" : "offline";
+    if (!status.connected) {
+      // A fresh offline check invalidates any order text read earlier.
+      state.crm.readEpoch += 1;
+      state.crm.readState = "idle";
+      state.crm.order = "";
+      state.crm.readError = "";
+      state.crm.readHint = "";
+      state.crm.copyStatus = "";
+    }
+  } catch (error) {
+    if (epoch !== state.crm.statusEpoch) return;
+    state.crm.connected = false;
+    state.crm.url = "";
+    state.crm.hint = CRM_FALLBACK_HINT;
+    state.crm.statusDetail = "";
+    state.crm.readEpoch += 1;
+    state.crm.readState = "idle";
+    state.crm.order = "";
+    state.crm.readError = "";
+    state.crm.readHint = "";
+    state.crm.copyStatus = "";
+    if (isUnsupported(error)) {
+      state.crm.statusState = "unavailable";
+      state.crm.statusError =
+        error.status === 503
+          ? "CRM не настроен на сервере (503). Запустите Kivi с поддержкой CRM."
+          : "Сервер не поддерживает GET /crm/status (404).";
+    } else {
+      state.crm.statusState = "error";
+      state.crm.statusError = describeCrmError(error, "проверке подключения CRM");
+      if (force) showToast(state.crm.statusError, "error");
+    }
+  } finally {
+    if (epoch !== state.crm.statusEpoch) return;
+    renderCrm();
+    updateViewHeader();
+  }
+}
+
+async function readCrmOrder() {
+  if (state.crm.readState === "loading") return;
+  if (!state.crm.connected) {
+    await loadCrmStatus({ force: true });
+    return;
+  }
+
+  const epoch = ++state.crm.readEpoch;
+  state.crm.readState = "loading";
+  state.crm.order = "";
+  state.crm.readError = "";
+  state.crm.readHint = "";
+  state.crm.copyStatus = "";
+  renderCrm();
+  updateViewHeader();
+
+  try {
+    const data = await apiRequest("/crm/read", { timeout: 45000 });
+    if (epoch !== state.crm.readEpoch) return;
+    const order =
+      data && typeof data.order === "string" ? data.order.slice(0, CRM_ORDER_MAX_CHARS) : "";
+    const hint =
+      data && typeof data.hint === "string" ? data.hint.trim().slice(0, 800) : "";
+    if (data && data.ok === true) {
+      state.crm.order = order;
+      state.crm.readState = order.trim() ? "ready" : "empty";
+    } else {
+      state.crm.readState = "blocked";
+      state.crm.readHint =
+        hint || "AltCRM недоступен: откройте вкладку заказа и проверьте подключение.";
+    }
+  } catch (error) {
+    if (epoch !== state.crm.readEpoch) return;
+    state.crm.readState = "error";
+    state.crm.readError = describeCrmError(error, "чтении заказа");
+  } finally {
+    if (epoch !== state.crm.readEpoch) return;
+    renderCrm();
+    updateViewHeader();
+  }
+}
+
+async function copyCrmOrder() {
+  if (state.crm.readState !== "ready" || !state.crm.order) return;
+  if (els.crmCopy) els.crmCopy.disabled = true;
+  try {
+    await copyTextToClipboard(state.crm.order);
+    state.crm.copyStatus = "Скопировано в буфер обмена.";
+  } catch {
+    state.crm.copyStatus = "Не удалось скопировать. Выделите текст и нажмите Ctrl+C.";
+    showToast("Буфер обмена недоступен в этом браузере.", "error");
+  } finally {
+    renderCrm();
+  }
+}
+
+function renderCrm() {
+  if (!els.crmStatusBadge || !els.crmStatus) return;
+  const crm = state.crm;
+
+  const badgeMap = {
+    idle: { label: "не проверено", cls: "is-idle" },
+    checking: { label: "проверка…", cls: "is-checking" },
+    ready: { label: "подключено", cls: "is-online" },
+    offline: { label: "офлайн", cls: "is-offline" },
+    error: { label: "ошибка", cls: "is-error" },
+    unavailable: { label: "недоступно", cls: "is-error" },
+  };
+  const badge = badgeMap[crm.statusState] || badgeMap.idle;
+  els.crmStatusBadge.classList.remove(
+    "is-idle",
+    "is-checking",
+    "is-online",
+    "is-offline",
+    "is-error",
+  );
+  els.crmStatusBadge.classList.add(badge.cls);
+  if (els.crmStatusBadgeText) els.crmStatusBadgeText.textContent = badge.label;
+
+  let statusText = "Откройте раздел «CRM», чтобы проверить подключение к Chrome.";
+  let statusIsError = false;
+  if (crm.statusState === "checking") {
+    statusText = "Проверяю подключение к Chrome по CDP…";
+  } else if (crm.statusState === "ready") {
+    statusText =
+      "Chrome на связи. Откройте карточку заказа и нажмите «Прочитать заказ».";
+  } else if (crm.statusState === "offline") {
+    statusText =
+      "Chrome с CDP не найден. Выполните инструкцию ниже, затем нажмите «Проверить».";
+  } else if (crm.statusState === "error" || crm.statusState === "unavailable") {
+    statusText = crm.statusError || "Не удалось проверить подключение к CRM.";
+    statusIsError = true;
+  }
+  els.crmStatus.textContent = statusText;
+  els.crmStatus.classList.toggle("is-error", statusIsError);
+
+  if (els.crmHint) els.crmHint.hidden = crm.statusState !== "offline";
+  if (els.crmHintText) els.crmHintText.textContent = crm.hint || CRM_FALLBACK_HINT;
+  if (els.crmHintError) {
+    const detail = crm.statusState === "offline" ? crm.statusDetail : "";
+    els.crmHintError.hidden = !detail;
+    els.crmHintError.textContent = detail ? `Техническая причина: ${detail}` : "";
+  }
+  if (els.crmEndpointRow) {
+    const open = crm.statusState === "ready" && Boolean(crm.url);
+    els.crmEndpointRow.hidden = !open;
+    if (els.crmEndpoint) els.crmEndpoint.textContent = open ? crm.url : "";
+  }
+
+  const checking = crm.statusState === "checking";
+  if (els.crmCheck) {
+    els.crmCheck.disabled = checking;
+    els.crmCheck.textContent = checking ? "Проверяю…" : "Проверить";
+  }
+  if (els.crmRead) {
+    els.crmRead.disabled = checking || !crm.connected || crm.readState === "loading";
+  }
+
+  const readState = crm.readState;
+  const loading = readState === "loading";
+  const hasOrder = readState === "ready" && Boolean(crm.order);
+  if (els.crmOrderCard) els.crmOrderCard.setAttribute("aria-busy", loading ? "true" : "false");
+  if (els.crmOrderLoading) els.crmOrderLoading.hidden = !loading;
+  if (els.crmOrderError) {
+    els.crmOrderError.hidden = readState !== "error";
+    els.crmOrderError.textContent = readState === "error" ? crm.readError : "";
+  }
+  if (els.crmOrderText) {
+    els.crmOrderText.hidden = !hasOrder;
+    els.crmOrderText.textContent = hasOrder ? crm.order : "";
+  }
+  if (els.crmOrderEmpty) {
+    let emptyText = "";
+    if (!loading && !hasOrder && readState !== "error") {
+      if (readState === "empty") {
+        emptyText = "Сервер вернул пустой текст заказа. Откройте карточку во вкладке Chrome.";
+      } else if (readState === "blocked") {
+        emptyText = crm.readHint || "AltCRM недоступен: откройте вкладку заказа.";
+      } else if (crm.connected) {
+        emptyText = "Карточка ещё не прочитана. Нажмите «Прочитать заказ».";
+      } else {
+        emptyText =
+          "Сначала подключитесь к Chrome, затем нажмите «Прочитать заказ». Интерфейс ничего не заполняет и не отправляет.";
+      }
+    }
+    els.crmOrderEmpty.hidden = !emptyText;
+    els.crmOrderEmpty.textContent = emptyText;
+  }
+
+  if (els.crmOrderStatus) {
+    let orderStatus = "";
+    if (loading) {
+      orderStatus = "Читаю карточку заказа… Это может занять несколько секунд.";
+    } else if (readState === "ready") {
+      orderStatus = `${numberFmt.format(crm.order.length)} ${plural(crm.order.length, [
+        "символ",
+        "символа",
+        "символов",
+      ])} · только чтение`;
+    } else if (readState === "empty") {
+      orderStatus = "Пустой ответ сервера.";
+    } else if (readState === "blocked") {
+      orderStatus = "Заказ не прочитан: нужна открытая карточка AltCRM.";
+    } else if (readState === "error") {
+      orderStatus = "Не удалось прочитать заказ.";
+    } else if (crm.connected) {
+      orderStatus = "Готово к чтению открытой вкладки.";
+    } else {
+      orderStatus = "Ожидаю подключения к Chrome.";
+    }
+    els.crmOrderStatus.textContent = orderStatus;
+    els.crmOrderStatus.classList.toggle("is-error", readState === "error");
+  }
+
+  if (els.crmCopy) els.crmCopy.disabled = !hasOrder;
+  if (els.crmCopyStatus) els.crmCopyStatus.textContent = crm.copyStatus;
+}
+
+/* ------------------------------------------------------------------ */
 /* Media (POST /media/image)                                          */
 /* ------------------------------------------------------------------ */
 
@@ -3033,9 +3317,32 @@ function updateViewHeader() {
     } else {
       els.viewSubtitle.textContent = `${fs.path} · только чтение`;
     }
-  } else {
+  } else if (state.view === "crm") {
+    const crm = state.crm;
+    els.viewTitle.textContent = "CRM";
+    if (crm.statusState === "checking") {
+      els.viewSubtitle.textContent = "Проверяю Chrome CDP…";
+    } else if (crm.statusState === "ready") {
+      els.viewSubtitle.textContent = "AltCRM · подключено · только чтение";
+    } else if (crm.statusState === "offline") {
+      els.viewSubtitle.textContent = "AltCRM · Chrome CDP не найден";
+    } else if (crm.statusState === "error" || crm.statusState === "unavailable") {
+      els.viewSubtitle.textContent = "AltCRM · ошибка подключения";
+    } else {
+      els.viewSubtitle.textContent = "AltCRM · только чтение";
+    }
+  } else if (state.view === "crm") {
+    els.viewTitle.textContent = "CRM";
+    els.viewSubtitle.textContent =
+      state.crm.connected
+        ? "AltCRM · только чтение"
+        : "AltCRM · подключение через Chrome CDP";
+  } else if (state.view === "settings") {
     els.viewTitle.textContent = "Настройки";
     els.viewSubtitle.textContent = "Локальные параметры и данные API";
+  } else {
+    els.viewTitle.textContent = "Kivi";
+    els.viewSubtitle.textContent = "Локальный ассистент";
   }
 }
 
@@ -3065,6 +3372,15 @@ function setView(name, { focus = true } = {}) {
   ) {
     void loadSettings();
     void checkHealth({ silent: true });
+  }
+  if (
+    name === "crm" &&
+    (state.crm.statusState === "idle" ||
+      state.crm.statusState === "offline" ||
+      state.crm.statusState === "error" ||
+      state.crm.statusState === "unavailable")
+  ) {
+    void loadCrmStatus();
   }
   if (focus) {
     try {
@@ -3297,6 +3613,11 @@ function bindEvents() {
     });
     els.filesCopy.addEventListener("click", () => void copyFilesPreview());
   }
+  if (els.crmCheck) {
+    els.crmCheck.addEventListener("click", () => void loadCrmStatus({ force: true }));
+    els.crmRead.addEventListener("click", () => void readCrmOrder());
+    els.crmCopy.addEventListener("click", () => void copyCrmOrder());
+  }
   els.messageList.addEventListener("click", onMessageAction);
   document.querySelectorAll("[data-prompt]").forEach((chip) => {
     chip.addEventListener("click", () => {
@@ -3384,6 +3705,12 @@ function installDebugHook() {
           preview: state.files.preview ? state.files.preview.path : null,
           previewLoading: Boolean(state.files.preview && state.files.preview.loading),
         },
+        crm: {
+          statusState: state.crm.statusState,
+          connected: state.crm.connected,
+          readState: state.crm.readState,
+          orderChars: state.crm.order.length,
+        },
         autoSpeak: state.prefs.autoSpeak,
         avatar: avatarController.getState(),
         sending: state.sending,
@@ -3398,6 +3725,7 @@ function installDebugHook() {
       voices: () => loadVoices({ force: true }),
       files: () => loadFiles(state.files.path, { force: true }),
       settings: () => loadSettings({ force: true }),
+      crm: () => loadCrmStatus({ force: true }),
     },
     setApiBase(value) {
       const normalized = normalizeApiBase(value);
@@ -3513,6 +3841,24 @@ function cacheDom() {
     filesPreviewRefresh: $id("files-preview-refresh"),
     filesCopy: $id("files-copy"),
     filesCopyStatus: $id("files-copy-status"),
+    crmStatusBadge: $id("crm-status-badge"),
+    crmStatusBadgeText: $id("crm-status-badge-text"),
+    crmStatus: $id("crm-status"),
+    crmHint: $id("crm-hint"),
+    crmHintText: $id("crm-hint-text"),
+    crmHintError: $id("crm-hint-error"),
+    crmEndpointRow: $id("crm-endpoint-row"),
+    crmEndpoint: $id("crm-endpoint"),
+    crmCheck: $id("crm-check"),
+    crmRead: $id("crm-read"),
+    crmOrderCard: $id("crm-order-card"),
+    crmOrderStatus: $id("crm-order-status"),
+    crmOrderError: $id("crm-order-error"),
+    crmOrderLoading: $id("crm-order-loading"),
+    crmOrderText: $id("crm-order-text"),
+    crmOrderEmpty: $id("crm-order-empty"),
+    crmCopy: $id("crm-copy"),
+    crmCopyStatus: $id("crm-copy-status"),
     avatarPanel: $id("avatar-panel"),
     avatar: $id("avatar"),
     avatarStateLabel: $id("avatar-state-label"),
@@ -3550,6 +3896,7 @@ function init() {
   renderMedia();
   renderMediaPromptCount();
   renderFiles();
+  renderCrm();
   updateViewHeader();
   setView("chat", { focus: false });
   resizeComposer();

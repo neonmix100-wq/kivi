@@ -671,6 +671,53 @@ def _ui_fs_read(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
     return {"path": rel, "content": result.output, "truncated": bool(result.truncated)}
 
 
+def _ui_crm_status() -> dict[str, Any]:
+    """Check the local AltCRM CDP endpoint without opening a browser."""
+    hint = (
+        "Запусти Chrome с --remote-debugging-port=9222 и открой вкладку заказа "
+        "AltCRM. Kivi читает только открытую страницу."
+    )
+    try:
+        import httpx
+
+        response = httpx.get("http://127.0.0.1:9222/json/version", timeout=2.0)
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                "connected": True,
+                "hint": "",
+                "url": str(data.get("webSocketDebuggerUrl", "")),
+                "error": "",
+            }
+        return {
+            "connected": False,
+            "hint": hint,
+            "url": "",
+            "error": f"CDP HTTP {response.status_code}",
+        }
+    except Exception as exc:  # noqa: BLE001 - status is best effort
+        return {
+            "connected": False,
+            "hint": hint,
+            "url": "",
+            "error": type(exc).__name__,
+        }
+
+
+def _ui_crm_read(paths: Any, config: KiviConfig) -> dict[str, Any]:
+    try:
+        result = _run_direct_tool(paths, config, "crm.read", {}, ["crm.read"])
+    except RuntimeError as exc:
+        return {"ok": False, "order": "", "hint": str(exc)}
+    if not result.ok:
+        return {
+            "ok": False,
+            "order": "",
+            "hint": result.error or "AltCRM недоступен; открой вкладку заказа.",
+        }
+    return {"ok": True, "order": result.output, "hint": ""}
+
+
 def _ui_media(paths: Any, config: KiviConfig, payload: dict[str, Any]) -> dict[str, Any]:
     """Generate one image for the UI and return it as a data URL."""
     allowed = ("prompt", "width", "height", "model", "seed", "negative_prompt")
@@ -905,6 +952,12 @@ def cmd_serve(args: argparse.Namespace) -> int:
             (lambda rel: _ui_fs_read(paths, config, rel))
             if getattr(args, "ui", False)
             else None
+        ),
+        crm_status_handler=(
+            _ui_crm_status if getattr(args, "ui", False) else None
+        ),
+        crm_read_handler=(
+            (lambda: _ui_crm_read(paths, config)) if getattr(args, "ui", False) else None
         ),
         history_handler=lambda limit: _serve_history(paths, limit),
         voices_handler=lambda: [

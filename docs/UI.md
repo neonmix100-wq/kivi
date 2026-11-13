@@ -10,6 +10,8 @@
 
 ![Kivi Files](images/kivi-ui-files.png)
 
+![Kivi CRM](images/kivi-ui-crm.png)
+
 ## Запуск без терминала
 
 Дважды щёлкни **`Kivi UI.bat`** в корне проекта. Откроется отдельное окно
@@ -36,6 +38,8 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 ## Что умеет интерфейс
 
 - чат с историей (SQLite), новые чаты, очистка;
+- **CRM-панель**: статус AltCRM, инструкция Chrome CDP, read-only карточка
+  заказа; без заполнения/сохранения/отправки;
 - **файловый обзор**: список workspace, переход по папкам, preview текста,
   копирование; только чтение, без выхода за workspace;
 - **медиа-панель**: prompt, 512/768/1024, flux/turbo, результат и галерея
@@ -62,6 +66,8 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 | POST | `/media/image` | `{prompt,width,height,model}` → `{image: dataURL}` |
 | GET | `/fs/list?path=` | список папки workspace |
 | GET | `/fs/read?path=` | текст файла workspace (read-only) |
+| GET | `/crm/status` | статус Chrome CDP/AltCRM |
+| GET | `/crm/read` | read-only карточка заказа |
 | GET | `/history?limit=50` | последние сообщения |
 | GET | `/voices` | голоса библиотеки |
 | POST | `/voices/active` | `{id}` → активный голос |

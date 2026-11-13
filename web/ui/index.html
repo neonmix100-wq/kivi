@@ -95,6 +95,13 @@
             </svg>
             <span>Файлы</span>
           </button>
+          <button type="button" class="nav-btn" data-panel="crm">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="3" y="7" width="18" height="13" rx="2.5" />
+              <path d="M9 7V5.5A2.5 2.5 0 0 1 11.5 3h1A2.5 2.5 0 0 1 15 5.5V7M3 11.5h18M10 11.5V14h4v-2.5" />
+            </svg>
+            <span>CRM</span>
+          </button>
           <button type="button" class="nav-btn" data-panel="settings">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <circle cx="12" cy="12" r="3.2" />
@@ -630,6 +637,141 @@
               Интерфейс только читает файлы: запись, удаление и переименование недоступны.
               Предпросмотр показывает текстовые файлы UTF-8; бинарные файлы могут
               отображаться некорректно.
+            </p>
+          </div>
+        </section>
+
+        <section
+          class="view view-crm"
+          id="view-crm"
+          data-view="crm"
+          aria-labelledby="crm-title"
+          hidden
+        >
+          <div class="view-scroll">
+            <div class="view-head">
+              <div>
+                <h2 class="media-heading" id="crm-title">CRM</h2>
+                <p class="view-lead">
+                  AltCRM в уже открытом Chrome через CDP. Интерфейс только читает
+                  карточку заказа: заполнение, сохранение и отправка недоступны.
+                </p>
+              </div>
+            </div>
+
+            <div class="crm-layout">
+              <section class="card crm-connect-card" aria-labelledby="crm-connect-title">
+                <div class="card-head">
+                  <h2 id="crm-connect-title">Подключение</h2>
+                  <span class="crm-badge is-idle" id="crm-status-badge">
+                    <span class="crm-dot" aria-hidden="true"></span>
+                    <span id="crm-status-badge-text">не проверено</span>
+                  </span>
+                </div>
+
+                <p class="crm-status-line" id="crm-status" role="status" aria-live="polite">
+                  Откройте раздел «CRM», чтобы проверить подключение к Chrome.
+                </p>
+
+                <div class="crm-endpoint" id="crm-endpoint-row" hidden>
+                  <span class="crm-endpoint-label">CDP</span>
+                  <code class="crm-endpoint-value" id="crm-endpoint"></code>
+                </div>
+
+                <div
+                  class="crm-hint"
+                  id="crm-hint"
+                  role="region"
+                  aria-labelledby="crm-hint-title"
+                  hidden
+                >
+                  <div class="crm-hint-head">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M12 3 2.8 19.5h18.4L12 3Z" />
+                      <path d="M12 9v4.5M12 17h.01" />
+                    </svg>
+                    <h3 id="crm-hint-title">Chrome с CDP ещё не запущен</h3>
+                  </div>
+                  <p class="crm-hint-text" id="crm-hint-text"></p>
+                  <ol class="crm-steps">
+                    <li>
+                      Закройте все окна Chrome и запустите отдельный профиль:
+                      <code class="crm-command">&amp; "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="C:\chrome-agent"</code>
+                    </li>
+                    <li>
+                      Войдите в AltCRM в этом окне один раз. Пароль вводит человек —
+                      Kivi его не видит и не хранит.
+                    </li>
+                    <li>
+                      Откройте карточку заказа (например,
+                      <code>https://&lt;crm&gt;/devices/order/&lt;id&gt;</code>) и оставьте
+                      вкладку открытой.
+                    </li>
+                    <li>Вернитесь сюда и нажмите «Проверить».</li>
+                  </ol>
+                  <p class="crm-hint-error" id="crm-hint-error" hidden></p>
+                  <p class="crm-hint-note">
+                    Kivi не запускает Chrome, не читает пароли и cookies и не открывает
+                    новые вкладки. Порт по умолчанию — 9222.
+                  </p>
+                </div>
+
+                <div class="crm-actions">
+                  <button type="button" class="btn btn-primary" id="crm-check">Проверить</button>
+                  <button type="button" class="btn btn-ghost" id="crm-read" disabled>
+                    Прочитать заказ
+                  </button>
+                </div>
+              </section>
+
+              <section
+                class="card crm-order-card"
+                id="crm-order-card"
+                aria-labelledby="crm-order-title"
+                aria-busy="false"
+              >
+                <div class="card-head">
+                  <h2 id="crm-order-title">Заказ</h2>
+                  <span class="badge">только чтение</span>
+                </div>
+
+                <p class="crm-order-status" id="crm-order-status" role="status" aria-live="polite">
+                  Сначала подключитесь к Chrome, затем нажмите «Прочитать заказ».
+                </p>
+                <p class="crm-order-error" id="crm-order-error" role="alert" hidden></p>
+                <div class="crm-order-loading" id="crm-order-loading" hidden>
+                  <span class="media-spinner" aria-hidden="true"></span>
+                  <span>Читаю карточку заказа…</span>
+                </div>
+                <pre
+                  class="crm-order-text"
+                  id="crm-order-text"
+                  tabindex="0"
+                  aria-label="Текст заказа, только чтение"
+                  hidden
+                ></pre>
+                <p class="crm-order-empty" id="crm-order-empty">
+                  Здесь появится текст открытой карточки. Интерфейс ничего не заполняет,
+                  не сохраняет и не отправляет.
+                </p>
+
+                <div class="crm-order-actions">
+                  <button type="button" class="btn btn-ghost btn-small" id="crm-copy" disabled>
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <rect x="8" y="8" width="11" height="12" rx="2" />
+                      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" />
+                    </svg>
+                    <span>Копировать</span>
+                  </button>
+                  <span class="crm-copy-status" id="crm-copy-status" role="status" aria-live="polite"></span>
+                </div>
+              </section>
+            </div>
+
+            <p class="view-footnote">
+              Панель только для чтения: нет кнопок заполнения, сохранения или отправки.
+              Если карточка не открыта, сервер вернёт подсказку — откройте вкладку заказа
+              в Chrome, запущенном с <code>--remote-debugging-port=9222</code>.
             </p>
           </div>
         </section>
