@@ -3331,12 +3331,6 @@ function updateViewHeader() {
     } else {
       els.viewSubtitle.textContent = "AltCRM · только чтение";
     }
-  } else if (state.view === "crm") {
-    els.viewTitle.textContent = "CRM";
-    els.viewSubtitle.textContent =
-      state.crm.connected
-        ? "AltCRM · только чтение"
-        : "AltCRM · подключение через Chrome CDP";
   } else if (state.view === "settings") {
     els.viewTitle.textContent = "Настройки";
     els.viewSubtitle.textContent = "Локальные параметры и данные API";
