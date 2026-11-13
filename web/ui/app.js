@@ -134,6 +134,12 @@ const state = {
     renameError: "",
     trashOpen: false,
     trashError: "",
+    searchQuery: "",
+    searchState: "idle",
+    searchError: "",
+    searchMatches: [],
+    searchTruncated: false,
+    searchEpoch: 0,
   },
   crm: {
     statusState: "idle",
@@ -2052,6 +2058,64 @@ function normalizeFsEntries(raw) {
   return entries;
 }
 
+function normalizeFsSearchMatches(raw) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set();
+  const matches = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const rawPath = typeof item.path === "string" ? item.path.trim() : "";
+    if (!rawPath) continue;
+    // Search paths are workspace-relative; normalize to keep joins predictable.
+    const path = normalizeFsPath(rawPath);
+    if (path === "." || seen.has(path)) continue;
+    seen.add(path);
+    const type =
+      item.type === "dir" || item.type === "file"
+        ? item.type
+        : item.type === "other"
+          ? "other"
+          : "file";
+    const size = Number(item.size);
+    matches.push({
+      path,
+      name: fsName(path),
+      type,
+      size: Number.isFinite(size) && size >= 0 ? size : null,
+    });
+    if (matches.length >= 200) break;
+  }
+  const order = { dir: 0, file: 1, other: 2 };
+  matches.sort((a, b) => {
+    if (order[a.type] !== order[b.type]) return order[a.type] - order[b.type];
+    return a.path.localeCompare(b.path, "ru", { numeric: true, sensitivity: "base" });
+  });
+  return matches;
+}
+
+function filesSearchActive() {
+  return Boolean(state.files.searchQuery);
+}
+
+function describeFilesSearchError(error) {
+  if (error instanceof ApiError) {
+    const detail = error.code ? `: ${error.code}` : "";
+    if (error.status === 400) {
+      return `Сервер отклонил поисковый запрос (400${detail}). Введите более короткий запрос.`;
+    }
+    if (error.status === 503) {
+      return "Поиск временно недоступен: файловые операции не настроены на сервере (503).";
+    }
+    if (error.status === 404 || error.status === 405) {
+      return `Сервер не поддерживает поиск (${error.status}). Обновите Kivi.`;
+    }
+    if (error.status >= 500) {
+      return `Сервер Kivi не смог выполнить поиск (${error.status}). Повторите попытку.`;
+    }
+  }
+  return describeFilesError(error, "поиске файлов");
+}
+
 function describeFilesError(error, context) {
   if (error instanceof ApiError) {
     const detail = error.code ? `: ${error.code}` : "";
@@ -2218,6 +2282,99 @@ async function loadFiles(rawPath = state.files.path, { force = false, focus = fa
   }
 }
 
+function focusFilesSearchInput() {
+  if (!els.filesSearchInput) return;
+  try {
+    els.filesSearchInput.focus({ preventScroll: true });
+  } catch {
+    els.filesSearchInput.focus();
+  }
+}
+
+function normalizeFilesSearchQuery(raw) {
+  return typeof raw === "string" ? raw.trim().slice(0, 128) : "";
+}
+
+async function runFilesSearch(rawQuery) {
+  const query = normalizeFilesSearchQuery(rawQuery);
+  if (!query) {
+    clearFilesSearch({ focusInput: true });
+    return;
+  }
+  if (els.filesSearchInput && els.filesSearchInput.value !== query) {
+    els.filesSearchInput.value = query;
+  }
+  resetFilesWriteForms();
+  state.files.searchQuery = query;
+  state.files.searchState = "loading";
+  state.files.searchError = "";
+  state.files.searchMatches = [];
+  state.files.searchTruncated = false;
+  const epoch = ++state.files.searchEpoch;
+  renderFiles();
+  updateViewHeader();
+
+  try {
+    const data = await apiRequest(`/fs/search?q=${encodeURIComponent(query)}`, {
+      timeout: 20000,
+    });
+    if (epoch !== state.files.searchEpoch) return;
+    const matches = normalizeFsSearchMatches(data && data.matches);
+    state.files.searchMatches = matches;
+    state.files.searchTruncated = Boolean(data && data.truncated === true);
+    state.files.searchState = matches.length ? "ready" : "empty";
+  } catch (error) {
+    if (epoch !== state.files.searchEpoch) return;
+    state.files.searchMatches = [];
+    state.files.searchTruncated = false;
+    state.files.searchState = "error";
+    state.files.searchError = describeFilesSearchError(error);
+  } finally {
+    if (epoch !== state.files.searchEpoch) return;
+    renderFiles();
+    updateViewHeader();
+  }
+}
+
+function clearFilesSearch({ resetInput = true, focusInput = false, render = true } = {}) {
+  state.files.searchEpoch += 1;
+  state.files.searchQuery = "";
+  state.files.searchState = "idle";
+  state.files.searchError = "";
+  state.files.searchMatches = [];
+  state.files.searchTruncated = false;
+  if (resetInput && els.filesSearchInput) els.filesSearchInput.value = "";
+  if (render) renderFiles();
+  if (focusInput) focusFilesSearchInput();
+}
+
+function refreshFilesView() {
+  if (filesSearchActive()) void runFilesSearch(state.files.searchQuery);
+  else void loadFiles(state.files.path, { force: true });
+}
+
+function onSubmitFilesSearch(event) {
+  if (event) event.preventDefault();
+  const query = els.filesSearchInput ? els.filesSearchInput.value : "";
+  if (!normalizeFilesSearchQuery(query)) {
+    clearFilesSearch({ focusInput: true });
+    return;
+  }
+  void runFilesSearch(query);
+}
+
+function onFilesSearchInput() {
+  const hasText = Boolean(els.filesSearchInput && els.filesSearchInput.value.trim());
+  if (els.filesSearchClear) {
+    els.filesSearchClear.hidden = !hasText && !state.files.searchQuery;
+  }
+  // Erasing the query (including the native search clear control) restores the folder.
+  if (state.files.searchQuery && !hasText) {
+    clearFilesSearch();
+    focusFilesSearchInput();
+  }
+}
+
 async function loadFilesPreview(rawPath, trigger = null) {
   const path = normalizeFsPath(rawPath);
   const name = fsName(path);
@@ -2359,7 +2516,9 @@ function renderFilesCrumbs() {
       disabled: !last && state.files.busy ? true : null,
       on: {
         click: () => {
-          if (!last) void loadFiles(crumb.path, { focus: true });
+          if (last) return;
+          clearFilesSearch({ render: false });
+          void loadFiles(crumb.path, { focus: true });
         },
       },
     });
@@ -2370,28 +2529,51 @@ function renderFilesCrumbs() {
 
 function renderFilesToolbar() {
   const fs = state.files;
+  const searching = filesSearchActive();
   const loading = fs.state === "loading";
+  const searchLoading = searching && fs.searchState === "loading";
   const busy = Boolean(fs.busy);
   if (els.filesUp) els.filesUp.disabled = fs.path === "." || loading || busy;
-  if (els.filesRefresh) els.filesRefresh.disabled = loading || busy;
+  if (els.filesRefresh) els.filesRefresh.disabled = loading || searchLoading || busy;
   if (els.filesMkdir) {
     els.filesMkdir.disabled = loading || busy;
     els.filesMkdir.setAttribute("aria-expanded", fs.mkdirOpen ? "true" : "false");
   }
+  if (els.filesSearchForm) {
+    els.filesSearchForm.setAttribute("aria-busy", searchLoading ? "true" : "false");
+  }
+  if (els.filesSearchSubmit) els.filesSearchSubmit.disabled = busy;
+  if (els.filesSearchClear) {
+    const hasText = Boolean(els.filesSearchInput && els.filesSearchInput.value.trim());
+    els.filesSearchClear.hidden = !searching && !hasText;
+    els.filesSearchClear.disabled = busy;
+  }
   if (els.filesCount) {
-    const value = loading
-      ? "…"
-      : fs.state === "ready"
-        ? String(fs.entries.length)
-        : fs.state === "empty"
-          ? "0"
-          : "—";
+    const value = searching
+      ? fs.searchState === "loading"
+        ? "…"
+        : fs.searchState === "ready"
+          ? String(fs.searchMatches.length)
+          : fs.searchState === "empty"
+            ? "0"
+            : "—"
+      : loading
+        ? "…"
+        : fs.state === "ready"
+          ? String(fs.entries.length)
+          : fs.state === "empty"
+            ? "0"
+            : "—";
     els.filesCount.textContent = value;
   }
   if (els.filesNote) {
-    const note = fs.truncated
-      ? "Сервер вернул неполный список: показаны не все элементы папки."
-      : "";
+    const note = searching
+      ? fs.searchTruncated
+        ? "Показаны не все совпадения: сервер ограничил выдачу. Уточните запрос."
+        : ""
+      : fs.truncated
+        ? "Сервер вернул неполный список: показаны не все элементы папки."
+        : "";
     els.filesNote.textContent = note;
     els.filesNote.hidden = !note;
   }
@@ -2420,10 +2602,29 @@ function renderFilesWriteForm() {
 function renderFilesList() {
   if (!els.filesList || !els.filesStatus) return;
   const fs = state.files;
+  const searching = filesSearchActive();
+  const loading = searching ? fs.searchState === "loading" : fs.state === "loading";
   els.filesList.replaceChildren();
   els.filesStatus.replaceChildren();
-  els.filesStatus.classList.toggle("is-error", fs.state === "error");
-  if (els.filesEmpty) els.filesEmpty.hidden = fs.state !== "empty";
+  els.filesStatus.classList.toggle(
+    "is-error",
+    searching ? fs.searchState === "error" : fs.state === "error",
+  );
+  if (els.filesListTitle) {
+    els.filesListTitle.textContent = searching ? "Результаты поиска" : "Содержимое";
+  }
+  if (els.filesEmpty) {
+    const empty = searching ? fs.searchState === "empty" : fs.state === "empty";
+    els.filesEmpty.hidden = !empty;
+    els.filesEmpty.textContent = searching
+      ? `По запросу «${fs.searchQuery}» ничего не найдено. Проверьте имя или попробуйте другой запрос.`
+      : "В этой папке нет файлов и подпапок.";
+  }
+  els.filesList.setAttribute("aria-busy", loading ? "true" : "false");
+  if (searching) {
+    renderFilesSearchList();
+    return;
+  }
 
   if (fs.state === "loading") {
     els.filesStatus.append(el("span", { text: "Загружаю список файлов…" }));
@@ -2469,6 +2670,110 @@ function renderFilesList() {
   els.filesStatus.append(el("span", { text: parts.join(" · ") || "Нет элементов." }));
 
   for (const entry of fs.entries) els.filesList.append(renderFileRow(entry));
+}
+
+function renderFilesSearchList() {
+  const fs = state.files;
+  const query = fs.searchQuery;
+  if (fs.searchState === "loading") {
+    els.filesStatus.append(el("span", { text: `Ищу «${query}»…` }));
+    for (let index = 0; index < 4; index += 1) {
+      els.filesList.append(el("li", { class: "files-item", "aria-hidden": "true" },
+        el("div", { class: "skeleton files-skeleton" }),
+      ));
+    }
+    return;
+  }
+  if (fs.searchState === "error") {
+    els.filesStatus.append(
+      el("span", { text: fs.searchError || "Не удалось выполнить поиск." }),
+    );
+    els.filesStatus.append(
+      el("button", {
+        type: "button",
+        class: "btn btn-ghost btn-small",
+        text: "Повторить",
+        on: { click: () => void runFilesSearch(fs.searchQuery) },
+      }),
+    );
+    return;
+  }
+  if (fs.searchState === "empty") {
+    els.filesStatus.append(
+      el("span", { text: `Ничего не найдено по запросу «${query}».` }),
+    );
+    return;
+  }
+  if (fs.searchState !== "ready") {
+    els.filesStatus.append(
+      el("span", { text: "Введите запрос и нажмите «Найти»." }),
+    );
+    return;
+  }
+
+  const dirs = fs.searchMatches.filter((match) => match.type === "dir").length;
+  const files = fs.searchMatches.filter((match) => match.type === "file").length;
+  const parts = [];
+  if (dirs) parts.push(`${dirs} ${plural(dirs, ["папка", "папки", "папок"])}`);
+  if (files) parts.push(`${files} ${plural(files, ["файл", "файла", "файлов"])}`);
+  const others = fs.searchMatches.length - dirs - files;
+  if (others) parts.push(`${others} другое`);
+  els.filesStatus.append(
+    el("span", { text: `${parts.join(" · ") || "Нет результатов"} · запрос «${query}»` }),
+  );
+
+  for (const match of fs.searchMatches) {
+    els.filesList.append(renderFilesSearchRow(match));
+  }
+}
+
+function renderFilesSearchRow(match) {
+  const path = match.path;
+  const previewing = Boolean(state.files.preview && state.files.preview.path === path);
+  const interactive = match.type === "dir" || match.type === "file";
+  const meta =
+    match.type === "dir"
+      ? "папка"
+      : match.type === "file"
+        ? formatFileSize(match.size) || "файл"
+        : "другое";
+  const node = interactive
+    ? el("button", {
+        type: "button",
+        class: `file-row is-search${previewing ? " is-active" : ""}`,
+        dataset: { fsPath: path, fsType: match.type },
+        "aria-label":
+          match.type === "dir"
+            ? `Открыть папку ${match.name}, путь ${path}`
+            : `Открыть файл ${match.name}, путь ${path}${
+                match.size !== null ? `, ${formatFileSize(match.size)}` : ""
+              }`,
+      })
+    : el("div", { class: "file-row is-static is-search" });
+
+  const icon = el("span", {
+    class: `file-icon is-${match.type}`,
+    "aria-hidden": "true",
+  });
+  icon.append(fileIcon(match.type));
+  node.append(icon);
+  const text = el("span", { class: "file-search-text" });
+  text.append(el("span", { class: "file-name", text: match.name }));
+  text.append(el("span", { class: "file-path", text: path, title: path }));
+  node.append(text);
+  node.append(el("span", { class: "file-meta", text: meta }));
+
+  if (match.type === "dir") {
+    node.addEventListener("click", () => {
+      clearFilesSearch({ render: false });
+      void loadFiles(path, { focus: true });
+    });
+  } else if (match.type === "file") {
+    node.addEventListener("click", () => void loadFilesPreview(path, node));
+  } else {
+    node.setAttribute("aria-disabled", "true");
+  }
+  return el("li", { class: "files-item" }, node);
 }
 
 function renderFileRow(entry) {
@@ -2697,6 +3002,8 @@ function focusFileRow(path) {
 
 function openFilesMkdirForm() {
   if (state.files.busy || state.files.state === "loading") return;
+  // A new folder belongs to the current directory: leave search mode first.
+  if (filesSearchActive()) clearFilesSearch();
   state.files.mkdirOpen = true;
   state.files.mkdirError = "";
   state.files.renameOpen = false;
@@ -2838,7 +3145,12 @@ async function submitFilesTrash(event) {
     if (els.filesTrashInput) els.filesTrashInput.value = "";
     closeFilesPreview({ returnFocus: false });
     showToast(`Перемещено в Корзину: ${name}`, "ok");
-    await loadFiles(state.files.path, { force: true, focus: true });
+    if (filesSearchActive()) {
+      await runFilesSearch(state.files.searchQuery);
+      focusFilesList();
+    } else {
+      await loadFiles(state.files.path, { force: true, focus: true });
+    }
   } catch (error) {
     state.files.trashError = describeFsWriteError(error, "перемещение в корзину");
   } finally {
@@ -2937,6 +3249,10 @@ async function submitFilesRename(event) {
     renamed = true;
     showToast(`Переименовано: ${currentName} → ${fsName(resolved)}`, "ok");
     await loadFiles(state.files.path, { force: true });
+    // Keep search results accurate after a rename.
+    if (filesSearchActive()) {
+      await runFilesSearch(state.files.searchQuery);
+    }
     if (state.files.preview && state.files.preview.path === source) {
       await loadFilesPreview(resolved, fileRow(resolved));
     }
@@ -3985,7 +4301,22 @@ function updateViewHeader() {
   } else if (state.view === "files") {
     const fs = state.files;
     els.viewTitle.textContent = "Файлы";
-    if (fs.state === "loading") {
+    if (filesSearchActive()) {
+      if (fs.searchState === "loading") {
+        els.viewSubtitle.textContent = `Ищу «${fs.searchQuery}»…`;
+      } else if (fs.searchState === "error") {
+        els.viewSubtitle.textContent = "Поиск не удался";
+      } else if (fs.searchState === "empty") {
+        els.viewSubtitle.textContent = `Ничего не найдено: «${fs.searchQuery}»`;
+      } else {
+        const count = fs.searchMatches.length;
+        els.viewSubtitle.textContent = `${count} ${plural(count, [
+          "результат",
+          "результата",
+          "результатов",
+        ])} · «${fs.searchQuery}»`;
+      }
+    } else if (fs.state === "loading") {
       els.viewSubtitle.textContent = "Читаю папку…";
     } else if (fs.state === "error") {
       els.viewSubtitle.textContent = "Не удалось открыть папку";
@@ -4143,6 +4474,16 @@ function onComposerKeydown(event) {
 
 function onGlobalKeydown(event) {
   if (event.key !== "Escape") return;
+  const searchFocused =
+    Boolean(els.filesSearchForm) && els.filesSearchForm.contains(document.activeElement);
+  if (
+    searchFocused &&
+    (state.files.searchQuery || (els.filesSearchInput && els.filesSearchInput.value))
+  ) {
+    event.preventDefault();
+    clearFilesSearch({ focusInput: true });
+    return;
+  }
   if (els.app && els.app.classList.contains("nav-open")) {
     closeSidebar({ returnFocus: true });
   }
@@ -4292,9 +4633,12 @@ function bindEvents() {
     els.mediaClear.addEventListener("click", clearMediaGallery);
   }
   if (els.filesRefresh) {
-    els.filesRefresh.addEventListener("click", () =>
-      void loadFiles(state.files.path, { force: true }),
+    els.filesRefresh.addEventListener("click", refreshFilesView);
+    els.filesSearchForm.addEventListener("submit", onSubmitFilesSearch);
+    els.filesSearchClear.addEventListener("click", () =>
+      clearFilesSearch({ focusInput: true }),
     );
+    els.filesSearchInput.addEventListener("input", onFilesSearchInput);
     els.filesMkdir.addEventListener("click", toggleFilesMkdirForm);
     els.filesMkdirForm.addEventListener("submit", (event) => void submitFilesMkdir(event));
     els.filesMkdirCancel.addEventListener("click", () => closeFilesMkdirForm());
@@ -4305,7 +4649,9 @@ function bindEvents() {
     });
     els.filesUp.addEventListener("click", () => {
       const parent = fsParent(state.files.path);
-      if (parent) void loadFiles(parent, { focus: true });
+      if (!parent) return;
+      clearFilesSearch({ render: false });
+      void loadFiles(parent, { focus: true });
     });
     els.filesList.addEventListener("keydown", onFilesListKeydown);
     els.filesPreviewClose.addEventListener("click", () => closeFilesPreview());
@@ -4429,6 +4775,10 @@ function installDebugHook() {
           mkdirOpen: state.files.mkdirOpen,
           renameOpen: state.files.renameOpen,
           trashOpen: state.files.trashOpen,
+          searchQuery: state.files.searchQuery,
+          searchState: state.files.searchState,
+          searchMatches: state.files.searchMatches.length,
+          searchTruncated: state.files.searchTruncated,
         },
         crm: {
           statusState: state.crm.statusState,
@@ -4448,7 +4798,7 @@ function installDebugHook() {
       health: () => checkHealth(),
       history: () => loadServerHistory({ force: true }),
       voices: () => loadVoices({ force: true }),
-      files: () => loadFiles(state.files.path, { force: true }),
+      files: refreshFilesView,
       settings: () => loadSettings({ force: true }),
       crm: () => loadCrmStatus({ force: true }),
     },
@@ -4550,6 +4900,10 @@ function cacheDom() {
     mediaGalleryList: $id("media-gallery"),
     mediaClear: $id("media-clear"),
     filesRefresh: $id("files-refresh"),
+    filesSearchForm: $id("files-search-form"),
+    filesSearchInput: $id("files-search-input"),
+    filesSearchSubmit: $id("files-search-submit"),
+    filesSearchClear: $id("files-search-clear"),
     filesMkdir: $id("files-mkdir"),
     filesMkdirForm: $id("files-mkdir-form"),
     filesMkdirInput: $id("files-mkdir-input"),

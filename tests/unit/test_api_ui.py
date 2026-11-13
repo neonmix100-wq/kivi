@@ -46,6 +46,11 @@ def ui_api(tmp_path: Path):
             "destination": destination,
         },
         fs_trash_handler=lambda path: {"ok": True, "path": path},
+        fs_search_handler=lambda query: {
+            "query": query,
+            "matches": [{"path": "docs/API.md", "name": "API.md"}],
+            "truncated": False,
+        },
         crm_status_handler=lambda: {
             "connected": False,
             "hint": "start Chrome",
@@ -136,6 +141,13 @@ def test_fs_mkdir_and_rename(ui_api: LocalApi) -> None:
     assert mkdir.json()["path"] == "new"
     assert rename.status_code == 200
     assert rename.json()["destination"] == "renamed"
+
+
+def test_fs_search(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        response = client.get("/fs/search?q=api")
+    assert response.status_code == 200
+    assert response.json()["matches"][0]["path"] == "docs/API.md"
 
 
 def test_fs_trash_requires_matching_confirmation(ui_api: LocalApi) -> None:

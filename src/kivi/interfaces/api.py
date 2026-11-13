@@ -46,6 +46,7 @@ FsReadHandler = Callable[[str], dict[str, Any]]
 FsMkdirHandler = Callable[[str], dict[str, Any]]
 FsRenameHandler = Callable[[str, str], dict[str, Any]]
 FsTrashHandler = Callable[[str], dict[str, Any]]
+FsSearchHandler = Callable[[str], dict[str, Any]]
 CrmStatusHandler = Callable[[], dict[str, Any]]
 CrmReadHandler = Callable[[], dict[str, Any]]
 SettingsUpdateHandler = Callable[[dict[str, Any]], dict[str, Any]]
@@ -106,6 +107,7 @@ class LocalApi:
         fs_mkdir_handler: FsMkdirHandler | None = None,
         fs_rename_handler: FsRenameHandler | None = None,
         fs_trash_handler: FsTrashHandler | None = None,
+        fs_search_handler: FsSearchHandler | None = None,
         crm_status_handler: CrmStatusHandler | None = None,
         crm_read_handler: CrmReadHandler | None = None,
         settings_update_handler: SettingsUpdateHandler | None = None,
@@ -137,6 +139,7 @@ class LocalApi:
         self._fs_mkdir_handler = fs_mkdir_handler
         self._fs_rename_handler = fs_rename_handler
         self._fs_trash_handler = fs_trash_handler
+        self._fs_search_handler = fs_search_handler
         self._crm_status_handler = crm_status_handler
         self._crm_read_handler = crm_read_handler
         self._settings_update_handler = settings_update_handler
@@ -318,6 +321,8 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._handle_fs_rename()
         elif method == "POST" and path == "/fs/trash":
             self._handle_fs_trash()
+        elif method == "GET" and path == "/fs/search":
+            self._handle_fs_search(split.query)
         elif method == "GET" and path == "/crm/status":
             self._handle_crm_status()
         elif method == "GET" and path == "/crm/read":
@@ -494,6 +499,23 @@ class _ApiHandler(BaseHTTPRequestHandler):
         except Exception:
             logger.warning("fs read failed")
             self._send_json(400, {"error": "cannot read path"})
+            return
+        self._send_json(200, result)
+
+    def _handle_fs_search(self, query: str) -> None:
+        api = self.server.api
+        if api._fs_search_handler is None:
+            self._send_json(503, {"error": "files are not configured"})
+            return
+        raw = parse_qs(query).get("q", [""])[0]
+        if not isinstance(raw, str) or not raw.strip():
+            self._send_json(400, {"error": "q must be a non-empty string"})
+            return
+        try:
+            result = api._fs_search_handler(raw.strip())
+        except Exception:
+            logger.warning("fs search failed")
+            self._send_json(500, {"error": "search failed"})
             return
         self._send_json(200, result)
 

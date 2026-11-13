@@ -10,6 +10,8 @@
 
 ![Kivi Files](images/kivi-ui-files.png)
 
+![Kivi Files search](images/kivi-ui-files-search.png)
+
 ![Kivi CRM](images/kivi-ui-crm.png)
 
 ![Kivi Settings](images/kivi-ui-settings.png)
@@ -42,8 +44,8 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 - чат с историей (SQLite), новые чаты, очистка;
 - **CRM-панель**: статус AltCRM, инструкция Chrome CDP, read-only карточка
   заказа; без заполнения/сохранения/отправки;
-- **файловый обзор**: список workspace, переход по папкам, preview текста,
-  копирование, создание папок, переименование и корзина (без безвозвратного удаления);
+- **файловый обзор**: список workspace, поиск имён, переход по папкам, preview
+  текста, копирование, создание папок, переименование и корзина;
 - **медиа-панель**: prompt, 512/768/1024, flux/turbo, результат и галерея
   сессии через `/media/image`;
 - голосовые ответы: кнопка «Озвучить», авто-озвучка, `/tts`;
@@ -68,6 +70,7 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 | POST | `/transcribe` | WAV-тело → `{text}` (локальный Whisper) |
 | POST | `/media/image` | `{prompt,width,height,model}` → `{image: dataURL}` |
 | GET | `/fs/list?path=` | список папки workspace |
+| GET | `/fs/search?q=` | поиск имён в workspace |
 | GET | `/fs/read?path=` | текст файла workspace (read-only) |
 | POST | `/fs/mkdir` | `{path}` — создать папку |
 | POST | `/fs/rename` | `{source,destination}` — переименовать |

@@ -54,6 +54,15 @@ def env(tmp_path: Path, workspace: Path) -> ToolEnv:
     db.close()
 
 
+def test_fs_search_finds_names_inside_workspace(env: ToolEnv) -> None:
+    result = env.run("fs.search", {"query": "note"})
+    assert result.ok is True
+    matches = result.meta["matches"]
+    assert any(item["path"] == "docs/note.txt" for item in matches)
+    assert all(not item["path"].startswith("..") for item in matches)
+    assert env.run("fs.search", {"query": "SECRET"}).meta["matches"] == []
+
+
 def test_fs_trash_moves_to_recycle_bin(env: ToolEnv, monkeypatch) -> None:
     called: list[str] = []
     monkeypatch.setattr("send2trash.send2trash", lambda path: called.append(path))
@@ -131,6 +140,7 @@ def test_fs_rename_rejects_missing_source(env: ToolEnv) -> None:
         "fs.mkdir",
         "fs.read",
         "fs.rename",
+        "fs.search",
         "fs.trash",
         "fs.write",
         "git.branch",

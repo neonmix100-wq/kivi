@@ -522,8 +522,9 @@
                   Список и предпросмотр приходят с локального API:
                   <code>GET /fs/list</code> и <code>GET /fs/read</code>; действия —
                   <code>POST /fs/mkdir</code>, <code>POST /fs/rename</code> и
-                  <code>POST /fs/trash</code>. Безвозвратного удаления нет: элементы
-                  перемещаются в Корзину Windows.
+                  <code>POST /fs/trash</code>. Поиск по имени идёт через
+                  <code>GET /fs/search</code> и охватывает всю рабочую папку.
+                  Безвозвратного удаления нет: элементы перемещаются в Корзину Windows.
                 </p>
               </div>
               <button type="button" class="btn btn-ghost" id="files-refresh">Обновить</button>
@@ -568,6 +569,50 @@
                   <span>Вверх</span>
                 </button>
               </div>
+              <form
+                class="files-search"
+                id="files-search-form"
+                role="search"
+                aria-labelledby="files-search-label"
+                novalidate
+              >
+                <label class="sr-only" id="files-search-label" for="files-search-input">
+                  Поиск файлов и папок по имени
+                </label>
+                <div class="files-search-row">
+                  <input
+                    class="files-input files-search-input"
+                    id="files-search-input"
+                    name="q"
+                    type="search"
+                    maxlength="128"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Поиск по имени: например, README"
+                    aria-describedby="files-search-hint"
+                    aria-controls="files-list"
+                  />
+                  <button
+                    type="submit"
+                    class="btn btn-primary btn-small"
+                    id="files-search-submit"
+                  >
+                    Найти
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-small"
+                    id="files-search-clear"
+                    hidden
+                  >
+                    Очистить
+                  </button>
+                </div>
+                <p class="files-form-hint" id="files-search-hint">
+                  Поиск по всей рабочей папке, а не только по открытой. Enter — найти,
+                  Escape — очистить. Пока запрос активен, результаты заменяют список папки.
+                </p>
+              </form>
             </div>
 
             <form

@@ -775,6 +775,23 @@ def _ui_fs_rename(
     }
 
 
+def _ui_fs_search(paths: Any, config: KiviConfig, query: str) -> dict[str, Any]:
+    result = _run_direct_tool(
+        paths,
+        config,
+        "fs.search",
+        {"query": query, "limit": 100},
+        ["fs.read"],
+    )
+    if not result.ok:
+        raise RuntimeError(result.error or "search failed")
+    return {
+        "query": query,
+        "matches": result.meta.get("matches", []),
+        "truncated": bool(result.truncated),
+    }
+
+
 def _ui_fs_trash(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
     result = _run_direct_tool(
         paths,
@@ -1137,6 +1154,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
         ),
         fs_trash_handler=(
             (lambda rel: _ui_fs_trash(paths, config, rel))
+            if getattr(args, "ui", False)
+            else None
+        ),
+        fs_search_handler=(
+            (lambda query: _ui_fs_search(paths, config, query))
             if getattr(args, "ui", False)
             else None
         ),

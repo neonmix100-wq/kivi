@@ -63,6 +63,11 @@ class FsTrashArgs(_FsArgs):
     path: str = Field(min_length=1, max_length=4096)
 
 
+class FsSearchArgs(_FsArgs):
+    query: str = Field(min_length=1, max_length=200)
+    limit: int = Field(default=100, ge=1, le=500)
+
+
 def _decode_text(data: bytes, *, allow_partial: bool = False) -> str:
     """Decode UTF-8 without inventing broken replacement characters.
 
@@ -360,6 +365,65 @@ class FsTrashTool:
         )
 
 
+class FsSearchTool:
+    """Find workspace entries by name without following symlinks."""
+
+    name = "fs.search"
+    description = "Search file and directory names inside the workspace."
+    risk = "R0"
+    capabilities = ("fs.read",)
+    args_model = FsSearchArgs
+
+    def dry_run(self, args: BaseModel, ctx: ToolContext) -> Preview:
+        assert isinstance(args, FsSearchArgs)
+        return Preview(
+            "search",
+            {"query": args.query, "limit": args.limit, "root": str(ctx.workspace)},
+            reversible=True,
+        )
+
+    def run(self, args: BaseModel, ctx: ToolContext) -> ToolResult:
+        assert isinstance(args, FsSearchArgs)
+        query = args.query.casefold().strip()
+        if not query:
+            raise ToolError("search query is empty")
+        root = ctx.workspace.resolve()
+        matches: list[dict[str, object]] = []
+        for current, directories, files in os.walk(root, followlinks=False):
+            current_path = Path(current)
+            allowed_dirs: list[str] = []
+            for name in sorted(directories):
+                if name.startswith(".") or name in {"node_modules", "__pycache__"}:
+                    continue
+                candidate = current_path / name
+                if ctx.zones.check(candidate, "read").allowed:
+                    allowed_dirs.append(name)
+            directories[:] = allowed_dirs
+            for name in sorted(files):
+                candidate = current_path / name
+                if query not in name.casefold():
+                    continue
+                if not ctx.zones.check(candidate, "read").allowed:
+                    continue
+                try:
+                    relative = candidate.relative_to(root).as_posix()
+                    size = candidate.stat().st_size
+                except OSError:
+                    continue
+                matches.append({"path": relative, "name": name, "type": "file", "size": size})
+                if len(matches) >= args.limit:
+                    break
+            if len(matches) >= args.limit:
+                break
+        output = "\n".join(f"f  {item['path']}  {item['size']} B" for item in matches)
+        return ToolResult(
+            ok=True,
+            output=output,
+            meta={"matches": matches, "query": args.query, "truncated": len(matches) >= args.limit},
+            truncated=len(matches) >= args.limit,
+        )
+
+
 __all__ = [
     "FsListArgs",
     "FsListTool",
@@ -369,6 +433,8 @@ __all__ = [
     "FsReadTool",
     "FsRenameArgs",
     "FsRenameTool",
+    "FsSearchArgs",
+    "FsSearchTool",
     "FsTrashArgs",
     "FsTrashTool",
     "FsWriteArgs",

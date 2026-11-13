@@ -73,6 +73,7 @@ elevated broker; до тех пор R2 — обязательный барьер
 |---|---|---|---|
 | `fs.read` | R0 | `fs.read` | читает UTF-8 файл, до 64 КБ по умолчанию |
 | `fs.list` | R0 | `fs.read` | список каталога без перехода по ссылкам |
+| `fs.search` | R0 | `fs.read` | поиск имён файлов/папок в workspace |
 | `fs.write` | R1 | `fs.write` | атомарная запись UTF-8, только workspace |
 | `fs.mkdir` | R1 | `fs.write` | создать одну папку в workspace |
 | `fs.rename` | R1 | `fs.write` | переименовать без перезаписи |

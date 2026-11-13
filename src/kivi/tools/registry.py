@@ -74,6 +74,7 @@ def build_registry(
         FsMkdirTool,
         FsReadTool,
         FsRenameTool,
+        FsSearchTool,
         FsTrashTool,
         FsWriteTool,
     )
@@ -121,6 +122,7 @@ def build_registry(
         FsWriteTool(),
         FsMkdirTool(),
         FsRenameTool(),
+        FsSearchTool(),
         FsTrashTool(),
         ShellExecTool(),
         HttpGetTool(blocked_hosts=blocked_hosts),

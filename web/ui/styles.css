@@ -2101,6 +2101,27 @@ a:hover {
   gap: 8px;
 }
 
+.files-search {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.files-search-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.files-search-input {
+  flex: 1 1 260px;
+}
+
 .files-write-form,
 .files-rename-form,
 .files-trash-form {
@@ -2334,10 +2355,43 @@ button.file-row:hover {
 
 .file-meta {
   flex: 0 0 auto;
+  padding-left: 8px;
   color: var(--faint);
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.file-row.is-search {
+  align-items: flex-start;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.file-search-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.file-search-text .file-name {
+  flex: 0 0 auto;
+}
+
+.file-path {
+  overflow: hidden;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-row.is-search .file-meta {
+  padding-top: 1px;
 }
 
 .files-empty {
@@ -3459,6 +3513,14 @@ button.file-row:hover {
     justify-content: flex-end;
   }
 
+  .files-search {
+    flex: 0 0 auto;
+  }
+
+  .files-search-input {
+    flex-basis: 100%;
+  }
+
   .files-readonly {
     margin-left: 0;
   }
@@ -3509,6 +3571,10 @@ button.file-row:hover {
   }
 
   .files-form-row .btn {
+    flex: 1 1 auto;
+  }
+
+  .files-search-row .btn {
     flex: 1 1 auto;
   }
 
