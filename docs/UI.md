@@ -6,6 +6,8 @@
 
 ![Kivi UI](images/kivi-ui.png)
 
+![Kivi Media](images/kivi-ui-media.png)
+
 ## Запуск без терминала
 
 Дважды щёлкни **`Kivi UI.bat`** в корне проекта. Откроется отдельное окно
@@ -32,6 +34,8 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 ## Что умеет интерфейс
 
 - чат с историей (SQLite), новые чаты, очистка;
+- **медиа-панель**: prompt, 512/768/1024, flux/turbo, результат и галерея
+  сессии через `/media/image`;
 - голосовые ответы: кнопка «Озвучить», авто-озвучка, `/tts`;
 - **голосовой ввод**: удерживай кнопку микрофона, браузер запишет WAV и
   отправит его в локальный Whisper (`/transcribe`);
@@ -51,6 +55,7 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 | POST | `/chat` | `{message}` → `{answer, task_id}` |
 | POST | `/tts` | `{text}` → `audio/wav` |
 | POST | `/transcribe` | WAV-тело → `{text}` (локальный Whisper) |
+| POST | `/media/image` | `{prompt,width,height,model}` → `{image: dataURL}` |
 | GET | `/history?limit=50` | последние сообщения |
 | GET | `/voices` | голоса библиотеки |
 | POST | `/voices/active` | `{id}` → активный голос |

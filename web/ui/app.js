@@ -25,6 +25,13 @@ const LIMITS = {
   titleChars: 56,
   serverMessages: 200,
 };
+const MEDIA_LIMITS = {
+  promptChars: 500,
+  gallerySize: 6,
+  timeoutMs: 180000,
+  sizes: [512, 768, 1024],
+  models: ["flux", "turbo"],
+};
 const AVATAR_STATES = new Set(["idle", "listening", "thinking", "speaking", "error"]);
 const AVATAR_LABELS = {
   idle: "Спокойна",
@@ -40,7 +47,7 @@ const AVATAR_CAPTIONS = {
   speaking: "Озвучиваю ответ.",
   error: "Не удалось связаться с сервером.",
 };
-const VIEWS = new Set(["chat", "voices", "settings"]);
+const VIEWS = new Set(["chat", "voices", "media", "settings"]);
 
 const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const shortDateFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
@@ -71,6 +78,18 @@ const state = {
   settingsState: "idle",
   settingsError: "",
   settingsLoading: false,
+  media: {
+    prompt: "",
+    width: 1024,
+    height: 1024,
+    model: "flux",
+    loading: false,
+    error: "",
+    result: null,
+    // Data URLs are large: keep the last generations in memory only.
+    gallery: [],
+    seq: 0,
+  },
   sending: false,
   pendingConversationId: null,
   speakingMessageId: null,
@@ -1883,6 +1902,312 @@ async function selectVoice(voice) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Media (POST /media/image)                                          */
+/* ------------------------------------------------------------------ */
+
+function mediaSize(raw, fallback = 1024) {
+  const value = Number(raw);
+  return MEDIA_LIMITS.sizes.includes(value) ? value : fallback;
+}
+
+function mediaModel(raw, fallback = "flux") {
+  const value = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return MEDIA_LIMITS.models.includes(value) ? value : fallback;
+}
+
+function mediaModelLabel(model) {
+  return model === "turbo" ? "turbo" : "flux";
+}
+
+function isImageDataUrl(value) {
+  return typeof value === "string" && /^data:image\/[a-z0-9.+-]+;base64,/i.test(value);
+}
+
+function mediaFileName(item) {
+  const match = /^data:image\/([a-z0-9.+-]+)[;,]/i.exec(item && item.image ? item.image : "");
+  let ext = match ? match[1].toLowerCase() : "png";
+  if (ext === "jpeg") ext = "jpg";
+  else if (ext === "svg+xml") ext = "svg";
+  const stamp = new Date(item && item.ts ? item.ts : Date.now())
+    .toISOString()
+    .replace(/[:.]/g, "-")
+    .slice(0, 19);
+  return `kivi-media-${stamp}.${ext}`;
+}
+
+function describeMediaError(error) {
+  if (!(error instanceof ApiError)) {
+    return error instanceof Error
+      ? `Не удалось сгенерировать изображение: ${error.message}.`
+      : "Не удалось сгенерировать изображение.";
+  }
+  if (error.code === "bad-image") {
+    return "Сервер ответил без изображения. Проверьте, что POST /media/image возвращает поле image с data URL.";
+  }
+  if (error.code === "network") {
+    return "Нет связи с локальным сервером Kivi. Проверьте, что запущен kivi serve, и откройте интерфейс с того же адреса (CORS не включён).";
+  }
+  if (error.code === "timeout") {
+    return "Сервер не ответил вовремя: генерация заняла слишком много времени. Попробуйте размер 512 и модель turbo.";
+  }
+  if (error.status === 400) {
+    return `Сервер отклонил запрос${error.code ? `: ${error.code}` : ""}. Проверьте описание и размеры изображения.`;
+  }
+  if (error.status === 404) return "Сервер не поддерживает POST /media/image (404). Обновите Kivi.";
+  if (error.status === 405) return "Метод POST /media/image не поддерживается сервером (405).";
+  if (error.status === 413) return "Описание слишком длинное для локального API.";
+  if (error.status === 503) {
+    return `Генерация изображений не настроена на сервере (503${error.code ? `: ${error.code}` : ""}). Проверьте настройки media в kivi.`;
+  }
+  if (error.status >= 500) {
+    return `Сервер не смог сгенерировать изображение (${error.status}). Попробуйте ещё раз или уменьшите размер.`;
+  }
+  return error.message || "Не удалось сгенерировать изображение.";
+}
+
+function mediaStatusText() {
+  const media = state.media;
+  if (media.loading) return "Генерирую изображение… Это может занять до минуты.";
+  if (media.error) return "Генерация не удалась.";
+  if (media.result) {
+    const count = media.gallery.length;
+    const suffix = count
+      ? ` В этой сессии: ${count} ${plural(count, [
+          "изображение",
+          "изображения",
+          "изображений",
+        ])}.`
+      : "";
+    return `Готово: ${mediaModelLabel(media.result.model)} · ${media.result.width}×${media.result.height}.${suffix}`;
+  }
+  return "Опишите изображение и нажмите «Сгенерировать».";
+}
+
+function renderMediaPromptCount() {
+  if (!els.mediaPrompt || !els.mediaPromptCount) return;
+  const length = els.mediaPrompt.value.length;
+  els.mediaPromptCount.textContent = `${length} / ${MEDIA_LIMITS.promptChars}`;
+  els.mediaPromptCount.classList.toggle(
+    "is-near-limit",
+    length >= MEDIA_LIMITS.promptChars - 20,
+  );
+}
+
+function renderMediaResult() {
+  const media = state.media;
+  const result = media.result;
+  const hasImage = Boolean(result && isImageDataUrl(result.image));
+  if (els.mediaResultImage) {
+    els.mediaResultImage.hidden = !hasImage;
+    if (hasImage) {
+      if (els.mediaResultImage.getAttribute("src") !== result.image) {
+        els.mediaResultImage.src = result.image;
+      }
+      els.mediaResultImage.alt = `Изображение по запросу: ${result.prompt}`.slice(0, 320);
+    } else if (els.mediaResultImage.getAttribute("src")) {
+      els.mediaResultImage.removeAttribute("src");
+    }
+  }
+  if (els.mediaResultMeta) els.mediaResultMeta.hidden = !hasImage;
+  if (els.mediaDownload) els.mediaDownload.hidden = !hasImage;
+  if (!hasImage) {
+    if (els.mediaResultBadge) els.mediaResultBadge.textContent = "—";
+    return;
+  }
+  const modelLabel = mediaModelLabel(result.model);
+  if (els.mediaResultPrompt) els.mediaResultPrompt.textContent = result.prompt;
+  if (els.mediaResultModel) els.mediaResultModel.textContent = modelLabel;
+  if (els.mediaResultSize) els.mediaResultSize.textContent = `${result.width} × ${result.height}`;
+  if (els.mediaResultBadge) els.mediaResultBadge.textContent = modelLabel;
+  if (els.mediaDownload) {
+    const fileName = mediaFileName(result);
+    els.mediaDownload.href = result.image;
+    els.mediaDownload.setAttribute("download", fileName);
+    els.mediaDownload.setAttribute("aria-label", `Скачать изображение (${fileName})`);
+  }
+}
+
+function renderMediaGallery() {
+  if (!els.mediaGalleryList) return;
+  const gallery = state.media.gallery;
+  if (els.mediaGalleryPanel) els.mediaGalleryPanel.hidden = gallery.length === 0;
+  els.mediaGalleryList.replaceChildren();
+  if (!gallery.length) return;
+  const currentId = state.media.result ? state.media.result.id : "";
+  for (const item of gallery) {
+    const current = item.id === currentId;
+    const button = el("button", {
+      type: "button",
+      class: `media-thumb${current ? " is-current" : ""}`,
+      "aria-label": `Показать в результате: ${item.prompt.slice(0, 120)} (${mediaModelLabel(
+        item.model,
+      )}, ${item.width}×${item.height})`,
+      "aria-current": current ? "true" : null,
+      on: { click: () => showMediaResult(item) },
+    });
+    button.append(el("img", { src: item.image, alt: "", loading: "lazy" }));
+    const meta = el("span", { class: "media-thumb-meta" });
+    meta.append(
+      el("span", { class: "media-thumb-model", text: mediaModelLabel(item.model) }),
+      el("span", { text: `${item.width}×${item.height}` }),
+    );
+    button.append(meta);
+    els.mediaGalleryList.append(el("li", { class: "media-thumb-item" }, button));
+  }
+}
+
+function renderMedia() {
+  if (!els.mediaForm) return;
+  const media = state.media;
+  const busy = media.loading;
+  els.mediaForm.setAttribute("aria-busy", busy ? "true" : "false");
+  if (els.mediaSubmit) {
+    els.mediaSubmit.disabled = busy;
+    els.mediaSubmit.setAttribute(
+      "aria-label",
+      busy ? "Идёт генерация изображения" : "Сгенерировать изображение",
+    );
+  }
+  if (els.mediaSubmitLabel) {
+    els.mediaSubmitLabel.textContent = busy ? "Генерирую…" : "Сгенерировать";
+  }
+  if (els.mediaStatus) {
+    els.mediaStatus.textContent = mediaStatusText();
+    els.mediaStatus.classList.toggle("is-error", Boolean(media.error) && !busy);
+  }
+  if (els.mediaError) {
+    els.mediaError.textContent = media.error || "";
+    els.mediaError.hidden = !media.error || busy;
+  }
+  if (els.mediaResultCard) {
+    els.mediaResultCard.setAttribute("aria-busy", busy ? "true" : "false");
+  }
+  if (els.mediaLoading) els.mediaLoading.hidden = !busy;
+  if (els.mediaEmpty) els.mediaEmpty.hidden = busy || Boolean(media.result);
+  renderMediaResult();
+  renderMediaGallery();
+  if (state.view === "media") updateViewHeader();
+}
+
+function showMediaResult(item) {
+  if (!item || !item.image) return;
+  state.media.result = item;
+  state.media.error = "";
+  renderMedia();
+}
+
+function clearMediaGallery() {
+  if (!state.media.gallery.length) return;
+  state.media.gallery = [];
+  renderMedia();
+  showToast("Галерея этой сессии очищена. Текущее изображение осталось.", "info");
+}
+
+function onMediaPromptInput() {
+  renderMediaPromptCount();
+  if (state.media.error) {
+    state.media.error = "";
+    renderMedia();
+  }
+}
+
+async function submitMedia() {
+  if (!els.mediaPrompt) return;
+  if (state.media.loading) {
+    showToast("Изображение ещё генерируется. Подождите.", "info");
+    return;
+  }
+  const prompt = String(els.mediaPrompt.value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MEDIA_LIMITS.promptChars);
+  if (!prompt) {
+    state.media.error = "Введите описание изображения — без него генерация не начнётся.";
+    renderMedia();
+    els.mediaPrompt.focus();
+    return;
+  }
+  const width = mediaSize(els.mediaWidth ? els.mediaWidth.value : state.media.width);
+  const height = mediaSize(els.mediaHeight ? els.mediaHeight.value : state.media.height);
+  const model = mediaModel(els.mediaModel ? els.mediaModel.value : state.media.model);
+
+  state.media.seq += 1;
+  const seq = state.media.seq;
+  state.media.prompt = prompt;
+  state.media.width = width;
+  state.media.height = height;
+  state.media.model = model;
+  state.media.loading = true;
+  state.media.error = "";
+  renderMedia();
+  setAvatar("thinking");
+
+  try {
+    const data = await apiRequest("/media/image", {
+      method: "POST",
+      body: { prompt, width, height, model },
+      timeout: MEDIA_LIMITS.timeoutMs,
+    });
+    if (seq !== state.media.seq) return;
+    const image = data && typeof data.image === "string" ? data.image.trim() : "";
+    if (!isImageDataUrl(image)) {
+      throw new ApiError("Сервер вернул ответ без изображения.", {
+        path: "/media/image",
+        code: "bad-image",
+      });
+    }
+    const result = {
+      id: makeId("img"),
+      image,
+      prompt: firstString(data.prompt, prompt).slice(0, MEDIA_LIMITS.promptChars),
+      model: mediaModel(data.model, model),
+      width,
+      height,
+      ts: Date.now(),
+    };
+    state.media.result = result;
+    state.media.gallery = [result, ...state.media.gallery].slice(0, MEDIA_LIMITS.gallerySize);
+    hideConnectionNotice();
+    if (state.view !== "media") {
+      showToast("Изображение готово. Откройте раздел «Медиа».", "ok");
+    }
+  } catch (error) {
+    if (seq !== state.media.seq) return;
+    state.media.error = describeMediaError(error);
+    if (error instanceof ApiError && error.code === "network") {
+      state.health = {
+        status: "offline",
+        version: state.health.version,
+        checkedAt: Date.now(),
+        error: state.media.error,
+      };
+      updateStatusUI();
+    }
+    if (state.view !== "media") {
+      showToast(`Медиа: ${state.media.error}`, "error");
+    }
+  } finally {
+    if (seq === state.media.seq) {
+      state.media.loading = false;
+      renderMedia();
+      // A disabled submit button loses focus; hand it back unless the user moved on.
+      const active = document.activeElement;
+      if (
+        els.mediaSubmit &&
+        (!active || active === document.body || active === els.mediaSubmit)
+      ) {
+        try {
+          els.mediaSubmit.focus({ preventScroll: true });
+        } catch {
+          els.mediaSubmit.focus();
+        }
+      }
+      idleIfQuiet();
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Settings                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -2134,6 +2459,16 @@ function updateViewHeader() {
           "голосов",
         ])} с локального сервера`
       : "Библиотека голосов Kivi";
+  } else if (state.view === "media") {
+    const count = state.media.gallery.length;
+    els.viewTitle.textContent = "Медиа";
+    els.viewSubtitle.textContent = count
+      ? `${count} ${plural(count, [
+          "изображение",
+          "изображения",
+          "изображений",
+        ])} в этой сессии`
+      : "Генерация изображений · локальный API";
   } else {
     els.viewTitle.textContent = "Настройки";
     els.viewSubtitle.textContent = "Локальные параметры и данные API";
@@ -2364,6 +2699,20 @@ function bindEvents() {
     void loadSettings({ force: true });
   });
   els.testTone.addEventListener("click", () => void playTestTone());
+  if (els.mediaForm) {
+    els.mediaForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void submitMedia();
+    });
+    els.mediaPrompt.addEventListener("input", onMediaPromptInput);
+    els.mediaPrompt.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        void submitMedia();
+      }
+    });
+    els.mediaClear.addEventListener("click", clearMediaGallery);
+  }
   els.messageList.addEventListener("click", onMessageAction);
   document.querySelectorAll("[data-prompt]").forEach((chip) => {
     chip.addEventListener("click", () => {
@@ -2438,6 +2787,12 @@ function installDebugHook() {
         serverHistory: state.serverHistory ? state.serverHistory.messages.length : 0,
         voices: state.voices.length,
         settings: state.settings ? { ...state.settings } : null,
+        media: {
+          loading: state.media.loading,
+          gallery: state.media.gallery.length,
+          model: state.media.model,
+          error: state.media.error,
+        },
         autoSpeak: state.prefs.autoSpeak,
         avatar: avatarController.getState(),
         sending: state.sending,
@@ -2521,6 +2876,29 @@ function cacheDom() {
     settingsApi: $id("settings-api"),
     settingsConnectionNote: $id("settings-connection-note"),
     settingsRetry: $id("settings-retry"),
+    mediaForm: $id("media-form"),
+    mediaPrompt: $id("media-prompt"),
+    mediaPromptCount: $id("media-prompt-count"),
+    mediaWidth: $id("media-width"),
+    mediaHeight: $id("media-height"),
+    mediaModel: $id("media-model"),
+    mediaSubmit: $id("media-submit"),
+    mediaSubmitLabel: $id("media-submit-label"),
+    mediaStatus: $id("media-status"),
+    mediaError: $id("media-error"),
+    mediaResultCard: $id("media-result-card"),
+    mediaResultImage: $id("media-result-image"),
+    mediaResultMeta: $id("media-result-meta"),
+    mediaResultPrompt: $id("media-result-prompt"),
+    mediaResultModel: $id("media-result-model"),
+    mediaResultSize: $id("media-result-size"),
+    mediaResultBadge: $id("media-result-badge"),
+    mediaDownload: $id("media-download"),
+    mediaEmpty: $id("media-empty"),
+    mediaLoading: $id("media-loading"),
+    mediaGalleryPanel: $id("media-gallery-panel"),
+    mediaGalleryList: $id("media-gallery"),
+    mediaClear: $id("media-clear"),
     avatarPanel: $id("avatar-panel"),
     avatar: $id("avatar"),
     avatarStateLabel: $id("avatar-state-label"),
@@ -2555,6 +2933,8 @@ function init() {
   renderComposer();
   renderSettings();
   renderVoices();
+  renderMedia();
+  renderMediaPromptCount();
   updateViewHeader();
   setView("chat", { focus: false });
   resizeComposer();

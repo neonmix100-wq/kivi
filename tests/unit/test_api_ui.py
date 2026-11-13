@@ -28,6 +28,7 @@ def ui_api(tmp_path: Path):
         docs_dir=docs,
         tts_handler=lambda text: b"RIFF" + text.encode("utf-8"),
         stt_handler=lambda data: "распознано" if data.startswith(b"RIFF") else "",
+        media_handler=lambda payload: {"image": "data:image/png;base64,AAAA"},
         history_handler=lambda limit: [
             {"role": "user", "content": f"limit={limit}"},
         ],
@@ -77,6 +78,13 @@ def test_transcribe_accepts_wav(ui_api: LocalApi) -> None:
     assert response.status_code == 200
     assert response.json() == {"text": "распознано"}
     assert bad.status_code == 400
+
+
+def test_media_image_endpoint(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        response = client.post("/media/image", json={"prompt": "kivi"})
+    assert response.status_code == 200
+    assert response.json()["image"].startswith("data:image/")
 
 
 def test_history_limit_and_voices_settings(ui_api: LocalApi) -> None:

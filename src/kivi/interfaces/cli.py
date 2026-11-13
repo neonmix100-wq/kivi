@@ -7,6 +7,7 @@ durable event log and a chat placeholder that already records tasks and events.
 from __future__ import annotations
 
 import argparse
+import base64
 import io
 import json
 import os
@@ -619,6 +620,32 @@ def _serve_history(paths: Any, limit: int) -> list[dict[str, Any]]:
     ]
 
 
+def _ui_media(paths: Any, config: KiviConfig, payload: dict[str, Any]) -> dict[str, Any]:
+    """Generate one image for the UI and return it as a data URL."""
+    allowed = ("prompt", "width", "height", "model", "seed", "negative_prompt")
+    args = {key: payload[key] for key in allowed if key in payload}
+    result = _run_direct_tool(
+        paths,
+        config,
+        "media.image",
+        args,
+        ["media.generate"],
+    )
+    if not result.ok or not result.artifacts:
+        raise RuntimeError(result.error or "media generation failed")
+    path = Path(result.artifacts[0])
+    data = path.read_bytes()
+    if len(data) > 12 * 1024 * 1024:
+        raise RuntimeError("generated image is too large")
+    suffix = path.suffix.lower()
+    mime = "image/png" if suffix == ".png" else "image/webp" if suffix == ".webp" else "image/jpeg"
+    return {
+        "image": f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}",
+        "prompt": str(args.get("prompt", "")),
+        "model": str(args.get("model", "flux")),
+    }
+
+
 def cmd_ui(args: argparse.Namespace) -> int:
     """Start the local UI server and open it in the default browser."""
     args.ui = True
@@ -813,6 +840,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
             else None
         ),
         stt_handler=ui_stt,
+        media_handler=(
+            (lambda payload: _ui_media(paths, config, payload))
+            if getattr(args, "ui", False)
+            else None
+        ),
         history_handler=lambda limit: _serve_history(paths, limit),
         voices_handler=lambda: [
             {

@@ -40,6 +40,7 @@ _MAX_DRAIN_BYTES = 16 * 1024 * 1024
 Handler = Callable[[str], str]
 TtsHandler = Callable[[str], bytes]
 SttHandler = Callable[[bytes], str]
+MediaHandler = Callable[[dict[str, Any]], dict[str, Any]]
 HistoryHandler = Callable[[int], list[dict[str, Any]]]
 VoicesHandler = Callable[[], list[dict[str, Any]]]
 SettingsHandler = Callable[[], dict[str, Any]]
@@ -91,6 +92,7 @@ class LocalApi:
         docs_dir: Path | str | None = None,
         tts_handler: TtsHandler | None = None,
         stt_handler: SttHandler | None = None,
+        media_handler: MediaHandler | None = None,
         history_handler: HistoryHandler | None = None,
         voices_handler: VoicesHandler | None = None,
         settings_handler: SettingsHandler | None = None,
@@ -113,6 +115,7 @@ class LocalApi:
         self._docs_dir = Path(docs_dir).resolve() if docs_dir is not None else None
         self._tts_handler = tts_handler
         self._stt_handler = stt_handler
+        self._media_handler = media_handler
         self._history_handler = history_handler
         self._voices_handler = voices_handler
         self._settings_handler = settings_handler
@@ -279,6 +282,8 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._handle_tts()
         elif method == "POST" and path == "/transcribe":
             self._handle_transcribe()
+        elif method == "POST" and path == "/media/image":
+            self._handle_media()
         elif method == "GET" and path == "/history":
             self._handle_history(split.query)
         elif method == "GET" and path == "/voices":
@@ -398,6 +403,25 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "transcription failed"})
             return
         self._send_json(200, {"text": str(text).strip()})
+
+    def _handle_media(self) -> None:
+        api = self.server.api
+        if api._media_handler is None:
+            self._send_json(503, {"error": "media generation is not configured"})
+            return
+        payload = self._read_json_object()
+        if payload is None:
+            return
+        try:
+            result = api._media_handler(payload)
+        except Exception:
+            logger.warning("media handler failed")
+            self._send_json(500, {"error": "media generation failed"})
+            return
+        if not isinstance(result, dict) or not isinstance(result.get("image"), str):
+            self._send_json(500, {"error": "media generation returned no image"})
+            return
+        self._send_json(200, result)
 
     def _handle_history(self, query: str) -> None:
         api = self.server.api
