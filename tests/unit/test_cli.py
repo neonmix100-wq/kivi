@@ -362,6 +362,20 @@ def test_voice_design_command(tmp_path: Path, monkeypatch) -> None:
     assert main(["voice", "design", "--text", "привет", "--out", str(out)]) == 0
 
 
+def test_open_app_window_uses_edge(monkeypatch) -> None:
+    seen: list[list[str]] = []
+    monkeypatch.setattr(cli_module.shutil, "which", lambda name: r"C:\Edge\msedge.exe")
+    monkeypatch.setattr(
+        cli_module.subprocess,
+        "Popen",
+        lambda args, **kwargs: seen.append(args),
+    )
+    assert cli_module._open_app_window("http://127.0.0.1:8765") is True
+    assert seen == [
+        [r"C:\Edge\msedge.exe", "--app=http://127.0.0.1:8765", "--new-window"]
+    ]
+
+
 def test_speak_plays_without_avatar(tmp_path: Path, monkeypatch) -> None:
     played: list[Path] = []
 

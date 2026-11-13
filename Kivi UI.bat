@@ -6,5 +6,5 @@ if not exist ".venv\Scripts\python.exe" (
   pause
   exit /b 1
 )
-".venv\Scripts\python.exe" -m kivi ui
+".venv\Scripts\python.exe" -m kivi ui --app --tray
 if errorlevel 1 pause

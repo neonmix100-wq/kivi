@@ -10,6 +10,8 @@ import argparse
 import io
 import json
 import os
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -624,7 +626,74 @@ def cmd_ui(args: argparse.Namespace) -> int:
     return cmd_serve(args)
 
 
+def _app_browser() -> Path | None:
+    """Find Edge/Chrome for a chromeless ``--app`` window."""
+    for name in ("msedge", "chrome"):
+        found = shutil.which(name)
+        if found:
+            return Path(found)
+    candidates = (
+        Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+        Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+        Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+    )
+    return next((path for path in candidates if path.is_file()), None)
+
+
+def _open_app_window(url: str) -> bool:
+    """Open Kivi in a standalone Edge/Chrome app window."""
+    browser = _app_browser()
+    if browser is None:
+        webbrowser.open(url)
+        return False
+    try:
+        subprocess.Popen(
+            [str(browser), f"--app={url}", "--new-window"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+        )
+    except OSError:
+        webbrowser.open(url)
+        return False
+    return True
+
+
+def _run_tray(api: LocalApi) -> None:
+    """Run the optional Kivi tray icon until the user stops it."""
+    try:
+        import pystray
+        from PIL import Image, ImageDraw
+    except ImportError:
+        console.print("[yellow]tray unavailable: install pystray[/yellow]")
+        return
+    image = Image.new("RGBA", (64, 64), (4, 32, 29, 255))
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((10, 10, 54, 54), fill=(94, 242, 214, 255))
+    draw.ellipse((24, 24, 40, 40), fill=(4, 32, 29, 255))
+    icon = pystray.Icon(
+        "kivi",
+        image,
+        "Kivi",
+        menu=pystray.Menu(
+            pystray.MenuItem(
+                "Открыть Kivi",
+                lambda: _open_app_window(api.url),
+                default=True,
+            ),
+            pystray.MenuItem("Остановить", lambda: (icon.stop(), api.stop())),
+        ),
+    )
+    console.print("Kivi в трее: правый клик по иконке — открыть/остановить.")
+    icon.run()
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
+    if getattr(args, "app", False) or getattr(args, "tray", False):
+        args.ui = True
+    if getattr(args, "ui", False) and not hasattr(args, "open_browser"):
+        args.open_browser = True
     paths = get_paths()
     config = _config(paths)
     models = _registry(paths)
@@ -741,7 +810,12 @@ def cmd_serve(args: argparse.Namespace) -> int:
         console.print(f"[red]api error:[/red] {_plain(str(exc))}")
         return 1
     if getattr(args, "open_browser", False):
-        webbrowser.open(api.url)
+        if getattr(args, "app", False):
+            _open_app_window(api.url)
+        else:
+            webbrowser.open(api.url)
+    if getattr(args, "tray", False):
+        _run_tray(api)
     console.print(f"Kivi API: [bold]{api.url}[/bold] (Ctrl+C чтобы остановить)")
     try:
         threading.Event().wait()
@@ -2719,6 +2793,8 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--timeout", type=float, default=180.0)
     serve.add_argument("--num-predict", type=int, default=512)
     serve.add_argument("--ui", action="store_true", help="serve the Kivi web UI")
+    serve.add_argument("--app", action="store_true", help="open a standalone app window")
+    serve.add_argument("--tray", action="store_true", help="run a system tray icon")
     serve.set_defaults(func=cmd_serve)
 
     ui = sub.add_parser("ui", help="open the Kivi local interface")
@@ -2729,6 +2805,8 @@ def build_parser() -> argparse.ArgumentParser:
     ui.add_argument("--timeout", type=float, default=180.0)
     ui.add_argument("--num-predict", type=int, default=512)
     ui.add_argument("--no-browser", action="store_true")
+    ui.add_argument("--app", action="store_true", help="standalone app window")
+    ui.add_argument("--tray", action="store_true", help="run a system tray icon")
     ui.set_defaults(func=cmd_ui)
 
     say = sub.add_parser("say", help="synthesize text with Silero/Piper/Qwen3-TTS")

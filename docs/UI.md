@@ -8,13 +8,14 @@
 
 ## Запуск без терминала
 
-Дважды щёлкни **`Kivi UI.bat`** в корне проекта. Откроется браузер с Kivi.
+Дважды щёлкни **`Kivi UI.bat`** в корне проекта. Откроется отдельное окно
+приложения (Edge/Chrome `--app`) и иконка Kivi в трее.
 
 Или вручную:
 
 ```powershell
 cd D:\AI-assistent
-.venv\Scripts\kivi.exe ui
+.venv\Scripts\kivi.exe ui --app --tray
 ```
 
 Полезные флаги:
@@ -22,6 +23,8 @@ cd D:\AI-assistent
 ```powershell
 kivi ui --port 8765
 kivi ui --no-browser
+kivi ui --app
+kivi ui --tray
 kivi ui --model hf.co/Qwen/Qwen3-8B-GGUF:Q4_K_M
 ```
 

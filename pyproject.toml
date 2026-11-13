@@ -67,6 +67,10 @@ qwen = [
     "sox>=1.5",
     "einops>=0.8",
 ]
+ui = [
+    "pystray>=0.19",
+    "Pillow>=10",
+]
 
 [project.scripts]
 kivi = "kivi.interfaces.cli:main"
