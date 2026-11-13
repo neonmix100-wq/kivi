@@ -36,6 +36,8 @@ cd D:\AI-assistent
 .venv\Scripts\kivi.exe avatar --port 8766
 ```
 
+Или двойной клик по **`Kivi Avatar.bat`**.
+
 Для Fish Audio нужен ключ в окружении:
 
 ```powershell
