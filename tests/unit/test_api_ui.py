@@ -29,6 +29,10 @@ def ui_api(tmp_path: Path):
         tts_handler=lambda text: b"RIFF" + text.encode("utf-8"),
         stt_handler=lambda data: "распознано" if data.startswith(b"RIFF") else "",
         media_handler=lambda payload: {"image": "data:image/png;base64,AAAA"},
+        video_handler=lambda payload: {
+            "video": "data:video/mp4;base64,AAAA",
+            "duration": 3,
+        },
         fs_list_handler=lambda path: {
             "path": path,
             "entries": [{"name": "docs", "type": "dir", "size": 0}],
@@ -134,6 +138,14 @@ def test_media_image_endpoint(ui_api: LocalApi) -> None:
         response = client.post("/media/image", json={"prompt": "kivi"})
     assert response.status_code == 200
     assert response.json()["image"].startswith("data:image/")
+
+
+def test_media_video_endpoint(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        response = client.post("/media/video", json={"prompt": "kivi", "duration": 3})
+    assert response.status_code == 200
+    assert response.json()["video"].startswith("data:video/mp4")
+    assert response.json()["duration"] == 3
 
 
 def test_fs_list_and_read(ui_api: LocalApi) -> None:

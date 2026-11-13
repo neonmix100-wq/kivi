@@ -11,7 +11,7 @@
     <meta name="referrer" content="no-referrer" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' http://127.0.0.1:* http://localhost:*; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' http://127.0.0.1:* http://localhost:*; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
     />
     <title>Kivi</title>
     <link
@@ -352,9 +352,9 @@
               <div>
                 <h2 class="media-heading" id="media-title">Медиа</h2>
                 <p class="view-lead">
-                  Генерация изображений по описанию. Запрос уходит только на локальный
-                  API Kivi — <code>POST /media/image</code>. Облако не используется без
-                  настройки.
+                  Генерация изображений и коротких видео по описанию. Запрос уходит только
+                  на локальный API Kivi — <code>POST /media/image</code> и
+                  <code>POST /media/video</code>. Облако не используется без настройки.
                 </p>
               </div>
             </div>
@@ -367,8 +367,36 @@
                 </div>
 
                 <form class="media-form" id="media-form" autocomplete="off">
+                  <fieldset class="media-mode">
+                    <legend class="field-label">Тип генерации</legend>
+                    <div class="media-mode-options">
+                      <label class="media-mode-option">
+                        <input
+                          type="radio"
+                          name="media-mode"
+                          id="media-mode-image"
+                          value="image"
+                          checked
+                        />
+                        <span class="media-mode-label">Изображение</span>
+                      </label>
+                      <label class="media-mode-option">
+                        <input
+                          type="radio"
+                          name="media-mode"
+                          id="media-mode-video"
+                          value="video"
+                        />
+                        <span class="media-mode-label">Видео</span>
+                      </label>
+                    </div>
+                  </fieldset>
+                  <p class="field-hint media-mode-hint" id="media-mode-hint">
+                    Изображение: 512, 768 или 1024 px. Видео: 512 или 768 px, 2–6 секунд.
+                  </p>
+
                   <div class="field">
-                    <label class="field-label" for="media-prompt">Что нарисовать</label>
+                    <label class="field-label" for="media-prompt">Что сгенерировать</label>
                     <textarea
                       id="media-prompt"
                       name="prompt"
@@ -407,6 +435,22 @@
                         <option value="turbo">turbo — быстрее</option>
                       </select>
                     </div>
+                    <div class="field">
+                      <label class="field-label" for="media-duration">Длительность</label>
+                      <select
+                        id="media-duration"
+                        name="duration"
+                        disabled
+                        aria-describedby="media-duration-hint"
+                      >
+                        <option value="2">2 секунды</option>
+                        <option value="4" selected>4 секунды</option>
+                        <option value="6">6 секунд</option>
+                      </select>
+                      <p class="field-hint" id="media-duration-hint">
+                        Только для видео: 2, 4 или 6 секунд.
+                      </p>
+                    </div>
                   </div>
 
                   <div class="media-actions">
@@ -426,8 +470,10 @@
                 </form>
 
                 <p class="card-note">
-                  Изображения создаёт ИИ — они могут быть неточными. Галерея хранится
-                  только в памяти этой вкладки и исчезнет после перезагрузки.
+                  Изображения создаёт ИИ — они могут быть неточными. Видео собирается
+                  локально из одного кадра с медленным приближением, без видео-ключа.
+                  Галерея хранится только в памяти этой вкладки и исчезнет после
+                  перезагрузки.
                 </p>
               </section>
 
@@ -480,13 +526,80 @@
             </div>
 
             <section
+              class="card media-card media-video-card"
+              id="media-video-card"
+              aria-labelledby="media-video-title"
+              hidden
+            >
+              <div class="card-head">
+                <h2 id="media-video-title">Видео</h2>
+                <span class="badge" id="media-video-badge">—</span>
+              </div>
+
+              <div class="media-stage media-video-stage">
+                <video
+                  class="media-video"
+                  id="media-video-player"
+                  controls
+                  playsinline
+                  preload="metadata"
+                  hidden
+                ></video>
+                <p class="media-empty" id="media-video-empty">
+                  Видео появится здесь после генерации.
+                </p>
+                <div class="media-loading" id="media-video-loading" hidden>
+                  <span class="media-spinner" aria-hidden="true"></span>
+                  <span>Генерирую видео…</span>
+                </div>
+              </div>
+
+              <p class="media-status" id="media-video-status" role="status" aria-live="polite">
+                Видео появится здесь после генерации.
+              </p>
+              <p class="media-error media-video-error" id="media-video-error" role="alert" hidden></p>
+              <p class="media-video-note" id="media-video-note">
+                локальный fallback: движение из кадра, без видео-ключа
+              </p>
+
+              <div class="media-result-meta" id="media-video-meta" hidden>
+                <p class="media-result-prompt" id="media-video-prompt"></p>
+                <dl class="kv">
+                  <div>
+                    <dt>Модель</dt>
+                    <dd id="media-video-model">—</dd>
+                  </div>
+                  <div>
+                    <dt>Размер</dt>
+                    <dd id="media-video-size">—</dd>
+                  </div>
+                  <div>
+                    <dt>Длительность</dt>
+                    <dd id="media-video-duration">—</dd>
+                  </div>
+                </dl>
+                <div class="card-actions">
+                  <a
+                    class="btn btn-ghost"
+                    id="media-video-download"
+                    href="#"
+                    download="kivi-video.mp4"
+                    rel="noopener"
+                  >
+                    Скачать MP4
+                  </a>
+                </div>
+              </div>
+            </section>
+
+            <section
               class="media-gallery-panel"
               id="media-gallery-panel"
               aria-labelledby="media-gallery-title"
               hidden
             >
               <div class="card-head">
-                <h2 id="media-gallery-title">Последние генерации</h2>
+                <h2 id="media-gallery-title">Последние изображения</h2>
                 <button type="button" class="btn btn-ghost btn-small" id="media-clear">
                   Очистить
                 </button>
@@ -494,14 +607,15 @@
               <ul
                 class="media-gallery"
                 id="media-gallery"
-                aria-label="Галерея последних генераций"
+                aria-label="Галерея последних изображений"
               ></ul>
             </section>
 
             <p class="view-footnote">
-              Изображения генерирует модель, а не человек: детали, текст на картинке и
-              сходство с реальными людьми могут быть неточными. Проверяйте результат
-              перед использованием.
+              Изображения и видео генерирует модель, а не человек: детали, текст на
+              картинке и сходство с реальными людьми могут быть неточными. Видео —
+              локальный fallback: короткое движение из одного кадра. Проверяйте
+              результат перед использованием.
             </p>
           </div>
         </section>

@@ -32,6 +32,14 @@ const MEDIA_LIMITS = {
   sizes: [512, 768, 1024],
   models: ["flux", "turbo"],
 };
+// POST /media/video renders a short MP4 locally from one still frame: no video key.
+const MEDIA_VIDEO = {
+  durations: [2, 4, 6],
+  minSeconds: 2,
+  maxSeconds: 8,
+  sizes: [512, 768],
+  timeoutMs: 240000,
+};
 const AVATAR_STATES = new Set(["idle", "listening", "thinking", "speaking", "error"]);
 const AVATAR_LABELS = {
   idle: "Спокойна",
@@ -142,12 +150,21 @@ const state = {
     width: 1024,
     height: 1024,
     model: "flux",
+    mode: "image",
+    duration: 4,
     loading: false,
     error: "",
     result: null,
     // Data URLs are large: keep the last generations in memory only.
     gallery: [],
     seq: 0,
+    // Video has its own request slot so it never blocks image generation.
+    video: {
+      loading: false,
+      error: "",
+      result: null,
+      seq: 0,
+    },
   },
   files: {
     path: ".",
@@ -4622,6 +4639,28 @@ function mediaSize(raw, fallback = 1024) {
   return MEDIA_LIMITS.sizes.includes(value) ? value : fallback;
 }
 
+function mediaVideoSize(raw, fallback = 512) {
+  const value = Number(raw);
+  if (MEDIA_VIDEO.sizes.includes(value)) return value;
+  // The video endpoint accepts 512 or 768 only; the image form may still hold 1024.
+  if (Number.isFinite(value) && value > 768) return 768;
+  return fallback;
+}
+
+function mediaVideoDuration(raw, fallback = 4) {
+  const value = Number(raw);
+  return MEDIA_VIDEO.durations.includes(value) ? value : fallback;
+}
+
+function mediaVideoSeconds(raw, fallback = 4) {
+  const value = Number(raw);
+  return Number.isInteger(value) &&
+    value >= MEDIA_VIDEO.minSeconds &&
+    value <= MEDIA_VIDEO.maxSeconds
+    ? value
+    : fallback;
+}
+
 function mediaModel(raw, fallback = "flux") {
   const value = typeof raw === "string" ? raw.trim().toLowerCase() : "";
   return MEDIA_LIMITS.models.includes(value) ? value : fallback;
@@ -4633,6 +4672,10 @@ function mediaModelLabel(model) {
 
 function isImageDataUrl(value) {
   return typeof value === "string" && /^data:image\/[a-z0-9.+-]+;base64,/i.test(value);
+}
+
+function isVideoDataUrl(value) {
+  return typeof value === "string" && /^data:video\/[a-z0-9.+-]+;base64,/i.test(value);
 }
 
 function mediaFileName(item) {
@@ -4677,8 +4720,58 @@ function describeMediaError(error) {
   return error.message || "Не удалось сгенерировать изображение.";
 }
 
+function describeMediaVideoError(error) {
+  if (!(error instanceof ApiError)) {
+    return error instanceof Error
+      ? `Не удалось сгенерировать видео: ${error.message}.`
+      : "Не удалось сгенерировать видео.";
+  }
+  if (error.code === "bad-video") {
+    return "Сервер ответил без видео. Проверьте, что POST /media/video возвращает поле video с data URL.";
+  }
+  if (error.code === "network") {
+    return "Нет связи с локальным сервером Kivi. Проверьте, что запущен kivi serve, и откройте интерфейс с того же адреса (CORS не включён).";
+  }
+  if (error.code === "timeout") {
+    return "Сервер не ответил вовремя: сборка видео заняла слишком много времени. Попробуйте 512 px и 2 секунды.";
+  }
+  if (error.status === 400) {
+    return `Сервер отклонил параметры видео${error.code ? `: ${error.code}` : ""}. Проверьте описание, размер (512 или 768) и длительность 2–6 секунд.`;
+  }
+  if (error.status === 404) return "Сервер не поддерживает POST /media/video (404). Обновите Kivi.";
+  if (error.status === 405) return "Метод POST /media/video не поддерживается сервером (405).";
+  if (error.status === 413) return "Описание слишком длинное для локального API.";
+  if (error.status === 503) {
+    return `Локальная генерация видео не настроена на сервере (503${error.code ? `: ${error.code}` : ""}). Перезапустите kivi serve — обработчик media.video не подключён.`;
+  }
+  if (error.status >= 500) {
+    return `Сервер не смог собрать видео (${error.status}${error.code ? `: ${error.code}` : ""}). Частая причина — нет ffmpeg: установите imageio-ffmpeg и повторите.`;
+  }
+  return error.message || "Не удалось сгенерировать видео.";
+}
+
+function noteMediaNetworkFailure(message) {
+  state.health = {
+    status: "offline",
+    version: state.health.version,
+    checkedAt: Date.now(),
+    error: message,
+  };
+  updateStatusUI();
+}
+
 function mediaStatusText() {
   const media = state.media;
+  if (media.mode === "video") {
+    const video = media.video;
+    if (video.loading) return "Генерирую видео… Это может занять до минуты.";
+    if (video.error) return "Видео не получилось.";
+    if (video.result) {
+      const result = video.result;
+      return `Готово: видео ${result.duration} с · ${result.width}×${result.height} · ${mediaModelLabel(result.model)}.`;
+    }
+    return "Опишите видео и нажмите «Сгенерировать видео».";
+  }
   if (media.loading) return "Генерирую изображение… Это может занять до минуты.";
   if (media.error) return "Генерация не удалась.";
   if (media.result) {
@@ -4695,6 +4788,17 @@ function mediaStatusText() {
   return "Опишите изображение и нажмите «Сгенерировать».";
 }
 
+function mediaVideoStatusText() {
+  const video = state.media.video;
+  if (video.loading) return "Генерирую видео… Это может занять до минуты.";
+  if (video.error) return "Видео не получилось.";
+  if (video.result) {
+    const result = video.result;
+    return `Готово: видео ${result.duration} с · ${result.width}×${result.height} · ${mediaModelLabel(result.model)}.`;
+  }
+  return "Видео появится здесь после генерации.";
+}
+
 function renderMediaPromptCount() {
   if (!els.mediaPrompt || !els.mediaPromptCount) return;
   const length = els.mediaPrompt.value.length;
@@ -4703,6 +4807,91 @@ function renderMediaPromptCount() {
     "is-near-limit",
     length >= MEDIA_LIMITS.promptChars - 20,
   );
+}
+
+function renderMediaMode() {
+  const isVideo = state.media.mode === "video";
+  if (els.mediaModeImage) els.mediaModeImage.checked = !isVideo;
+  if (els.mediaModeVideo) els.mediaModeVideo.checked = isVideo;
+  if (els.mediaDuration) els.mediaDuration.disabled = !isVideo;
+  if (els.mediaModeHint) {
+    els.mediaModeHint.textContent = isVideo
+      ? "Видео: 512 или 768 px, 2, 4 или 6 секунд. Собирается локально из одного кадра."
+      : "Изображение: 512, 768 или 1024 px. Модель flux или turbo.";
+  }
+  for (const select of [els.mediaWidth, els.mediaHeight]) {
+    if (!select) continue;
+    const option = select.querySelector('option[value="1024"]');
+    if (!option) continue;
+    // 1024 is an image size only: keep the video request within the API contract.
+    option.disabled = isVideo;
+    if (isVideo && select.value === "1024") select.value = "768";
+  }
+}
+
+function renderMediaVideo() {
+  const video = state.media.video;
+  const result = video.result;
+  const hasVideo = Boolean(result && isVideoDataUrl(result.video));
+  const visible =
+    state.media.mode === "video" || video.loading || Boolean(result) || Boolean(video.error);
+  if (els.mediaVideoCard) {
+    els.mediaVideoCard.hidden = !visible;
+    els.mediaVideoCard.setAttribute("aria-busy", video.loading ? "true" : "false");
+  }
+  if (els.mediaVideoLoading) els.mediaVideoLoading.hidden = !video.loading;
+  if (els.mediaVideoEmpty) els.mediaVideoEmpty.hidden = video.loading || hasVideo;
+  if (els.mediaVideoPlayer) {
+    els.mediaVideoPlayer.hidden = !hasVideo;
+    if (hasVideo) {
+      if (els.mediaVideoPlayer.getAttribute("src") !== result.video) {
+        els.mediaVideoPlayer.src = result.video;
+      }
+      els.mediaVideoPlayer.setAttribute(
+        "aria-label",
+        `Видео по запросу: ${result.prompt} (${result.duration} с)`.slice(0, 320),
+      );
+    } else if (els.mediaVideoPlayer.hasAttribute("src")) {
+      els.mediaVideoPlayer.removeAttribute("src");
+      try {
+        els.mediaVideoPlayer.load();
+      } catch {
+        /* the element may be detached in tests */
+      }
+    }
+  }
+  if (els.mediaVideoMeta) els.mediaVideoMeta.hidden = !hasVideo;
+  if (els.mediaVideoDownload) els.mediaVideoDownload.hidden = !hasVideo;
+  if (els.mediaVideoStatus) {
+    els.mediaVideoStatus.textContent = mediaVideoStatusText();
+    els.mediaVideoStatus.classList.toggle(
+      "is-error",
+      Boolean(video.error) && !video.loading,
+    );
+  }
+  if (els.mediaVideoError) {
+    els.mediaVideoError.textContent = video.error || "";
+    els.mediaVideoError.hidden = !video.error || video.loading;
+  }
+  if (!hasVideo) {
+    if (els.mediaVideoBadge) els.mediaVideoBadge.textContent = "—";
+    return;
+  }
+  const modelLabel = mediaModelLabel(result.model);
+  if (els.mediaVideoPrompt) els.mediaVideoPrompt.textContent = result.prompt;
+  if (els.mediaVideoModel) els.mediaVideoModel.textContent = modelLabel;
+  if (els.mediaVideoSize) {
+    els.mediaVideoSize.textContent = `${result.width} × ${result.height}`;
+  }
+  if (els.mediaVideoDurationValue) {
+    els.mediaVideoDurationValue.textContent = `${result.duration} с`;
+  }
+  if (els.mediaVideoBadge) els.mediaVideoBadge.textContent = `${modelLabel} · ${result.duration} с`;
+  if (els.mediaVideoDownload) {
+    els.mediaVideoDownload.href = result.video;
+    els.mediaVideoDownload.setAttribute("download", "kivi-video.mp4");
+    els.mediaVideoDownload.setAttribute("aria-label", "Скачать видео MP4 (kivi-video.mp4)");
+  }
 }
 
 function renderMediaResult() {
@@ -4771,32 +4960,48 @@ function renderMediaGallery() {
 function renderMedia() {
   if (!els.mediaForm) return;
   const media = state.media;
-  const busy = media.loading;
+  const isVideo = media.mode === "video";
+  const busy = isVideo ? media.video.loading : media.loading;
   els.mediaForm.setAttribute("aria-busy", busy ? "true" : "false");
+  renderMediaMode();
   if (els.mediaSubmit) {
     els.mediaSubmit.disabled = busy;
     els.mediaSubmit.setAttribute(
       "aria-label",
-      busy ? "Идёт генерация изображения" : "Сгенерировать изображение",
+      busy
+        ? isVideo
+          ? "Идёт генерация видео"
+          : "Идёт генерация изображения"
+        : isVideo
+          ? "Сгенерировать видео"
+          : "Сгенерировать изображение",
     );
   }
   if (els.mediaSubmitLabel) {
-    els.mediaSubmitLabel.textContent = busy ? "Генерирую…" : "Сгенерировать";
+    els.mediaSubmitLabel.textContent = busy
+      ? isVideo
+        ? "Готовлю видео…"
+        : "Генерирую…"
+      : isVideo
+        ? "Сгенерировать видео"
+        : "Сгенерировать";
   }
   if (els.mediaStatus) {
     els.mediaStatus.textContent = mediaStatusText();
-    els.mediaStatus.classList.toggle("is-error", Boolean(media.error) && !busy);
+    const activeError = isVideo ? media.video.error : media.error;
+    els.mediaStatus.classList.toggle("is-error", Boolean(activeError) && !busy);
   }
   if (els.mediaError) {
     els.mediaError.textContent = media.error || "";
     els.mediaError.hidden = !media.error || busy;
   }
   if (els.mediaResultCard) {
-    els.mediaResultCard.setAttribute("aria-busy", busy ? "true" : "false");
+    els.mediaResultCard.setAttribute("aria-busy", media.loading ? "true" : "false");
   }
-  if (els.mediaLoading) els.mediaLoading.hidden = !busy;
-  if (els.mediaEmpty) els.mediaEmpty.hidden = busy || Boolean(media.result);
+  if (els.mediaLoading) els.mediaLoading.hidden = !media.loading;
+  if (els.mediaEmpty) els.mediaEmpty.hidden = media.loading || Boolean(media.result);
   renderMediaResult();
+  renderMediaVideo();
   renderMediaGallery();
   if (state.view === "media") updateViewHeader();
 }
@@ -4805,6 +5010,16 @@ function showMediaResult(item) {
   if (!item || !item.image) return;
   state.media.result = item;
   state.media.error = "";
+  renderMedia();
+}
+
+function setMediaMode(mode) {
+  const next = mode === "video" ? "video" : "image";
+  if (state.media.mode === next) return;
+  state.media.mode = next;
+  // Errors of the other mode should not follow the user into the new one.
+  state.media.error = "";
+  state.media.video.error = "";
   renderMedia();
 }
 
@@ -4817,28 +5032,51 @@ function clearMediaGallery() {
 
 function onMediaPromptInput() {
   renderMediaPromptCount();
-  if (state.media.error) {
+  if (state.media.error || state.media.video.error) {
     state.media.error = "";
+    state.media.video.error = "";
     renderMedia();
   }
 }
 
-async function submitMedia() {
-  if (!els.mediaPrompt) return;
-  if (state.media.loading) {
-    showToast("Изображение ещё генерируется. Подождите.", "info");
-    return;
-  }
-  const prompt = String(els.mediaPrompt.value || "")
+function readMediaPrompt() {
+  return String(els.mediaPrompt.value || "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, MEDIA_LIMITS.promptChars);
+}
+
+async function submitMedia() {
+  if (!els.mediaPrompt) return;
+  const mode = state.media.mode;
+  const busy = mode === "video" ? state.media.video.loading : state.media.loading;
+  if (busy) {
+    showToast(
+      mode === "video"
+        ? "Видео ещё генерируется. Подождите."
+        : "Изображение ещё генерируется. Подождите.",
+      "info",
+    );
+    return;
+  }
+  const prompt = readMediaPrompt();
   if (!prompt) {
-    state.media.error = "Введите описание изображения — без него генерация не начнётся.";
+    state.media.error =
+      mode === "video"
+        ? "Введите описание видео — без него генерация не начнётся."
+        : "Введите описание изображения — без него генерация не начнётся.";
     renderMedia();
     els.mediaPrompt.focus();
     return;
   }
+  if (mode === "video") {
+    await submitMediaVideo(prompt);
+    return;
+  }
+  await submitMediaImage(prompt);
+}
+
+async function submitMediaImage(prompt) {
   const width = mediaSize(els.mediaWidth ? els.mediaWidth.value : state.media.width);
   const height = mediaSize(els.mediaHeight ? els.mediaHeight.value : state.media.height);
   const model = mediaModel(els.mediaModel ? els.mediaModel.value : state.media.model);
@@ -4887,13 +5125,7 @@ async function submitMedia() {
     if (seq !== state.media.seq) return;
     state.media.error = describeMediaError(error);
     if (error instanceof ApiError && error.code === "network") {
-      state.health = {
-        status: "offline",
-        version: state.health.version,
-        checkedAt: Date.now(),
-        error: state.media.error,
-      };
-      updateStatusUI();
+      noteMediaNetworkFailure(state.media.error);
     }
     if (state.view !== "media") {
       showToast(`Медиа: ${state.media.error}`, "error");
@@ -4905,6 +5137,90 @@ async function submitMedia() {
       // A disabled submit button loses focus; hand it back unless the user moved on.
       const active = document.activeElement;
       if (
+        state.media.mode === "image" &&
+        els.mediaSubmit &&
+        (!active || active === document.body || active === els.mediaSubmit)
+      ) {
+        try {
+          els.mediaSubmit.focus({ preventScroll: true });
+        } catch {
+          els.mediaSubmit.focus();
+        }
+      }
+      idleIfQuiet();
+    }
+  }
+}
+
+async function submitMediaVideo(prompt) {
+  const width = mediaVideoSize(els.mediaWidth ? els.mediaWidth.value : state.media.width);
+  const height = mediaVideoSize(els.mediaHeight ? els.mediaHeight.value : state.media.height);
+  const duration = mediaVideoDuration(
+    els.mediaDuration ? els.mediaDuration.value : state.media.duration,
+  );
+  const model = mediaModel(els.mediaModel ? els.mediaModel.value : state.media.model);
+
+  const video = state.media.video;
+  video.seq += 1;
+  const seq = video.seq;
+  state.media.prompt = prompt;
+  state.media.width = width;
+  state.media.height = height;
+  state.media.duration = duration;
+  state.media.model = model;
+  video.loading = true;
+  video.error = "";
+  state.media.error = "";
+  renderMedia();
+  setAvatar("thinking");
+
+  try {
+    const data = await apiRequest("/media/video", {
+      method: "POST",
+      body: { prompt, width, height, duration, model },
+      timeout: MEDIA_VIDEO.timeoutMs,
+    });
+    if (seq !== video.seq) return;
+    const raw = data && typeof data.video === "string" ? data.video.trim() : "";
+    if (!isVideoDataUrl(raw)) {
+      throw new ApiError("Сервер вернул ответ без видео.", {
+        path: "/media/video",
+        code: "bad-video",
+      });
+    }
+    const size = data && Array.isArray(data.size) ? data.size : [];
+    const result = {
+      id: makeId("vid"),
+      video: raw,
+      prompt: firstString(data && data.prompt, prompt).slice(0, MEDIA_LIMITS.promptChars),
+      model: mediaModel(data && data.model, model),
+      width: mediaVideoSize(size[0], width),
+      height: mediaVideoSize(size[1], height),
+      duration: mediaVideoSeconds(data && data.duration, duration),
+      ts: Date.now(),
+    };
+    video.result = result;
+    hideConnectionNotice();
+    if (state.view !== "media") {
+      showToast("Видео готово. Откройте раздел «Медиа».", "ok");
+    }
+  } catch (error) {
+    if (seq !== video.seq) return;
+    video.error = describeMediaVideoError(error);
+    if (error instanceof ApiError && error.code === "network") {
+      noteMediaNetworkFailure(video.error);
+    }
+    if (state.view !== "media") {
+      showToast(`Видео: ${video.error}`, "error");
+    }
+  } finally {
+    if (seq === video.seq) {
+      video.loading = false;
+      renderMedia();
+      // A disabled submit button loses focus; hand it back unless the user moved on.
+      const active = document.activeElement;
+      if (
+        state.media.mode === "video" &&
         els.mediaSubmit &&
         (!active || active === document.body || active === els.mediaSubmit)
       ) {
@@ -5349,14 +5665,19 @@ function updateViewHeader() {
       : "Библиотека голосов Kivi";
   } else if (state.view === "media") {
     const count = state.media.gallery.length;
+    const hasVideo = Boolean(state.media.video.result);
     els.viewTitle.textContent = "Медиа";
-    els.viewSubtitle.textContent = count
-      ? `${count} ${plural(count, [
-          "изображение",
-          "изображения",
-          "изображений",
-        ])} в этой сессии`
-      : "Генерация изображений · локальный API";
+    if (count) {
+      els.viewSubtitle.textContent = `${count} ${plural(count, [
+        "изображение",
+        "изображения",
+        "изображений",
+      ])} в этой сессии${hasVideo ? " · есть видео" : ""}`;
+    } else if (hasVideo) {
+      els.viewSubtitle.textContent = "Видео в этой сессии · локальный API";
+    } else {
+      els.viewSubtitle.textContent = "Генерация изображений и видео · локальный API";
+    }
   } else if (state.view === "files") {
     const fs = state.files;
     els.viewTitle.textContent = "Файлы";
@@ -5686,6 +6007,16 @@ function bindEvents() {
       event.preventDefault();
       void submitMedia();
     });
+    if (els.mediaModeImage) {
+      els.mediaModeImage.addEventListener("change", () => {
+        if (els.mediaModeImage.checked) setMediaMode("image");
+      });
+    }
+    if (els.mediaModeVideo) {
+      els.mediaModeVideo.addEventListener("change", () => {
+        if (els.mediaModeVideo.checked) setMediaMode("video");
+      });
+    }
     els.mediaPrompt.addEventListener("input", onMediaPromptInput);
     els.mediaPrompt.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -5995,11 +6326,15 @@ function cacheDom() {
     settingsConnectionNote: $id("settings-connection-note"),
     settingsRetry: $id("settings-retry"),
     mediaForm: $id("media-form"),
+    mediaModeImage: $id("media-mode-image"),
+    mediaModeVideo: $id("media-mode-video"),
+    mediaModeHint: $id("media-mode-hint"),
     mediaPrompt: $id("media-prompt"),
     mediaPromptCount: $id("media-prompt-count"),
     mediaWidth: $id("media-width"),
     mediaHeight: $id("media-height"),
     mediaModel: $id("media-model"),
+    mediaDuration: $id("media-duration"),
     mediaSubmit: $id("media-submit"),
     mediaSubmitLabel: $id("media-submit-label"),
     mediaStatus: $id("media-status"),
@@ -6014,6 +6349,19 @@ function cacheDom() {
     mediaDownload: $id("media-download"),
     mediaEmpty: $id("media-empty"),
     mediaLoading: $id("media-loading"),
+    mediaVideoCard: $id("media-video-card"),
+    mediaVideoBadge: $id("media-video-badge"),
+    mediaVideoPlayer: $id("media-video-player"),
+    mediaVideoEmpty: $id("media-video-empty"),
+    mediaVideoLoading: $id("media-video-loading"),
+    mediaVideoStatus: $id("media-video-status"),
+    mediaVideoError: $id("media-video-error"),
+    mediaVideoMeta: $id("media-video-meta"),
+    mediaVideoPrompt: $id("media-video-prompt"),
+    mediaVideoModel: $id("media-video-model"),
+    mediaVideoSize: $id("media-video-size"),
+    mediaVideoDurationValue: $id("media-video-duration"),
+    mediaVideoDownload: $id("media-video-download"),
     mediaGalleryPanel: $id("media-gallery-panel"),
     mediaGalleryList: $id("media-gallery"),
     mediaClear: $id("media-clear"),

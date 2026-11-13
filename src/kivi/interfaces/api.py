@@ -41,6 +41,7 @@ Handler = Callable[[str], str]
 TtsHandler = Callable[[str], bytes]
 SttHandler = Callable[[bytes], str]
 MediaHandler = Callable[[dict[str, Any]], dict[str, Any]]
+VideoHandler = Callable[[dict[str, Any]], dict[str, Any]]
 FsListHandler = Callable[[str], dict[str, Any]]
 FsReadHandler = Callable[[str], dict[str, Any]]
 FsMkdirHandler = Callable[[str], dict[str, Any]]
@@ -70,6 +71,7 @@ _JSON_POST_PATHS = {
     "/voices/active",
     "/settings",
     "/media/image",
+    "/media/video",
     "/fs/mkdir",
     "/fs/copy",
     "/fs/move",
@@ -120,6 +122,7 @@ class LocalApi:
         tts_handler: TtsHandler | None = None,
         stt_handler: SttHandler | None = None,
         media_handler: MediaHandler | None = None,
+        video_handler: VideoHandler | None = None,
         fs_list_handler: FsListHandler | None = None,
         fs_read_handler: FsReadHandler | None = None,
         fs_mkdir_handler: FsMkdirHandler | None = None,
@@ -158,6 +161,7 @@ class LocalApi:
         self._tts_handler = tts_handler
         self._stt_handler = stt_handler
         self._media_handler = media_handler
+        self._video_handler = video_handler
         self._fs_list_handler = fs_list_handler
         self._fs_read_handler = fs_read_handler
         self._fs_mkdir_handler = fs_mkdir_handler
@@ -342,6 +346,8 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._handle_transcribe()
         elif method == "POST" and path == "/media/image":
             self._handle_media()
+        elif method == "POST" and path == "/media/video":
+            self._handle_media_video()
         elif method == "GET" and path == "/fs/list":
             self._handle_fs_list(split.query)
         elif method == "GET" and path == "/fs/read":
@@ -542,6 +548,25 @@ class _ApiHandler(BaseHTTPRequestHandler):
             return
         if not isinstance(result, dict) or not isinstance(result.get("image"), str):
             self._send_json(500, {"error": "media generation returned no image"})
+            return
+        self._send_json(200, result)
+
+    def _handle_media_video(self) -> None:
+        api = self.server.api
+        if api._video_handler is None:
+            self._send_json(503, {"error": "video generation is not configured"})
+            return
+        payload = self._read_json_object()
+        if payload is None:
+            return
+        try:
+            result = api._video_handler(payload)
+        except Exception:
+            logger.warning("video handler failed")
+            self._send_json(500, {"error": "video generation failed"})
+            return
+        if not isinstance(result, dict) or not isinstance(result.get("video"), str):
+            self._send_json(500, {"error": "video generation returned no file"})
             return
         self._send_json(200, result)
 

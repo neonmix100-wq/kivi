@@ -991,6 +991,36 @@ def _ui_media(paths: Any, config: KiviConfig, payload: dict[str, Any]) -> dict[s
     }
 
 
+def _ui_media_video(
+    paths: Any,
+    config: KiviConfig,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Generate one short local MP4 for the UI as a data URL."""
+    allowed = ("prompt", "width", "height", "duration", "model", "seed")
+    args = {key: payload[key] for key in allowed if key in payload}
+    result = _run_direct_tool(
+        paths,
+        config,
+        "media.video",
+        args,
+        ["media.generate"],
+    )
+    if not result.ok or not result.artifacts:
+        raise RuntimeError(result.error or "video generation failed")
+    path = Path(result.artifacts[0])
+    data = path.read_bytes()
+    if len(data) > 40 * 1024 * 1024:
+        raise RuntimeError("generated video is too large")
+    return {
+        "video": f"data:video/mp4;base64,{base64.b64encode(data).decode('ascii')}",
+        "prompt": str(args.get("prompt", "")),
+        "duration": int(args.get("duration", 4)),
+        "size": [int(args.get("width", 512)), int(args.get("height", 512))],
+        "model": str(args.get("model", "flux")),
+    }
+
+
 def cmd_avatar(args: argparse.Namespace) -> int:
     """Serve the 3D VRM avatar page."""
     paths = get_paths()
@@ -1242,6 +1272,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
         stt_handler=ui_stt,
         media_handler=(
             (lambda payload: _ui_media(paths, config, payload))
+            if getattr(args, "ui", False)
+            else None
+        ),
+        video_handler=(
+            (lambda payload: _ui_media_video(paths, config, payload))
             if getattr(args, "ui", False)
             else None
         ),
