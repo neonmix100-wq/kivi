@@ -69,7 +69,13 @@ def build_registry(
     )
     from kivi.tools.clipboard import ClipboardReadTool, ClipboardWriteTool
     from kivi.tools.code import CodeRunTool
-    from kivi.tools.fs import FsListTool, FsReadTool, FsWriteTool
+    from kivi.tools.fs import (
+        FsListTool,
+        FsMkdirTool,
+        FsReadTool,
+        FsRenameTool,
+        FsWriteTool,
+    )
     from kivi.tools.git import (
         GitBranchTool,
         GitCommitTool,
@@ -112,6 +118,8 @@ def build_registry(
         FsReadTool(),
         FsListTool(),
         FsWriteTool(),
+        FsMkdirTool(),
+        FsRenameTool(),
         ShellExecTool(),
         HttpGetTool(blocked_hosts=blocked_hosts),
         ProcListTool(),

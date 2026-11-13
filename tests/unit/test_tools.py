@@ -54,7 +54,46 @@ def env(tmp_path: Path, workspace: Path) -> ToolEnv:
     db.close()
 
 
-def test_registry_exposes_specs() -> None:
+def test_fs_mkdir_and_rename(env: ToolEnv) -> None:
+    created = env.run("fs.mkdir", {"path": "docs/new"})
+    assert created.ok is True
+    assert (env.workspace / "docs" / "new").is_dir()
+
+    renamed = env.run(
+        "fs.rename",
+        {"source": "docs/new", "destination": "docs/renamed"},
+    )
+    assert renamed.ok is True
+    assert (env.workspace / "docs" / "renamed").is_dir()
+    assert not (env.workspace / "docs" / "new").exists()
+
+
+def test_fs_mkdir_and_rename_refuse_unsafe_paths(env: ToolEnv) -> None:
+    duplicate = env.run("fs.mkdir", {"path": "docs"})
+    assert duplicate.ok is False
+    traversal = env.run("fs.mkdir", {"path": "../escape"})
+    assert traversal.ok is False
+    overwrite = env.run(
+        "fs.rename",
+        {"source": "docs/note.txt", "destination": "docs/note2.txt"},
+    )
+    assert overwrite.ok is True
+    (env.workspace / "docs" / "other.txt").write_text("other", encoding="utf-8")
+    conflict = env.run(
+        "fs.rename",
+        {"source": "docs/note2.txt", "destination": "docs/other.txt"},
+    )
+    assert conflict.ok is False
+    assert (env.workspace / "docs" / "note2.txt").read_text() == "hello world"
+
+
+def test_fs_rename_rejects_missing_source(env: ToolEnv) -> None:
+    result = env.run(
+        "fs.rename",
+        {"source": "docs/missing.txt", "destination": "docs/other.txt"},
+    )
+    assert result.ok is False
+    assert "source" in (result.error or "").lower()
     registry = build_registry()
     assert registry.names() == (
         "app.launch",
@@ -74,7 +113,9 @@ def test_registry_exposes_specs() -> None:
         "crm.read",
         "crm.task",
         "fs.list",
+        "fs.mkdir",
         "fs.read",
+        "fs.rename",
         "fs.write",
         "git.branch",
         "git.commit",

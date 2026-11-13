@@ -593,6 +593,17 @@ a:hover {
   color: var(--mint);
 }
 
+.icon-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.icon-btn:disabled:hover {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--muted);
+}
+
 .nav-toggle {
   display: none;
 }
@@ -2075,6 +2086,100 @@ a:hover {
   gap: 8px;
 }
 
+.files-write-form,
+.files-rename-form {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.files-write-form {
+  max-width: 860px;
+  margin: 0 auto 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(12, 31, 36, 0.5);
+}
+
+.files-rename-form {
+  margin: 12px 0 0;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(3, 12, 15, 0.35);
+}
+
+.files-form-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.files-form-label {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.files-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.files-input {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(3, 12, 15, 0.55);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.4;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.files-input::placeholder {
+  color: var(--faint);
+}
+
+.files-input:hover:not(:disabled) {
+  border-color: rgba(94, 242, 214, 0.26);
+}
+
+.files-input:focus-visible {
+  border-color: rgba(94, 242, 214, 0.45);
+  outline: 2px solid var(--mint);
+  outline-offset: 2px;
+}
+
+.files-input:disabled {
+  opacity: 0.65;
+}
+
+.files-form-hint {
+  margin: 0;
+  color: var(--faint);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.files-form-error {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 122, 144, 0.3);
+  border-radius: 9px;
+  background: var(--danger-soft);
+  color: #ffb3c1;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
 .files-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -3360,6 +3465,14 @@ button.file-row:hover {
   }
 
   .files-copy-status {
+    flex-basis: 100%;
+  }
+
+  .files-form-row .btn {
+    flex: 1 1 auto;
+  }
+
+  .files-input {
     flex-basis: 100%;
   }
 

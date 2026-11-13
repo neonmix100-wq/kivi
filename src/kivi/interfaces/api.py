@@ -43,6 +43,8 @@ SttHandler = Callable[[bytes], str]
 MediaHandler = Callable[[dict[str, Any]], dict[str, Any]]
 FsListHandler = Callable[[str], dict[str, Any]]
 FsReadHandler = Callable[[str], dict[str, Any]]
+FsMkdirHandler = Callable[[str], dict[str, Any]]
+FsRenameHandler = Callable[[str, str], dict[str, Any]]
 CrmStatusHandler = Callable[[], dict[str, Any]]
 CrmReadHandler = Callable[[], dict[str, Any]]
 SettingsUpdateHandler = Callable[[dict[str, Any]], dict[str, Any]]
@@ -100,6 +102,8 @@ class LocalApi:
         media_handler: MediaHandler | None = None,
         fs_list_handler: FsListHandler | None = None,
         fs_read_handler: FsReadHandler | None = None,
+        fs_mkdir_handler: FsMkdirHandler | None = None,
+        fs_rename_handler: FsRenameHandler | None = None,
         crm_status_handler: CrmStatusHandler | None = None,
         crm_read_handler: CrmReadHandler | None = None,
         settings_update_handler: SettingsUpdateHandler | None = None,
@@ -128,6 +132,8 @@ class LocalApi:
         self._media_handler = media_handler
         self._fs_list_handler = fs_list_handler
         self._fs_read_handler = fs_read_handler
+        self._fs_mkdir_handler = fs_mkdir_handler
+        self._fs_rename_handler = fs_rename_handler
         self._crm_status_handler = crm_status_handler
         self._crm_read_handler = crm_read_handler
         self._settings_update_handler = settings_update_handler
@@ -303,6 +309,10 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._handle_fs_list(split.query)
         elif method == "GET" and path == "/fs/read":
             self._handle_fs_read(split.query)
+        elif method == "POST" and path == "/fs/mkdir":
+            self._handle_fs_mkdir()
+        elif method == "POST" and path == "/fs/rename":
+            self._handle_fs_rename()
         elif method == "GET" and path == "/crm/status":
             self._handle_crm_status()
         elif method == "GET" and path == "/crm/read":
@@ -479,6 +489,48 @@ class _ApiHandler(BaseHTTPRequestHandler):
         except Exception:
             logger.warning("fs read failed")
             self._send_json(400, {"error": "cannot read path"})
+            return
+        self._send_json(200, result)
+
+    def _handle_fs_mkdir(self) -> None:
+        api = self.server.api
+        if api._fs_mkdir_handler is None:
+            self._send_json(503, {"error": "files are not configured"})
+            return
+        payload = self._read_json_object()
+        if payload is None:
+            return
+        path = payload.get("path")
+        if not isinstance(path, str) or not path.strip():
+            self._send_json(400, {"error": "path must be a non-empty string"})
+            return
+        try:
+            result = api._fs_mkdir_handler(path.strip())
+        except Exception as exc:  # noqa: BLE001 - no internals to the client
+            self._send_json(400, {"error": str(exc)[:300] or "cannot create directory"})
+            return
+        self._send_json(200, result)
+
+    def _handle_fs_rename(self) -> None:
+        api = self.server.api
+        if api._fs_rename_handler is None:
+            self._send_json(503, {"error": "files are not configured"})
+            return
+        payload = self._read_json_object()
+        if payload is None:
+            return
+        source = payload.get("source")
+        destination = payload.get("destination")
+        if not isinstance(source, str) or not isinstance(destination, str):
+            self._send_json(400, {"error": "source and destination are required"})
+            return
+        if not source.strip() or not destination.strip():
+            self._send_json(400, {"error": "source and destination are required"})
+            return
+        try:
+            result = api._fs_rename_handler(source.strip(), destination.strip())
+        except Exception as exc:  # noqa: BLE001 - no internals to the client
+            self._send_json(400, {"error": str(exc)[:300] or "cannot rename"})
             return
         self._send_json(200, result)
 

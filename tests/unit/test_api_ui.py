@@ -39,6 +39,12 @@ def ui_api(tmp_path: Path):
             "content": "# hello",
             "truncated": False,
         },
+        fs_mkdir_handler=lambda path: {"ok": True, "path": path},
+        fs_rename_handler=lambda source, destination: {
+            "ok": True,
+            "source": source,
+            "destination": destination,
+        },
         crm_status_handler=lambda: {
             "connected": False,
             "hint": "start Chrome",
@@ -116,6 +122,19 @@ def test_fs_list_and_read(ui_api: LocalApi) -> None:
     assert listing.json()["entries"][0]["name"] == "docs"
     assert reading.status_code == 200
     assert reading.json()["content"] == "# hello"
+
+
+def test_fs_mkdir_and_rename(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        mkdir = client.post("/fs/mkdir", json={"path": "new"})
+        rename = client.post(
+            "/fs/rename",
+            json={"source": "new", "destination": "renamed"},
+        )
+    assert mkdir.status_code == 200
+    assert mkdir.json()["path"] == "new"
+    assert rename.status_code == 200
+    assert rename.json()["destination"] == "renamed"
 
 
 def test_crm_status_and_read(ui_api: LocalApi) -> None:

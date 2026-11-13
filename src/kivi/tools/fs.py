@@ -46,6 +46,19 @@ class FsWriteArgs(_FsArgs):
     overwrite: bool = False
 
 
+class FsMkdirArgs(_FsArgs):
+    path: str = Field(
+        min_length=1,
+        max_length=4096,
+        description="New directory path, relative to the workspace.",
+    )
+
+
+class FsRenameArgs(_FsArgs):
+    source: str = Field(min_length=1, max_length=4096)
+    destination: str = Field(min_length=1, max_length=4096)
+
+
 def _decode_text(data: bytes, *, allow_partial: bool = False) -> str:
     """Decode UTF-8 without inventing broken replacement characters.
 
@@ -211,11 +224,100 @@ class FsWriteTool:
         )
 
 
+class FsMkdirTool:
+    """Create one directory inside the workspace; never recursive."""
+
+    name = "fs.mkdir"
+    description = "Create one new directory inside the workspace."
+    risk = "R1"
+    capabilities = ("fs.write",)
+    args_model = FsMkdirArgs
+
+    def dry_run(self, args: BaseModel, ctx: ToolContext) -> Preview:
+        assert isinstance(args, FsMkdirArgs)
+        target = _resolve(ctx, args.path, "write")
+        _resolve(ctx, str(target.parent), "write")
+        return Preview(
+            "create-directory",
+            {"path": str(target), "exists": target.exists()},
+            reversible=not target.exists(),
+            warnings=("directory already exists",) if target.exists() else (),
+        )
+
+    def run(self, args: BaseModel, ctx: ToolContext) -> ToolResult:
+        assert isinstance(args, FsMkdirArgs)
+        target = _resolve(ctx, args.path, "write")
+        _resolve(ctx, str(target.parent), "write")
+        if target.exists() or target.is_symlink():
+            raise ToolError(f"path already exists: {target}")
+        if not target.parent.is_dir():
+            raise ToolError(f"parent directory does not exist: {target.parent}")
+        try:
+            target.mkdir()
+        except OSError as exc:
+            raise ToolError(f"cannot create directory: {exc}") from exc
+        return ToolResult(
+            ok=True,
+            output=f"created directory {target}",
+            meta={"path": str(target), "created": True},
+        )
+
+
+class FsRenameTool:
+    """Rename one workspace entry without overwriting an existing path."""
+
+    name = "fs.rename"
+    description = "Rename a file/directory inside the workspace; no overwrite."
+    risk = "R1"
+    capabilities = ("fs.write",)
+    args_model = FsRenameArgs
+
+    def _check(self, args: FsRenameArgs, ctx: ToolContext) -> tuple[Path, Path]:
+        source = _resolve(ctx, args.source, "read")
+        destination = _resolve(ctx, args.destination, "write")
+        _resolve(ctx, str(destination.parent), "write")
+        if not source.exists():
+            raise ToolError(f"source does not exist: {source}")
+        if source.is_symlink() or destination.is_symlink():
+            raise ToolError("symlink rename is not supported")
+        if destination.exists():
+            raise ToolError(f"destination already exists: {destination}")
+        if not destination.parent.is_dir():
+            raise ToolError(f"destination parent does not exist: {destination.parent}")
+        return source, destination
+
+    def dry_run(self, args: BaseModel, ctx: ToolContext) -> Preview:
+        assert isinstance(args, FsRenameArgs)
+        source, destination = self._check(args, ctx)
+        return Preview(
+            "rename",
+            {"source": str(source), "destination": str(destination)},
+            reversible=True,
+        )
+
+    def run(self, args: BaseModel, ctx: ToolContext) -> ToolResult:
+        assert isinstance(args, FsRenameArgs)
+        source, destination = self._check(args, ctx)
+        try:
+            source.rename(destination)
+        except OSError as exc:
+            raise ToolError(f"cannot rename: {exc}") from exc
+        return ToolResult(
+            ok=True,
+            output=f"renamed {source.name} -> {destination.name}",
+            meta={"source": str(source), "destination": str(destination)},
+        )
+
+
 __all__ = [
     "FsListArgs",
     "FsListTool",
+    "FsMkdirArgs",
+    "FsMkdirTool",
     "FsReadArgs",
     "FsReadTool",
+    "FsRenameArgs",
+    "FsRenameTool",
     "FsWriteArgs",
     "FsWriteTool",
 ]

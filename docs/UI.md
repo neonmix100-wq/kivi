@@ -43,7 +43,7 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 - **CRM-панель**: статус AltCRM, инструкция Chrome CDP, read-only карточка
   заказа; без заполнения/сохранения/отправки;
 - **файловый обзор**: список workspace, переход по папкам, preview текста,
-  копирование; только чтение, без выхода за workspace;
+  копирование, создание папок и переименование; без удаления;
 - **медиа-панель**: prompt, 512/768/1024, flux/turbo, результат и галерея
   сессии через `/media/image`;
 - голосовые ответы: кнопка «Озвучить», авто-озвучка, `/tts`;
@@ -69,6 +69,8 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 | POST | `/media/image` | `{prompt,width,height,model}` → `{image: dataURL}` |
 | GET | `/fs/list?path=` | список папки workspace |
 | GET | `/fs/read?path=` | текст файла workspace (read-only) |
+| POST | `/fs/mkdir` | `{path}` — создать папку |
+| POST | `/fs/rename` | `{source,destination}` — переименовать |
 | GET | `/crm/status` | статус Chrome CDP/AltCRM |
 | GET | `/crm/read` | read-only карточка заказа |
 | GET | `/history?limit=50` | последние сообщения |
@@ -83,6 +85,7 @@ API слушает только loopback и не имеет аутентифик
 
 ## Ограничения текущего среза
 
+- нет удаления файлов и корзины;
 - первый голосовой ввод загружает Whisper и может занять несколько секунд;
 - браузерный микрофон требует разрешения; при отказе UI покажет причину;
 - нет системного трея-уведомления о новых сообщениях;

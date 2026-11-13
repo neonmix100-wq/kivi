@@ -518,8 +518,10 @@
               <div>
                 <h2 class="media-heading" id="files-title">Файлы</h2>
                 <p class="view-lead">
-                  Рабочая папка Kivi — только чтение. Список и предпросмотр приходят
-                  с локального API: <code>GET /fs/list</code> и <code>GET /fs/read</code>.
+                  Рабочая папка Kivi: чтение, создание папок и переименование. Список и
+                  предпросмотр приходят с локального API: <code>GET /fs/list</code> и
+                  <code>GET /fs/read</code>; действия — <code>POST /fs/mkdir</code> и
+                  <code>POST /fs/rename</code>.
                 </p>
               </div>
               <button type="button" class="btn btn-ghost" id="files-refresh">Обновить</button>
@@ -533,9 +535,25 @@
                   id="files-breadcrumbs"
                   aria-label="Текущий путь в рабочей папке"
                 ></nav>
-                <span class="files-readonly">только чтение</span>
+                <span class="files-readonly">без удаления</span>
               </div>
               <div class="files-nav-actions">
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-small"
+                  id="files-mkdir"
+                  aria-label="Создать новую папку в текущей папке"
+                  aria-expanded="false"
+                  aria-controls="files-mkdir-form"
+                >
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                      d="M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2.2 2.5H18a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 18 19.5H6A2.5 2.5 0 0 1 3.5 17Z"
+                    />
+                    <path d="M12 11.5v5M9.5 14h5" />
+                  </svg>
+                  <span id="files-mkdir-label">Новая папка</span>
+                </button>
                 <button
                   type="button"
                   class="btn btn-ghost btn-small"
@@ -549,6 +567,41 @@
                 </button>
               </div>
             </div>
+
+            <form
+              class="files-write-form"
+              id="files-mkdir-form"
+              aria-labelledby="files-mkdir-form-title"
+              novalidate
+              hidden
+            >
+              <p class="files-form-title" id="files-mkdir-form-title">Новая папка</p>
+              <label class="files-form-label" for="files-mkdir-input">Имя папки</label>
+              <div class="files-form-row">
+                <input
+                  class="files-input"
+                  id="files-mkdir-input"
+                  name="folder"
+                  type="text"
+                  maxlength="128"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="например, отчёты"
+                  aria-describedby="files-mkdir-hint files-mkdir-error"
+                />
+                <button type="submit" class="btn btn-primary btn-small" id="files-mkdir-submit">
+                  Создать
+                </button>
+                <button type="button" class="btn btn-ghost btn-small" id="files-mkdir-cancel">
+                  Отмена
+                </button>
+              </div>
+              <p class="files-form-hint" id="files-mkdir-hint">
+                Папка появится внутри текущей папки. Существующие элементы не
+                перезаписываются.
+              </p>
+              <p class="files-form-error" id="files-mkdir-error" role="alert" hidden></p>
+            </form>
 
             <div class="files-layout" id="files-layout">
               <section class="card files-browser" aria-labelledby="files-list-title">
@@ -607,7 +660,65 @@
                   Показана только часть файла: сервер ограничил размер ответа.
                 </p>
 
+                <form
+                  class="files-rename-form"
+                  id="files-rename-form"
+                  aria-labelledby="files-rename-form-title"
+                  novalidate
+                  hidden
+                >
+                  <p class="files-form-title" id="files-rename-form-title">
+                    Переименовать файл
+                  </p>
+                  <label class="files-form-label" for="files-rename-input">Новое имя</label>
+                  <div class="files-form-row">
+                    <input
+                      class="files-input"
+                      id="files-rename-input"
+                      name="name"
+                      type="text"
+                      maxlength="128"
+                      autocomplete="off"
+                      spellcheck="false"
+                      aria-describedby="files-rename-hint files-rename-error"
+                    />
+                    <button
+                      type="submit"
+                      class="btn btn-primary btn-small"
+                      id="files-rename-submit"
+                    >
+                      Переименовать
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-small"
+                      id="files-rename-cancel"
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                  <p class="files-form-hint" id="files-rename-hint">
+                    Файл останется в текущей папке. Существующие элементы не
+                    перезаписываются.
+                  </p>
+                  <p class="files-form-error" id="files-rename-error" role="alert" hidden></p>
+                </form>
+
                 <div class="files-preview-actions">
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-small"
+                    id="files-preview-rename"
+                    aria-expanded="false"
+                    aria-controls="files-rename-form"
+                    disabled
+                  >
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M4 20h4.2L19 9.2 14.8 5 4 15.8Z" />
+                      <path d="M13.5 6.3 17.7 10.5" />
+                    </svg>
+                    <span>Переименовать</span>
+                  </button>
                   <button type="button" class="btn btn-ghost btn-small" id="files-copy" disabled>
                     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <rect x="8" y="8" width="11" height="12" rx="2" />
@@ -634,9 +745,9 @@
             </div>
 
             <p class="view-footnote">
-              Интерфейс только читает файлы: запись, удаление и переименование недоступны.
-              Предпросмотр показывает текстовые файлы UTF-8; бинарные файлы могут
-              отображаться некорректно.
+              Доступны только чтение, создание папок и переименование: удаление и запись
+              содержимого файлов недоступны. Предпросмотр показывает текстовые файлы
+              UTF-8; бинарные файлы могут отображаться некорректно.
             </p>
           </div>
         </section>
