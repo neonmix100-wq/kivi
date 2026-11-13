@@ -687,6 +687,33 @@
                   <span>Вверх</span>
                 </button>
               </div>
+              <div class="files-sort" role="group" aria-labelledby="files-sort-label">
+                <label class="files-sort-label" for="files-sort-key" id="files-sort-label">
+                  Сортировка
+                </label>
+                <select class="files-input files-sort-select" id="files-sort-key">
+                  <option value="name">По имени</option>
+                  <option value="size">По размеру</option>
+                  <option value="type">По типу</option>
+                </select>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-small files-sort-dir"
+                  id="files-sort-dir"
+                  aria-label="Направление сортировки: по возрастанию. Переключить на убывание"
+                  title="Сортировка по возрастанию: нажмите, чтобы изменить направление"
+                >
+                  <svg
+                    class="icon files-sort-icon"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M12 19V5M6 11l6-6 6 6" />
+                  </svg>
+                  <span id="files-sort-dir-label">По возрастанию</span>
+                </button>
+              </div>
               <form
                 class="files-search"
                 id="files-search-form"

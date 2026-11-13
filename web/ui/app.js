@@ -174,6 +174,9 @@ const state = {
     state: "idle",
     error: "",
     epoch: 0,
+    // Sort preference survives folder changes and reloads (see loadPrefs).
+    sortKey: "name",
+    sortDir: "asc",
     preview: null,
     previewEpoch: 0,
     previewTrigger: null,
@@ -554,6 +557,12 @@ function loadPrefs() {
       typeof parsed.selectedVoiceId === "string" ? parsed.selectedVoiceId.slice(0, 120) : null;
     state.prefs.lastActiveId =
       typeof parsed.lastActiveId === "string" ? parsed.lastActiveId.slice(0, 80) : null;
+    // Sorting is stored with the other preferences; an old or corrupted value
+    // falls back to the same order the Files panel used before sorting existed.
+    state.files.sortKey = FS_SORT_KEYS.has(parsed.filesSortKey)
+      ? parsed.filesSortKey
+      : "name";
+    state.files.sortDir = parsed.filesSortDir === "desc" ? "desc" : "asc";
   } catch {
     /* corrupted preferences are ignored */
   }
@@ -567,6 +576,8 @@ function savePrefs() {
       avatarVisible: state.prefs.avatarVisible,
       selectedVoiceId: state.prefs.selectedVoiceId,
       lastActiveId: state.prefs.lastActiveId,
+      filesSortKey: state.files.sortKey,
+      filesSortDir: state.files.sortDir,
     }),
   );
 }
@@ -2270,6 +2281,51 @@ function normalizeFsSearchMatches(raw) {
   return matches;
 }
 
+// /fs/list and /fs/search expose name/type/size only, with no mtime. The panel
+// therefore offers name/size/type and never invents a "modified" sort value.
+const FS_SORT_KEYS = new Set(["name", "size", "type"]);
+// Folders stay grouped first in both directions, as they were before sorting.
+const FS_TYPE_ORDER = Object.freeze({ dir: 0, file: 1, other: 2 });
+
+function compareFsSortText(left, right) {
+  const a = typeof left === "string" ? left : "";
+  const b = typeof right === "string" ? right : "";
+  return a.localeCompare(b, "ru", { numeric: true, sensitivity: "base" });
+}
+
+function fsSortTypeLabel(item) {
+  if (!item || item.type === "dir") return "папка";
+  const name =
+    typeof item.name === "string" && item.name ? item.name : fsName(item.path || "");
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+}
+
+function sortFsItems(items, key, direction) {
+  if (!Array.isArray(items)) return [];
+  if (items.length < 2) return items.slice();
+  const sortKey = FS_SORT_KEYS.has(key) ? key : "name";
+  const sign = direction === "desc" ? -1 : 1;
+  return items.slice().sort((a, b) => {
+    const groupDiff =
+      (FS_TYPE_ORDER[a.type] ?? 2) - (FS_TYPE_ORDER[b.type] ?? 2);
+    if (groupDiff !== 0) return groupDiff;
+    let result = 0;
+    if (sortKey === "size") {
+      const aSize = Number.isFinite(a.size) ? a.size : -1;
+      const bSize = Number.isFinite(b.size) ? b.size : -1;
+      result = aSize - bSize;
+    } else if (sortKey === "type") {
+      result = compareFsSortText(fsSortTypeLabel(a), fsSortTypeLabel(b));
+    }
+    // Name is the key for "name" and the stable tie-breaker for the rest;
+    // search results may share a basename, so their relative path breaks ties.
+    if (result === 0) result = compareFsSortText(a.name, b.name);
+    if (result === 0) result = compareFsSortText(a.path, b.path);
+    return result * sign;
+  });
+}
+
 function filesSearchActive() {
   return Boolean(state.files.searchQuery);
 }
@@ -2939,6 +2995,58 @@ function renderFilesToolbar() {
     els.filesNote.textContent = note;
     els.filesNote.hidden = !note;
   }
+  renderFilesSort();
+}
+
+function renderFilesSort() {
+  const sortKey = FS_SORT_KEYS.has(state.files.sortKey) ? state.files.sortKey : "name";
+  const descending = state.files.sortDir === "desc";
+  if (els.filesSortKey && els.filesSortKey.value !== sortKey) {
+    els.filesSortKey.value = sortKey;
+  }
+  if (!els.filesSortDir) return;
+  const label = descending ? "По убыванию" : "По возрастанию";
+  if (els.filesSortDirLabel && els.filesSortDirLabel.textContent !== label) {
+    els.filesSortDirLabel.textContent = label;
+  }
+  els.filesSortDir.classList.toggle("is-desc", descending);
+  const ariaLabel =
+    `Направление сортировки: ${label.toLowerCase()}. ` +
+    `Переключить на ${descending ? "возрастание" : "убывание"}`;
+  if (els.filesSortDir.getAttribute("aria-label") !== ariaLabel) {
+    els.filesSortDir.setAttribute("aria-label", ariaLabel);
+  }
+  els.filesSortDir.title = `Сортировка ${label.toLowerCase()}: нажмите, чтобы изменить направление`;
+}
+
+function activeFilesRowPath() {
+  const active = document.activeElement;
+  if (!active || !els.filesList || !els.filesList.contains(active)) return "";
+  return typeof active.dataset.fsPath === "string" ? active.dataset.fsPath : "";
+}
+
+function setFilesSort(key, direction) {
+  const nextKey = FS_SORT_KEYS.has(key) ? key : "name";
+  const nextDir = direction === "desc" ? "desc" : "asc";
+  if (nextKey === state.files.sortKey && nextDir === state.files.sortDir) return;
+  // Rows are keyed by path: restore the focused row after the reorder. The
+  // preview and action targets are path-based too, so they stay on the file.
+  const focusedPath = activeFilesRowPath();
+  state.files.sortKey = nextKey;
+  state.files.sortDir = nextDir;
+  savePrefs();
+  renderFilesList();
+  renderFilesSort();
+  if (focusedPath) focusFileRow(focusedPath);
+}
+
+function onFilesSortKeyChange() {
+  if (!els.filesSortKey) return;
+  setFilesSort(els.filesSortKey.value, state.files.sortDir);
+}
+
+function onFilesSortDirClick() {
+  setFilesSort(state.files.sortKey, state.files.sortDir === "desc" ? "asc" : "desc");
 }
 
 function renderFilesWriteForm() {
@@ -3035,7 +3143,9 @@ function renderFilesList() {
   if (others) parts.push(`${others} другое`);
   els.filesStatus.append(el("span", { text: parts.join(" · ") || "Нет элементов." }));
 
-  for (const entry of fs.entries) els.filesList.append(renderFileRow(entry));
+  for (const entry of sortFsItems(fs.entries, fs.sortKey, fs.sortDir)) {
+    els.filesList.append(renderFileRow(entry));
+  }
 }
 
 function renderFilesSearchList() {
@@ -3088,7 +3198,7 @@ function renderFilesSearchList() {
     el("span", { text: `${parts.join(" · ") || "Нет результатов"} · запрос «${query}»` }),
   );
 
-  for (const match of fs.searchMatches) {
+  for (const match of sortFsItems(fs.searchMatches, fs.sortKey, fs.sortDir)) {
     els.filesList.append(renderFilesSearchRow(match));
   }
 }
@@ -7011,6 +7121,12 @@ function bindEvents() {
       clearFilesSearch({ render: false });
       void loadFiles(parent, { focus: true });
     });
+    if (els.filesSortKey) {
+      els.filesSortKey.addEventListener("change", onFilesSortKeyChange);
+    }
+    if (els.filesSortDir) {
+      els.filesSortDir.addEventListener("click", onFilesSortDirClick);
+    }
     els.filesList.addEventListener("keydown", onFilesListKeydown);
     els.filesList.addEventListener("contextmenu", onFilesListContextMenu);
     els.filesList.addEventListener("dragstart", onFilesDragStart);
@@ -7190,6 +7306,8 @@ function installDebugHook() {
           path: state.files.path,
           state: state.files.state,
           entries: state.files.entries.length,
+          sortKey: state.files.sortKey,
+          sortDir: state.files.sortDir,
           preview: state.files.preview ? state.files.preview.path : null,
           previewLoading: Boolean(state.files.preview && state.files.preview.loading),
           busy: state.files.busy,
@@ -7351,6 +7469,9 @@ function cacheDom() {
     mediaGalleryList: $id("media-gallery"),
     mediaClear: $id("media-clear"),
     filesRefresh: $id("files-refresh"),
+    filesSortKey: $id("files-sort-key"),
+    filesSortDir: $id("files-sort-dir"),
+    filesSortDirLabel: $id("files-sort-dir-label"),
     filesSearchForm: $id("files-search-form"),
     filesSearchInput: $id("files-search-input"),
     filesSearchSubmit: $id("files-search-submit"),

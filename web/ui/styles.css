@@ -2220,6 +2220,45 @@ a:hover {
   gap: 8px;
 }
 
+.files-sort {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.files-sort-label {
+  color: var(--faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* The shared .files-input flex-basis would let the select grow too wide;
+   this two-class selector keeps it compact without !important. */
+.files-input.files-sort-select {
+  flex: 0 1 148px;
+  min-width: 118px;
+  width: auto;
+  cursor: pointer;
+}
+
+.files-sort-dir {
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.files-sort-icon {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s ease;
+}
+
+.files-sort-dir.is-desc .files-sort-icon {
+  transform: rotate(180deg);
+}
+
 .files-search {
   display: flex;
   flex: 1 1 100%;
@@ -4156,6 +4195,14 @@ button.file-row.is-menu-open {
 
   .files-nav-actions {
     justify-content: flex-end;
+  }
+
+  .files-sort {
+    justify-content: flex-end;
+  }
+
+  .files-input.files-sort-select {
+    flex: 1 1 120px;
   }
 
   .files-search {
