@@ -154,6 +154,7 @@ const state = {
     duration: 4,
     loading: false,
     error: "",
+    formError: "",
     result: null,
     // Data URLs are large: keep the last generations in memory only.
     gallery: [],
@@ -4631,7 +4632,7 @@ function removeCrmActRow(id) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Media (POST /media/image)                                          */
+/* Media (POST /media/image, POST /media/video)                       */
 /* ------------------------------------------------------------------ */
 
 function mediaSize(raw, fallback = 1024) {
@@ -4765,6 +4766,7 @@ function mediaStatusText() {
   if (media.mode === "video") {
     const video = media.video;
     if (video.loading) return "Генерирую видео… Это может занять до минуты.";
+    if (media.formError) return "Нужно описание.";
     if (video.error) return "Видео не получилось.";
     if (video.result) {
       const result = video.result;
@@ -4773,6 +4775,7 @@ function mediaStatusText() {
     return "Опишите видео и нажмите «Сгенерировать видео».";
   }
   if (media.loading) return "Генерирую изображение… Это может занять до минуты.";
+  if (media.formError) return "Нужно описание.";
   if (media.error) return "Генерация не удалась.";
   if (media.result) {
     const count = media.gallery.length;
@@ -4840,7 +4843,9 @@ function renderMediaVideo() {
     els.mediaVideoCard.setAttribute("aria-busy", video.loading ? "true" : "false");
   }
   if (els.mediaVideoLoading) els.mediaVideoLoading.hidden = !video.loading;
-  if (els.mediaVideoEmpty) els.mediaVideoEmpty.hidden = video.loading || hasVideo;
+  if (els.mediaVideoEmpty) {
+    els.mediaVideoEmpty.hidden = video.loading || hasVideo || Boolean(video.error);
+  }
   if (els.mediaVideoPlayer) {
     els.mediaVideoPlayer.hidden = !hasVideo;
     if (hasVideo) {
@@ -4988,12 +4993,16 @@ function renderMedia() {
   }
   if (els.mediaStatus) {
     els.mediaStatus.textContent = mediaStatusText();
-    const activeError = isVideo ? media.video.error : media.error;
+    const activeError = isVideo
+      ? media.video.error || media.formError
+      : media.error || media.formError;
     els.mediaStatus.classList.toggle("is-error", Boolean(activeError) && !busy);
   }
   if (els.mediaError) {
-    els.mediaError.textContent = media.error || "";
-    els.mediaError.hidden = !media.error || busy;
+    // Request errors belong to their own mode; validation is shared by the form.
+    const errorText = media.formError || (isVideo ? "" : media.error);
+    els.mediaError.textContent = errorText;
+    els.mediaError.hidden = !errorText || busy;
   }
   if (els.mediaResultCard) {
     els.mediaResultCard.setAttribute("aria-busy", media.loading ? "true" : "false");
@@ -5010,6 +5019,7 @@ function showMediaResult(item) {
   if (!item || !item.image) return;
   state.media.result = item;
   state.media.error = "";
+  state.media.formError = "";
   renderMedia();
 }
 
@@ -5019,6 +5029,7 @@ function setMediaMode(mode) {
   state.media.mode = next;
   // Errors of the other mode should not follow the user into the new one.
   state.media.error = "";
+  state.media.formError = "";
   state.media.video.error = "";
   renderMedia();
 }
@@ -5027,13 +5038,14 @@ function clearMediaGallery() {
   if (!state.media.gallery.length) return;
   state.media.gallery = [];
   renderMedia();
-  showToast("Галерея этой сессии очищена. Текущее изображение осталось.", "info");
+  showToast("Галерея изображений этой сессии очищена. Текущие результаты остались.", "info");
 }
 
 function onMediaPromptInput() {
   renderMediaPromptCount();
-  if (state.media.error || state.media.video.error) {
+  if (state.media.error || state.media.formError || state.media.video.error) {
     state.media.error = "";
+    state.media.formError = "";
     state.media.video.error = "";
     renderMedia();
   }
@@ -5061,7 +5073,7 @@ async function submitMedia() {
   }
   const prompt = readMediaPrompt();
   if (!prompt) {
-    state.media.error =
+    state.media.formError =
       mode === "video"
         ? "Введите описание видео — без него генерация не начнётся."
         : "Введите описание изображения — без него генерация не начнётся.";
@@ -5089,6 +5101,7 @@ async function submitMediaImage(prompt) {
   state.media.model = model;
   state.media.loading = true;
   state.media.error = "";
+  state.media.formError = "";
   renderMedia();
   setAvatar("thinking");
 
@@ -5171,6 +5184,7 @@ async function submitMediaVideo(prompt) {
   video.loading = true;
   video.error = "";
   state.media.error = "";
+  state.media.formError = "";
   renderMedia();
   setAvatar("thinking");
 
