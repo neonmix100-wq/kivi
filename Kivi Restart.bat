@@ -15,5 +15,8 @@ if not exist ".venv\Scripts\pythonw.exe" (
   echo Kivi pythonw.exe not found. Run setup first.
   exit /b 1
 )
-start "" /b "%~dp0.venv\Scripts\pythonw.exe" -m kivi ui --app --tray
+set "PORT=8765"
+netstat -ano | findstr /R /C:"127.0.0.1:8765 .*LISTENING" >nul
+if not errorlevel 1 set "PORT=8766"
+start "" /b "%~dp0.venv\Scripts\pythonw.exe" -m kivi ui --port %PORT% --app --tray
 exit /b 0
