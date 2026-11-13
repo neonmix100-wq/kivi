@@ -57,6 +57,8 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe telegram status
 .venv\Scripts\kivi.exe listen --mic --push-to-talk
 .venv\Scripts\kivi.exe wake status
+.venv\Scripts\python.exe scripts\record_wake_samples.py --label positive --count 20
+.venv\Scripts\python.exe scripts\train_wake_model.py --positive-dir data/wake-samples/positive --negative-dir data/wake-samples/negative
 .venv\Scripts\kivi.exe crm read
 .venv\Scripts\kivi.exe crm stats
 .venv\Scripts\kivi.exe tools run window.list --args '{"limit":10}'

@@ -46,3 +46,6 @@ web/avatar3d/node_modules/
 # third-party VRM avatars: local use only, never redistribute
 assets/avatar/*.vrm
 assets/avatar/*.vrma
+
+# local wake model (train with scripts/train_wake_model.py)
+assets/wake/*.onnx
