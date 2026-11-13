@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import pytest
 
 from kivi.senses.voice import (
@@ -101,6 +102,7 @@ def make_session(
     answer: Callable[[str], str] | None = None,
     speak: Callable[[str], object] | None = None,
     wake: Callable[[str], bool] | None = None,
+    frame_wake: Callable[[Any], bool] | None = None,
     barge_in: BargeInController | None = None,
     max_turns: int = 1,
 ) -> tuple[VoiceSession, FakeSource, FakeSegmenter, FakeTranscriber]:
@@ -117,6 +119,7 @@ def make_session(
         answer=answer if answer is not None else lambda value: "ответ",
         speak=speak,
         wake=wake,
+        frame_wake=frame_wake,
         barge_in=barge_in,
         max_turns=max_turns,
     )
@@ -314,6 +317,48 @@ def test_has_wake_word() -> None:
     assert has_wake_word("Киви, привет") is True
     assert has_wake_word("Kivi, hello") is True
     assert has_wake_word("привет, киви") is False
+
+
+def test_frame_wake_gate_accepts_and_rejects() -> None:
+    accepted, _, _, _ = make_session(
+        text="привет",
+        wake=None,
+        frame_wake=lambda frame: True,
+    )
+    turn = accepted.run_once()
+    assert turn.addressed is True
+    assert turn.answer == "ответ"
+
+    rejected, _, _, _ = make_session(
+        text="привет",
+        wake=None,
+        frame_wake=lambda frame: False,
+    )
+    turn = rejected.run_once()
+    assert turn.addressed is False
+    assert turn.answer == ""
+
+
+def test_buffered_wake_detector_waits_for_full_window() -> None:
+    from kivi.senses.audio import BufferedWakeDetector
+
+    class Detector:
+        def __init__(self) -> None:
+            self.windows: list[int] = []
+
+        def detect(self, frame: Any) -> bool:
+            self.windows.append(len(frame))
+            return len(self.windows) == 2
+
+        def reset(self) -> None:
+            pass
+
+    detector = Detector()
+    buffered = BufferedWakeDetector(detector, frame_samples=8)
+    assert buffered.feed(np.array([1, 2, 3], dtype=np.int16)) is False
+    assert buffered.feed(np.array([4, 5, 6], dtype=np.int16)) is False
+    assert buffered.feed(np.array([7, 8, 9, 10, 11, 12, 13, 14, 15, 16], dtype=np.int16)) is True
+    assert detector.windows == [8, 8]
 
 
 def test_run_once_happy_path() -> None:

@@ -1009,6 +1009,35 @@ class OpenWakeWordDetector:
                 reset()
 
 
+class BufferedWakeDetector:
+    """Adapt uneven microphone frames to openWakeWord's 80 ms windows."""
+
+    def __init__(self, detector: WakeWordDetector, frame_samples: int = 1280) -> None:
+        if frame_samples <= 0:
+            raise ValueError("frame_samples must be positive")
+        self.detector = detector
+        self.frame_samples = int(frame_samples)
+        self._buffer = np.zeros(0, dtype=np.int16)
+
+    def feed(self, frame: np.ndarray) -> bool:
+        """Return True once a complete window crosses the detector threshold."""
+        pcm = _as_int16(frame)
+        if pcm.size:
+            self._buffer = np.concatenate((self._buffer, pcm))
+        hit = False
+        while self._buffer.size >= self.frame_samples:
+            window = self._buffer[: self.frame_samples]
+            self._buffer = self._buffer[self.frame_samples :]
+            if self.detector.detect(window):
+                hit = True
+        return hit
+
+    def reset(self) -> None:
+        """Drop buffered samples and reset the underlying detector."""
+        self._buffer = np.zeros(0, dtype=np.int16)
+        self.detector.reset()
+
+
 class TextWakeWordDetector:
     """Detect a wake word at the start of an already transcribed phrase.
 

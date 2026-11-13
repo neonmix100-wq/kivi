@@ -122,13 +122,16 @@ from kivi.senses import (
 )
 from kivi.senses.audio import (
     AudioUnavailable,
+    BufferedWakeDetector,
     EnergyVad,
+    OpenWakeWordDetector,
     SoundDeviceSource,
     SttUnavailable,
     TextWakeWordDetector,
     VadSegmenter,
     WakeWordUnavailable,
     WhisperTranscriber,
+    default_wake_model_path,
 )
 from kivi.senses.fish_audio import (
     DEFAULT_REFERENCE_ID,
@@ -2018,13 +2021,29 @@ def cmd_listen(args: argparse.Namespace) -> int:
                 if pipeline is not None:
                     _speak(text, pipeline, cache=paths.cache / "tts", play=args.speak)
 
+            wake_model = default_wake_model_path()
+            frame_wake = None
+            wake = TextWakeWordDetector().detect
+            if wake_model.is_file():
+                try:
+                    detector = OpenWakeWordDetector(wake_model)
+                    detector.load()
+                    frame_wake = BufferedWakeDetector(detector).feed
+                    wake = None
+                    console.print(f"[dim]wake: ONNX {wake_model.name}[/dim]")
+                except WakeWordUnavailable as exc:
+                    console.print(
+                        f"[yellow]wake ONNX недоступен, использую текст:[/yellow] "
+                        f"{_plain(str(exc))}"
+                    )
             session = VoiceSession(
                 SoundDeviceSource(),
                 VadSegmenter(EnergyVad()),
                 WhisperTranscriber(args.whisper_model),
                 answer=answer,
                 speak=speak,
-                wake=TextWakeWordDetector().detect,
+                wake=wake,
+                frame_wake=frame_wake,
                 max_turns=args.turns,
             )
             turns = 0

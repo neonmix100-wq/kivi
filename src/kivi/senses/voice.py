@@ -341,6 +341,7 @@ class VoiceSession:
         answer: Callable[[str], str],
         speak: Callable[[str], object] | None = None,
         wake: Callable[[str], bool] | None = None,
+        frame_wake: Callable[[Any], bool] | None = None,
         barge_in: BargeInController | None = None,
         max_turns: int = 1,
     ) -> None:
@@ -354,6 +355,8 @@ class VoiceSession:
             raise TypeError("speak must be callable or None")
         if wake is not None and not callable(wake):
             raise TypeError("wake must be callable or None")
+        if frame_wake is not None and not callable(frame_wake):
+            raise TypeError("frame_wake must be callable or None")
         if max_turns < 0:
             raise ValueError("max_turns must be non-negative")
         self.source = source
@@ -362,6 +365,8 @@ class VoiceSession:
         self.answer = answer
         self.speak = speak
         self.wake = wake
+        self.frame_wake = frame_wake
+        self._frame_wake_hit = False
         self.barge_in = barge_in if barge_in is not None else BargeInController()
         self.max_turns = max_turns
         self._last_turn: VoiceTurn | None = None
@@ -478,6 +483,12 @@ class VoiceSession:
             if index >= MAX_FRAMES_PER_TURN:
                 log.warning("frame budget exceeded while waiting for a segment")
                 return None
+            if self.frame_wake is not None:
+                try:
+                    if self.frame_wake(frame):
+                        self._frame_wake_hit = True
+                except Exception:  # noqa: BLE001 - a broken frame gate is a miss
+                    log.exception("frame wake gate failed")
             segment = self.segmenter.feed(frame)
             if segment is not None:
                 return segment
@@ -536,6 +547,7 @@ class VoiceSession:
         """
         started = time.perf_counter()
         metrics = VoiceMetrics()
+        self._frame_wake_hit = False
         if self.barge_in.is_stopped:
             return self._make_turn(started, metrics, stopped=True)
 
@@ -583,18 +595,22 @@ class VoiceSession:
         if self.barge_in.check(text):
             return self._make_turn(started, metrics, text=text, stopped=True)
 
-        addressed = True
+        addressed = self.wake is None and self.frame_wake is None
+        if not push_to_talk and self.frame_wake is not None:
+            addressed = self._frame_wake_hit
         if not push_to_talk and self.wake is not None:
             wake_started = time.perf_counter()
             try:
-                addressed = bool(self.wake(raw_text))
+                text_addressed = bool(self.wake(raw_text))
             except Exception:  # noqa: BLE001 - a broken wake gate is a miss
                 log.exception("wake gate failed; ignoring the utterance")
-                addressed = False
+                text_addressed = False
+            addressed = addressed or text_addressed
             metrics = replace(
                 metrics,
                 wake_ms=(time.perf_counter() - wake_started) * 1000.0,
             )
+        if not push_to_talk and (self.wake is not None or self.frame_wake is not None):
             if self.barge_in.is_stopped:
                 return self._make_turn(
                     started,
