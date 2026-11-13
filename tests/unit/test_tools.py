@@ -41,7 +41,7 @@ def env(tmp_path: Path, workspace: Path) -> ToolEnv:
     db = Database(tmp_path / "kivi.db")
     zones = ProtectedZones(workspace)
     engine = PermissionEngine(db, workspace=str(workspace))
-    grant = engine.issue("t1", ["fs.read", "fs.write", "shell.exec"])
+    grant = engine.issue("t1", ["fs.read", "fs.write", "fs.delete", "shell.exec"])
     executor = ToolExecutor(
         build_registry(),
         db,
@@ -52,6 +52,21 @@ def env(tmp_path: Path, workspace: Path) -> ToolEnv:
     tool_env = ToolEnv(workspace, db, executor, grant)
     yield tool_env
     db.close()
+
+
+def test_fs_trash_moves_to_recycle_bin(env: ToolEnv, monkeypatch) -> None:
+    called: list[str] = []
+    monkeypatch.setattr("send2trash.send2trash", lambda path: called.append(path))
+    result = env.run("fs.trash", {"path": "docs/note.txt"}, approved=True)
+    assert result.ok is True
+    assert called == [str((env.workspace / "docs" / "note.txt").resolve())]
+
+
+def test_fs_trash_refuses_workspace_root(env: ToolEnv, monkeypatch) -> None:
+    monkeypatch.setattr("send2trash.send2trash", lambda path: None)
+    result = env.run("fs.trash", {"path": "."}, approved=True)
+    assert result.ok is False
+    assert "root" in (result.error or "").lower()
 
 
 def test_fs_mkdir_and_rename(env: ToolEnv) -> None:
@@ -116,6 +131,7 @@ def test_fs_rename_rejects_missing_source(env: ToolEnv) -> None:
         "fs.mkdir",
         "fs.read",
         "fs.rename",
+        "fs.trash",
         "fs.write",
         "git.branch",
         "git.commit",

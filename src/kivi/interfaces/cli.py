@@ -725,6 +725,20 @@ def _ui_fs_rename(
     }
 
 
+def _ui_fs_trash(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
+    result = _run_direct_tool(
+        paths,
+        config,
+        "fs.trash",
+        {"path": rel},
+        ["fs.delete"],
+        approved=True,
+    )
+    if not result.ok:
+        raise RuntimeError(result.error or "cannot move to Recycle Bin")
+    return {"ok": True, "path": rel, "output": result.output}
+
+
 def _ui_crm_status() -> dict[str, Any]:
     """Check the local AltCRM CDP endpoint without opening a browser."""
     hint = (
@@ -1041,6 +1055,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
             (lambda source, destination: _ui_fs_rename(
                 paths, config, source, destination
             ))
+            if getattr(args, "ui", False)
+            else None
+        ),
+        fs_trash_handler=(
+            (lambda rel: _ui_fs_trash(paths, config, rel))
             if getattr(args, "ui", False)
             else None
         ),

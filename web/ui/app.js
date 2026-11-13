@@ -132,6 +132,8 @@ const state = {
     mkdirError: "",
     renameOpen: false,
     renameError: "",
+    trashOpen: false,
+    trashError: "",
   },
   crm: {
     statusState: "idle",
@@ -2095,8 +2097,8 @@ function describeFsWriteError(error, context) {
     const code = String(error.code || "").toLowerCase();
     if (error.status === 503) {
       return (
-        "Создание и переименование временно недоступны: " +
-        "файловые операции не настроены на сервере (503)."
+        "Файловые операции временно недоступны: " +
+        "они не настроены на сервере (503)."
       );
     }
     if (error.status === 403) return "Сервер запретил изменять этот путь (403).";
@@ -2113,7 +2115,18 @@ function describeFsWriteError(error, context) {
       if (code.includes("source") && code.includes("does not exist")) {
         return "Файл не найден: возможно, его уже переименовали. Обновите список.";
       }
-      if (code.includes("symlink")) return "Символические ссылки переименовывать нельзя.";
+      if (code.includes("confirm") && code.includes("match")) {
+        return "Подтверждение не совпало с именем. Введите имя точно и повторите.";
+      }
+      if (code.includes("recycle bin") || code.includes("send2trash")) {
+        return "Не удалось переместить элемент в Корзину Windows. Проверьте права доступа и повторите.";
+      }
+      if (code.includes("workspace root")) {
+        return "Корневую папку нельзя переместить в корзину.";
+      }
+      if (code.includes("symlink")) {
+        return "Символические ссылки не поддерживаются для файловых операций.";
+      }
       return `Сервер отклонил операцию${error.code ? `: ${error.code}` : ""}.`;
     }
   }
@@ -2155,8 +2168,11 @@ function resetFilesWriteForms() {
   state.files.mkdirError = "";
   state.files.renameOpen = false;
   state.files.renameError = "";
+  state.files.trashOpen = false;
+  state.files.trashError = "";
   if (els.filesMkdirInput) els.filesMkdirInput.value = "";
   if (els.filesRenameInput) els.filesRenameInput.value = "";
+  if (els.filesTrashInput) els.filesTrashInput.value = "";
 }
 
 async function loadFiles(rawPath = state.files.path, { force = false, focus = false } = {}) {
@@ -2274,6 +2290,9 @@ function closeFilesPreview({ returnFocus = true } = {}) {
   state.files.copyStatus = "";
   state.files.renameOpen = false;
   state.files.renameError = "";
+  state.files.trashOpen = false;
+  state.files.trashError = "";
+  if (els.filesTrashInput) els.filesTrashInput.value = "";
   renderFilesList();
   renderFilesPreview();
   if (!returnFocus) return;
@@ -2499,6 +2518,7 @@ function renderFilesPreview() {
   const open = Boolean(preview);
   const busy = Boolean(state.files.busy);
   const renaming = state.files.busy === "rename";
+  const trashing = state.files.busy === "trash";
   els.filesPreviewCard.hidden = !open;
   if (els.filesLayout) els.filesLayout.classList.toggle("has-preview", open);
   if (!open) {
@@ -2512,6 +2532,11 @@ function renderFilesPreview() {
     if (els.filesPreviewRename) {
       els.filesPreviewRename.disabled = true;
       els.filesPreviewRename.setAttribute("aria-expanded", "false");
+    }
+    if (els.filesTrashForm) els.filesTrashForm.hidden = true;
+    if (els.filesPreviewTrash) {
+      els.filesPreviewTrash.disabled = true;
+      els.filesPreviewTrash.setAttribute("aria-expanded", "false");
     }
     return;
   }
@@ -2560,11 +2585,33 @@ function renderFilesPreview() {
     els.filesRenameSubmit.textContent = renaming ? "Переименовываю…" : "Переименовать";
   }
   if (els.filesRenameCancel) els.filesRenameCancel.disabled = renaming;
+  const trashOpen = state.files.trashOpen;
+  if (els.filesTrashForm) {
+    els.filesTrashForm.hidden = !trashOpen;
+    els.filesTrashForm.setAttribute("aria-busy", trashing ? "true" : "false");
+  }
+  if (els.filesTrashName) {
+    els.filesTrashName.textContent = preview.name || fsName(preview.path);
+  }
+  if (els.filesTrashError) {
+    els.filesTrashError.textContent = trashOpen ? state.files.trashError : "";
+    els.filesTrashError.hidden = !trashOpen || !state.files.trashError;
+  }
+  if (els.filesTrashInput) els.filesTrashInput.disabled = trashing;
+  if (els.filesTrashSubmit) {
+    els.filesTrashSubmit.disabled = trashing;
+    els.filesTrashSubmit.textContent = trashing ? "Перемещаю…" : "В корзину";
+  }
+  if (els.filesTrashCancel) els.filesTrashCancel.disabled = trashing;
   if (els.filesPreviewRename) {
     els.filesPreviewRename.disabled = loading || busy;
     els.filesPreviewRename.setAttribute("aria-expanded", renameOpen ? "true" : "false");
   }
-  if (els.filesPreviewClose) els.filesPreviewClose.disabled = renaming;
+  if (els.filesPreviewTrash) {
+    els.filesPreviewTrash.disabled = loading || busy;
+    els.filesPreviewTrash.setAttribute("aria-expanded", trashOpen ? "true" : "false");
+  }
+  if (els.filesPreviewClose) els.filesPreviewClose.disabled = busy;
   if (els.filesCopy) {
     els.filesCopy.disabled = !hasContent || loading || Boolean(error) || busy;
   }
@@ -2654,6 +2701,9 @@ function openFilesMkdirForm() {
   state.files.mkdirError = "";
   state.files.renameOpen = false;
   state.files.renameError = "";
+  state.files.trashOpen = false;
+  state.files.trashError = "";
+  if (els.filesTrashInput) els.filesTrashInput.value = "";
   if (els.filesMkdirInput) els.filesMkdirInput.value = "";
   renderFilesChrome();
   focusFilesInput(els.filesMkdirInput);
@@ -2686,6 +2736,9 @@ function openFilesRenameForm() {
   state.files.renameError = "";
   state.files.mkdirOpen = false;
   state.files.mkdirError = "";
+  state.files.trashOpen = false;
+  state.files.trashError = "";
+  if (els.filesTrashInput) els.filesTrashInput.value = "";
   if (els.filesRenameInput) {
     els.filesRenameInput.value = preview.name || fsName(preview.path);
   }
@@ -2711,6 +2764,90 @@ function closeFilesRenameForm({ returnFocus = true } = {}) {
 function toggleFilesRenameForm() {
   if (state.files.renameOpen) closeFilesRenameForm();
   else openFilesRenameForm();
+}
+
+function openFilesTrashForm() {
+  const preview = state.files.preview;
+  if (!preview || preview.loading || state.files.busy) return;
+  state.files.trashOpen = true;
+  state.files.trashError = "";
+  state.files.renameOpen = false;
+  state.files.renameError = "";
+  state.files.mkdirOpen = false;
+  state.files.mkdirError = "";
+  if (els.filesTrashInput) els.filesTrashInput.value = "";
+  renderFilesChrome();
+  focusFilesInput(els.filesTrashInput);
+}
+
+function closeFilesTrashForm({ returnFocus = true } = {}) {
+  if (!state.files.trashOpen || state.files.busy === "trash") return;
+  state.files.trashOpen = false;
+  state.files.trashError = "";
+  if (els.filesTrashInput) els.filesTrashInput.value = "";
+  renderFilesPreview();
+  if (returnFocus && els.filesPreviewTrash) {
+    try {
+      els.filesPreviewTrash.focus({ preventScroll: true });
+    } catch {
+      els.filesPreviewTrash.focus();
+    }
+  }
+}
+
+function toggleFilesTrashForm() {
+  if (state.files.trashOpen) closeFilesTrashForm();
+  else openFilesTrashForm();
+}
+
+async function submitFilesTrash(event) {
+  if (event) event.preventDefault();
+  if (state.files.busy) return;
+  const preview = state.files.preview;
+  if (!preview) {
+    closeFilesTrashForm({ returnFocus: false });
+    return;
+  }
+  const name = preview.name || fsName(preview.path);
+  const typed = els.filesTrashInput ? els.filesTrashInput.value.trim() : "";
+  if (!typed) {
+    state.files.trashError = `Введите имя «${name}», чтобы подтвердить.`;
+    renderFilesPreview();
+    focusFilesInput(els.filesTrashInput);
+    return;
+  }
+  if (typed !== name) {
+    state.files.trashError = `Имя не совпадает. Введите «${name}» без изменений.`;
+    renderFilesPreview();
+    focusFilesInput(els.filesTrashInput);
+    return;
+  }
+  // The server repeats this check; POST only fires on an exact name match.
+  state.files.busy = "trash";
+  state.files.trashError = "";
+  renderFilesChrome();
+  let trashed = false;
+  try {
+    await apiRequest("/fs/trash", {
+      method: "POST",
+      body: { path: preview.path, confirm: typed },
+      timeout: 20000,
+    });
+    trashed = true;
+    state.files.trashOpen = false;
+    if (els.filesTrashInput) els.filesTrashInput.value = "";
+    closeFilesPreview({ returnFocus: false });
+    showToast(`Перемещено в Корзину: ${name}`, "ok");
+    await loadFiles(state.files.path, { force: true, focus: true });
+  } catch (error) {
+    state.files.trashError = describeFsWriteError(error, "перемещение в корзину");
+  } finally {
+    state.files.busy = "";
+    renderFilesChrome();
+    if (!trashed && state.files.trashOpen) {
+      focusFilesInput(els.filesTrashInput);
+    }
+  }
 }
 
 async function submitFilesMkdir(event) {
@@ -4017,6 +4154,10 @@ function onGlobalKeydown(event) {
     closeFilesRenameForm();
     return;
   }
+  if (state.files.trashOpen) {
+    closeFilesTrashForm();
+    return;
+  }
   if (state.files.preview) closeFilesPreview();
   resetClearHistory();
   if (state.mic.active) stopMic();
@@ -4181,6 +4322,14 @@ function bindEvents() {
       state.files.renameError = "";
       renderFilesPreview();
     });
+    els.filesPreviewTrash.addEventListener("click", toggleFilesTrashForm);
+    els.filesTrashForm.addEventListener("submit", (event) => void submitFilesTrash(event));
+    els.filesTrashCancel.addEventListener("click", () => closeFilesTrashForm());
+    els.filesTrashInput.addEventListener("input", () => {
+      if (!state.files.trashError) return;
+      state.files.trashError = "";
+      renderFilesPreview();
+    });
   }
   if (els.crmCheck) {
     els.crmCheck.addEventListener("click", () => void loadCrmStatus({ force: true }));
@@ -4279,6 +4428,7 @@ function installDebugHook() {
           busy: state.files.busy,
           mkdirOpen: state.files.mkdirOpen,
           renameOpen: state.files.renameOpen,
+          trashOpen: state.files.trashOpen,
         },
         crm: {
           statusState: state.crm.statusState,
@@ -4431,6 +4581,13 @@ function cacheDom() {
     filesRenameSubmit: $id("files-rename-submit"),
     filesRenameCancel: $id("files-rename-cancel"),
     filesRenameError: $id("files-rename-error"),
+    filesPreviewTrash: $id("files-preview-trash"),
+    filesTrashForm: $id("files-trash-form"),
+    filesTrashName: $id("files-trash-name"),
+    filesTrashInput: $id("files-trash-input"),
+    filesTrashSubmit: $id("files-trash-submit"),
+    filesTrashCancel: $id("files-trash-cancel"),
+    filesTrashError: $id("files-trash-error"),
     filesCopy: $id("files-copy"),
     filesCopyStatus: $id("files-copy-status"),
     crmStatusBadge: $id("crm-status-badge"),

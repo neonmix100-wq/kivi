@@ -59,6 +59,10 @@ class FsRenameArgs(_FsArgs):
     destination: str = Field(min_length=1, max_length=4096)
 
 
+class FsTrashArgs(_FsArgs):
+    path: str = Field(min_length=1, max_length=4096)
+
+
 def _decode_text(data: bytes, *, allow_partial: bool = False) -> str:
     """Decode UTF-8 without inventing broken replacement characters.
 
@@ -309,6 +313,53 @@ class FsRenameTool:
         )
 
 
+class FsTrashTool:
+    """Move one workspace entry to the Windows Recycle Bin (reversible)."""
+
+    name = "fs.trash"
+    description = "Move a workspace file/directory to the Recycle Bin."
+    risk = "R2"
+    capabilities = ("fs.delete",)
+    args_model = FsTrashArgs
+
+    def _check(self, args: FsTrashArgs, ctx: ToolContext) -> Path:
+        target = _resolve(ctx, args.path, "write")
+        if target == ctx.workspace.resolve():
+            raise ToolError("refusing to trash the workspace root")
+        if not target.exists():
+            raise ToolError(f"path does not exist: {target}")
+        if target.is_symlink():
+            raise ToolError("symlink trash is not supported")
+        return target
+
+    def dry_run(self, args: BaseModel, ctx: ToolContext) -> Preview:
+        assert isinstance(args, FsTrashArgs)
+        target = self._check(args, ctx)
+        return Preview(
+            "trash",
+            {"path": str(target)},
+            reversible=True,
+            warnings=("moves the item to the Windows Recycle Bin",),
+        )
+
+    def run(self, args: BaseModel, ctx: ToolContext) -> ToolResult:
+        assert isinstance(args, FsTrashArgs)
+        target = self._check(args, ctx)
+        try:
+            from send2trash import send2trash
+        except ImportError as exc:
+            raise ToolError("send2trash is not installed") from exc
+        try:
+            send2trash(str(target))
+        except OSError as exc:
+            raise ToolError(f"cannot move to Recycle Bin: {exc}") from exc
+        return ToolResult(
+            ok=True,
+            output=f"moved to Recycle Bin: {target}",
+            meta={"path": str(target), "reversible": True},
+        )
+
+
 __all__ = [
     "FsListArgs",
     "FsListTool",
@@ -318,6 +369,8 @@ __all__ = [
     "FsReadTool",
     "FsRenameArgs",
     "FsRenameTool",
+    "FsTrashArgs",
+    "FsTrashTool",
     "FsWriteArgs",
     "FsWriteTool",
 ]

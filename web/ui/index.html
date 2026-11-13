@@ -518,10 +518,12 @@
               <div>
                 <h2 class="media-heading" id="files-title">Файлы</h2>
                 <p class="view-lead">
-                  Рабочая папка Kivi: чтение, создание папок и переименование. Список и
-                  предпросмотр приходят с локального API: <code>GET /fs/list</code> и
-                  <code>GET /fs/read</code>; действия — <code>POST /fs/mkdir</code> и
-                  <code>POST /fs/rename</code>.
+                  Рабочая папка Kivi: чтение, создание папок, переименование и корзина.
+                  Список и предпросмотр приходят с локального API:
+                  <code>GET /fs/list</code> и <code>GET /fs/read</code>; действия —
+                  <code>POST /fs/mkdir</code>, <code>POST /fs/rename</code> и
+                  <code>POST /fs/trash</code>. Безвозвратного удаления нет: элементы
+                  перемещаются в Корзину Windows.
                 </p>
               </div>
               <button type="button" class="btn btn-ghost" id="files-refresh">Обновить</button>
@@ -535,7 +537,7 @@
                   id="files-breadcrumbs"
                   aria-label="Текущий путь в рабочей папке"
                 ></nav>
-                <span class="files-readonly">без удаления</span>
+                <span class="files-readonly">без безвозвратного удаления</span>
               </div>
               <div class="files-nav-actions">
                 <button
@@ -704,6 +706,55 @@
                   <p class="files-form-error" id="files-rename-error" role="alert" hidden></p>
                 </form>
 
+                <form
+                  class="files-trash-form"
+                  id="files-trash-form"
+                  aria-labelledby="files-trash-form-title"
+                  novalidate
+                  hidden
+                >
+                  <p class="files-form-title" id="files-trash-form-title">
+                    Переместить в Корзину?
+                  </p>
+                  <label class="files-form-label" for="files-trash-input">
+                    Введите имя
+                    <code class="files-trash-name" id="files-trash-name"></code>, чтобы
+                    подтвердить
+                  </label>
+                  <div class="files-form-row">
+                    <input
+                      class="files-input"
+                      id="files-trash-input"
+                      name="confirm"
+                      type="text"
+                      maxlength="128"
+                      autocomplete="off"
+                      spellcheck="false"
+                      placeholder="точное имя элемента"
+                      aria-describedby="files-trash-hint files-trash-error"
+                    />
+                    <button
+                      type="submit"
+                      class="btn btn-danger btn-small"
+                      id="files-trash-submit"
+                    >
+                      В корзину
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-small"
+                      id="files-trash-cancel"
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                  <p class="files-form-hint" id="files-trash-hint">
+                    Элемент переедет в Корзину Windows. Это обратимо: его можно
+                    восстановить, безвозвратного удаления нет. Введите имя без изменений.
+                  </p>
+                  <p class="files-form-error" id="files-trash-error" role="alert" hidden></p>
+                </form>
+
                 <div class="files-preview-actions">
                   <button
                     type="button"
@@ -729,6 +780,23 @@
                   </button>
                   <button
                     type="button"
+                    class="btn btn-danger btn-small"
+                    id="files-preview-trash"
+                    aria-label="Переместить текущий файл в Корзину Windows"
+                    aria-expanded="false"
+                    aria-controls="files-trash-form"
+                    disabled
+                  >
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M4 7h16" />
+                      <path d="M9 7V5.5h6V7" />
+                      <path d="M6.5 7l1 12.5h9l1-12.5" />
+                      <path d="M10.5 11v5M13.5 11v5" />
+                    </svg>
+                    <span>В корзину</span>
+                  </button>
+                  <button
+                    type="button"
                     class="btn btn-ghost btn-small"
                     id="files-preview-refresh"
                     disabled
@@ -746,8 +814,9 @@
             </div>
 
             <p class="view-footnote">
-              Доступны только чтение, создание папок и переименование: удаление и запись
-              содержимого файлов недоступны. Предпросмотр показывает текстовые файлы
+              Доступны только чтение, создание, переименование и корзина: безвозвратного
+              удаления и записи содержимого файлов нет. Элементы перемещаются в Корзину
+              Windows, и их можно восстановить. Предпросмотр показывает текстовые файлы
               UTF-8; бинарные файлы могут отображаться некорректно.
             </p>
           </div>

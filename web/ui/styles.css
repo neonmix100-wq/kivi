@@ -756,6 +756,21 @@ a:hover {
   font-size: 11.5px;
 }
 
+.btn-danger {
+  border-color: rgba(255, 122, 144, 0.4);
+  background: var(--danger-soft);
+  color: #ffd7de;
+}
+
+.btn-danger:hover {
+  border-color: rgba(255, 122, 144, 0.66);
+  background: rgba(255, 122, 144, 0.22);
+}
+
+.btn-danger:focus-visible {
+  outline-color: var(--danger);
+}
+
 .inline-note {
   max-width: 860px;
   margin: 0 auto 14px;
@@ -2087,7 +2102,8 @@ a:hover {
 }
 
 .files-write-form,
-.files-rename-form {
+.files-rename-form,
+.files-trash-form {
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -2108,6 +2124,30 @@ a:hover {
   border: 1px solid var(--line);
   border-radius: 11px;
   background: rgba(3, 12, 15, 0.35);
+}
+
+.files-trash-form {
+  margin: 12px 0 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(255, 122, 144, 0.32);
+  border-radius: 11px;
+  background: rgba(255, 122, 144, 0.05);
+}
+
+.files-trash-name {
+  padding: 1px 5px;
+  border: 1px solid rgba(255, 122, 144, 0.28);
+  border-radius: 5px;
+  background: rgba(255, 122, 144, 0.1);
+  color: #ffd7de;
+  font-family: var(--mono);
+  font-size: 0.94em;
+  overflow-wrap: anywhere;
+}
+
+.files-trash-form .files-input:focus-visible {
+  border-color: rgba(255, 122, 144, 0.5);
+  outline-color: var(--danger);
 }
 
 .files-form-title {

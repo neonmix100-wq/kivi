@@ -45,6 +45,7 @@ FsListHandler = Callable[[str], dict[str, Any]]
 FsReadHandler = Callable[[str], dict[str, Any]]
 FsMkdirHandler = Callable[[str], dict[str, Any]]
 FsRenameHandler = Callable[[str, str], dict[str, Any]]
+FsTrashHandler = Callable[[str], dict[str, Any]]
 CrmStatusHandler = Callable[[], dict[str, Any]]
 CrmReadHandler = Callable[[], dict[str, Any]]
 SettingsUpdateHandler = Callable[[dict[str, Any]], dict[str, Any]]
@@ -104,6 +105,7 @@ class LocalApi:
         fs_read_handler: FsReadHandler | None = None,
         fs_mkdir_handler: FsMkdirHandler | None = None,
         fs_rename_handler: FsRenameHandler | None = None,
+        fs_trash_handler: FsTrashHandler | None = None,
         crm_status_handler: CrmStatusHandler | None = None,
         crm_read_handler: CrmReadHandler | None = None,
         settings_update_handler: SettingsUpdateHandler | None = None,
@@ -134,6 +136,7 @@ class LocalApi:
         self._fs_read_handler = fs_read_handler
         self._fs_mkdir_handler = fs_mkdir_handler
         self._fs_rename_handler = fs_rename_handler
+        self._fs_trash_handler = fs_trash_handler
         self._crm_status_handler = crm_status_handler
         self._crm_read_handler = crm_read_handler
         self._settings_update_handler = settings_update_handler
@@ -313,6 +316,8 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._handle_fs_mkdir()
         elif method == "POST" and path == "/fs/rename":
             self._handle_fs_rename()
+        elif method == "POST" and path == "/fs/trash":
+            self._handle_fs_trash()
         elif method == "GET" and path == "/crm/status":
             self._handle_crm_status()
         elif method == "GET" and path == "/crm/read":
@@ -531,6 +536,31 @@ class _ApiHandler(BaseHTTPRequestHandler):
             result = api._fs_rename_handler(source.strip(), destination.strip())
         except Exception as exc:  # noqa: BLE001 - no internals to the client
             self._send_json(400, {"error": str(exc)[:300] or "cannot rename"})
+            return
+        self._send_json(200, result)
+
+    def _handle_fs_trash(self) -> None:
+        api = self.server.api
+        if api._fs_trash_handler is None:
+            self._send_json(503, {"error": "files are not configured"})
+            return
+        payload = self._read_json_object()
+        if payload is None:
+            return
+        path = payload.get("path")
+        confirm = payload.get("confirm")
+        if not isinstance(path, str) or not path.strip():
+            self._send_json(400, {"error": "path must be a non-empty string"})
+            return
+        clean = path.strip().replace("\\", "/").rstrip("/")
+        expected = clean.rsplit("/", 1)[-1]
+        if not isinstance(confirm, str) or confirm.strip() != expected:
+            self._send_json(400, {"error": "confirm must match the item name"})
+            return
+        try:
+            result = api._fs_trash_handler(clean)
+        except Exception as exc:  # noqa: BLE001 - no internals to the client
+            self._send_json(400, {"error": str(exc)[:300] or "cannot trash"})
             return
         self._send_json(200, result)
 

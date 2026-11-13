@@ -74,6 +74,7 @@ def build_registry(
         FsMkdirTool,
         FsReadTool,
         FsRenameTool,
+        FsTrashTool,
         FsWriteTool,
     )
     from kivi.tools.git import (
@@ -120,6 +121,7 @@ def build_registry(
         FsWriteTool(),
         FsMkdirTool(),
         FsRenameTool(),
+        FsTrashTool(),
         ShellExecTool(),
         HttpGetTool(blocked_hosts=blocked_hosts),
         ProcListTool(),

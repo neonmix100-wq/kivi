@@ -45,6 +45,7 @@ def ui_api(tmp_path: Path):
             "source": source,
             "destination": destination,
         },
+        fs_trash_handler=lambda path: {"ok": True, "path": path},
         crm_status_handler=lambda: {
             "connected": False,
             "hint": "start Chrome",
@@ -135,6 +136,20 @@ def test_fs_mkdir_and_rename(ui_api: LocalApi) -> None:
     assert mkdir.json()["path"] == "new"
     assert rename.status_code == 200
     assert rename.json()["destination"] == "renamed"
+
+
+def test_fs_trash_requires_matching_confirmation(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        good = client.post(
+            "/fs/trash",
+            json={"path": "docs/old.txt", "confirm": "old.txt"},
+        )
+        bad = client.post(
+            "/fs/trash",
+            json={"path": "docs/old.txt", "confirm": "wrong"},
+        )
+    assert good.status_code == 200
+    assert bad.status_code == 400
 
 
 def test_crm_status_and_read(ui_api: LocalApi) -> None:
