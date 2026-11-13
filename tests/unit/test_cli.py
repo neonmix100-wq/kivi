@@ -371,9 +371,12 @@ def test_open_app_window_uses_edge(monkeypatch) -> None:
         lambda args, **kwargs: seen.append(args),
     )
     assert cli_module._open_app_window("http://127.0.0.1:8765") is True
-    assert seen == [
-        [r"C:\Edge\msedge.exe", "--app=http://127.0.0.1:8765", "--new-window"]
-    ]
+    argv = seen[0]
+    assert argv[0] == r"C:\Edge\msedge.exe"
+    assert "--app=http://127.0.0.1:8765" in argv
+    assert "--new-window" in argv
+    assert any(str(item).startswith("--user-data-dir=") for item in argv)
+    assert "--no-first-run" in argv
 
 
 def test_ui_crm_read_appends_log(monkeypatch, tmp_path: Path) -> None:

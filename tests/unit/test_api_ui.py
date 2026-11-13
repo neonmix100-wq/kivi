@@ -27,6 +27,7 @@ def ui_api(tmp_path: Path):
         static_dir=static,
         docs_dir=docs,
         tts_handler=lambda text: b"RIFF" + text.encode("utf-8"),
+        wake_handler=lambda data: {"detected": True},
         stt_handler=lambda data: "распознано" if data.startswith(b"RIFF") else "",
         media_handler=lambda payload: {"image": "data:image/png;base64,AAAA"},
         video_handler=lambda payload: {
@@ -117,6 +118,19 @@ def test_tts_returns_wav_and_rejects_empty(ui_api: LocalApi) -> None:
     assert response.headers["content-type"] == "audio/wav"
     assert response.content.startswith(b"RIFF")
     assert empty.status_code == 400
+
+
+def test_wake_endpoint(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        response = client.post(
+            "/wake",
+            content=b"RIFF" + b"\0" * 100,
+            headers={"Content-Type": "audio/wav"},
+        )
+        wrong = client.post("/wake", json={})
+    assert response.status_code == 200
+    assert response.json() == {"detected": True}
+    assert wrong.status_code == 415
 
 
 def test_transcribe_accepts_wav(ui_api: LocalApi) -> None:

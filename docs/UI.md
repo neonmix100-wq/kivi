@@ -54,8 +54,8 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 - **медиа-панель**: prompt, 512/768/1024, flux/turbo, результат и галерея
   сессии через `/media/image`; вкладка «Видео» — `/media/video`, 2/4/6 с;
 - голосовые ответы: кнопка «Озвучить», авто-озвучка, `/tts`;
-- **голосовой ввод**: удерживай кнопку микрофона, браузер запишет WAV и
-  отправит его в локальный Whisper (`/transcribe`);
+- **голосовой ввод**: tap-to-talk и push-to-talk, кнопка фонового
+  прослушивания «Киви» (ONNX, `/wake`), WAV → локальный Whisper (`/transcribe`);
 - голоса из локальной библиотеки: `kivi voice add/list/use`;
 - выбор голосового движка (Fish / Qwen / Silero / Piper) с сохранением;
 - текущий провайдер и модель в настройках;

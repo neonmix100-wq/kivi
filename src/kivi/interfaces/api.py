@@ -39,6 +39,7 @@ _MAX_DRAIN_BYTES = 16 * 1024 * 1024
 
 Handler = Callable[[str], str]
 TtsHandler = Callable[[str], bytes]
+WakeHandler = Callable[[bytes], dict[str, Any]]
 SttHandler = Callable[[bytes], str]
 MediaHandler = Callable[[dict[str, Any]], dict[str, Any]]
 VideoHandler = Callable[[dict[str, Any]], dict[str, Any]]
@@ -122,6 +123,7 @@ class LocalApi:
         static_dir: Path | str | None = None,
         docs_dir: Path | str | None = None,
         tts_handler: TtsHandler | None = None,
+        wake_handler: WakeHandler | None = None,
         stt_handler: SttHandler | None = None,
         media_handler: MediaHandler | None = None,
         video_handler: VideoHandler | None = None,
@@ -163,6 +165,7 @@ class LocalApi:
         self._static_dir = Path(static_dir).resolve() if static_dir is not None else None
         self._docs_dir = Path(docs_dir).resolve() if docs_dir is not None else None
         self._tts_handler = tts_handler
+        self._wake_handler = wake_handler
         self._stt_handler = stt_handler
         self._media_handler = media_handler
         self._video_handler = video_handler
@@ -348,6 +351,8 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._serve_doc(path)
         elif method == "POST" and path == "/tts":
             self._handle_tts()
+        elif method == "POST" and path == "/wake":
+            self._handle_wake()
         elif method == "POST" and path == "/transcribe":
             self._handle_transcribe()
         elif method == "POST" and path == "/media/image":
@@ -460,6 +465,11 @@ class _ApiHandler(BaseHTTPRequestHandler):
             if content_type.lower() != "audio/wav":
                 self._send_json(415, {"error": "audio/wav required"})
                 return False
+        if method == "POST" and path == "/wake":
+            content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
+            if content_type.lower() != "audio/wav":
+                self._send_json(415, {"error": "audio/wav required"})
+                return False
         return True
 
     def _serve_static(self, path: str) -> None:
@@ -522,6 +532,25 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "tts returned empty audio"})
             return
         self._send_bytes(200, bytes(audio), "audio/wav")
+
+    def _handle_wake(self) -> None:
+        api = self.server.api
+        if api._wake_handler is None:
+            self._send_json(503, {"error": "wake detection is not configured"})
+            return
+        body = self._read_body(5 * 1024 * 1024)
+        if body is None:
+            return
+        if len(body) < 44 or not body.startswith(b"RIFF"):
+            self._send_json(400, {"error": "audio/wav body expected"})
+            return
+        try:
+            result = api._wake_handler(body)
+        except Exception:
+            logger.warning("wake handler failed")
+            self._send_json(500, {"error": "wake detection failed"})
+            return
+        self._send_json(200, result)
 
     def _handle_transcribe(self) -> None:
         api = self.server.api

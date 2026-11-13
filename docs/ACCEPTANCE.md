@@ -27,7 +27,7 @@ ffmpeg, VRM и локальный three.js. Сеть и файлы не изме
 | История | ✅ | UI → История |
 | Голос Fish/Qwen | ✅ | `kivi say "Привет"`, UI → Голоса |
 | Микрофон/STT | ✅ | UI → микрофон, `kivi listen --mic` |
-| Wake | ✅ ONNX обучен: 17/20, 0/20 false | `kivi wake status` |
+| Wake | ✅ ONNX 17/20, 0/20 false; кнопка фонового прослушивания | `kivi wake status`, UI → кнопка «Киви» |
 | 3D VRM | ✅ | `Kivi Avatar.bat`, `kivi avatar` |
 | Липсинк | ✅ | `kivi chat "..." --avatar --speak` |
 | AltCRM чтение | ✅ 13 реальных заказов | `kivi crm stats`, UI → CRM |

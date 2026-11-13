@@ -1168,9 +1168,17 @@ def _open_app_window(url: str) -> bool:
     if browser is None:
         webbrowser.open(url)
         return False
+    profile = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Kivi" / "app-profile"
     try:
+        profile.mkdir(parents=True, exist_ok=True)
         subprocess.Popen(
-            [str(browser), f"--app={url}", "--new-window"],
+            [
+                str(browser),
+                f"--user-data-dir={profile}",
+                "--no-first-run",
+                f"--app={url}",
+                "--new-window",
+            ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             close_fds=True,
@@ -1209,6 +1217,49 @@ def _run_tray(api: LocalApi) -> bool:
     console.print("Kivi в трее: правый клик по иконке — открыть/остановить.")
     icon.run()
     return True
+
+
+def _wav_pcm16(data: bytes, target_rate: int = 16_000) -> Any:
+    """Decode a PCM16 WAV and resample to the wake model's 16 kHz rate."""
+    import numpy as np
+
+    with wave.open(io.BytesIO(data), "rb") as handle:
+        channels = handle.getnchannels()
+        width = handle.getsampwidth()
+        rate = handle.getframerate()
+        raw = handle.readframes(handle.getnframes())
+    if width != 2:
+        raise ValueError("only 16-bit PCM WAV is supported")
+    samples = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768.0
+    if channels > 1:
+        samples = samples.reshape(-1, channels).mean(axis=1)
+    if rate != target_rate:
+        from scipy.signal import resample_poly
+
+        samples = resample_poly(samples, target_rate, rate).astype(np.float32)
+    return np.clip(samples, -1.0, 1.0)
+
+
+def _ui_wake(data: bytes, detector: Any, lock: Any) -> dict[str, Any]:
+    """Score the last two seconds of a WAV chunk with the personal wake model."""
+    import numpy as np
+
+    samples = _wav_pcm16(data)
+    if samples.size < 16_000 * 2:
+        samples = np.pad(samples, (16_000 * 2 - samples.size, 0))
+    samples = samples[-16_000 * 2 :]
+    pcm = (samples * 32767).astype(np.int16)
+    with lock:
+        detector.reset()
+        hit = False
+        try:
+            for start in range(0, pcm.size - 1279, 1280):
+                if detector.detect(pcm[start : start + 1280]):
+                    hit = True
+                    break
+        finally:
+            detector.reset()
+    return {"detected": bool(hit)}
 
 
 def _transcribe_wav_bytes(data: bytes, model: str) -> str:
@@ -1318,6 +1369,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
         # only truthful choice. Do not silently speak with a different fallback.
         voice_provider = "qwen"
         _save_voice_provider(paths, voice_provider)
+
+    wake_detector = None
+    wake_lock = threading.Lock()
+    wake_model = default_wake_model_path()
+    if wake_model.is_file():
+        try:
+            wake_detector = DirectOnnxWakeDetector(wake_model)
+            wake_detector._ensure()
+        except (WakeWordUnavailable, OSError, ValueError):
+            wake_detector = None
 
     def ui_voices() -> list[dict[str, Any]]:
         """Return provider voices plus imported voice-library profiles."""
@@ -1458,6 +1519,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
         docs_dir=(paths.root / "docs") if getattr(args, "ui", False) else None,
         tts_handler=(
             ui_tts if getattr(args, "ui", False) else None
+        ),
+        wake_handler=(
+            (lambda data: _ui_wake(data, wake_detector, wake_lock))
+            if getattr(args, "ui", False) and wake_detector is not None
+            else None
         ),
         stt_handler=ui_stt,
         media_handler=(

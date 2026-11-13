@@ -1,6 +1,6 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–9 закрыты, M5 ~98%, M6 ~99%, M7 ~80%, M8 ~95% (v0.20). Железо
+> **Статус:** этапы 0–9 закрыты, M5 ~99%, M6 ~99%, M7 ~80%, M8 ~95% (v0.20). Железо
 > перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q4/14B/SDXL/Whisper
 > стали реалистичны. Работают `kivi doctor`, `kivi models`, `kivi ask`,
 > `kivi chat`, `kivi serve`, `kivi say`, `kivi voice design`, `kivi coder`,

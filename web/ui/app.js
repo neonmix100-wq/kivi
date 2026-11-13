@@ -289,6 +289,7 @@ const state = {
     active: false,
     requesting: false,
     want: false,
+    background: false,
     stream: null,
     ctx: null,
     source: null,
@@ -306,6 +307,12 @@ const state = {
     finishing: false,
     pressAt: 0,
     pressStartedActive: false,
+  },
+  wake: {
+    enabled: false,
+    auto: false,
+    timer: 0,
+    probing: false,
   },
   prefs: {
     autoSpeak: false,
@@ -475,6 +482,8 @@ async function apiRequest(path, options = {}) {
     body = null,
     timeout = 12000,
     expect = "json",
+    rawBody = false,
+    contentType = "application/json",
   } = options;
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeout);
@@ -483,8 +492,8 @@ async function apiRequest(path, options = {}) {
   };
   let payload;
   if (body !== null) {
-    headers["Content-Type"] = "application/json";
-    payload = JSON.stringify(body);
+    headers["Content-Type"] = rawBody ? contentType : "application/json";
+    payload = rawBody ? body : JSON.stringify(body);
   }
   try {
     const response = await fetch(apiUrl(path), {
@@ -1784,6 +1793,7 @@ function stopMicMeter() {
 
 function cleanupMic() {
   state.mic.active = false;
+  state.mic.background = false;
   state.mic.recorder = null;
   state.mic.chunks = [];
   state.mic.pcmChunks = [];
@@ -1833,6 +1843,130 @@ function stopMic() {
   }
   cleanupMic();
   setMicStatus("Микрофон выключен.", "ok");
+}
+
+function setWakeUI(enabled) {
+  state.wake.enabled = enabled;
+  if (!els.wakeBtn) return;
+  els.wakeBtn.classList.toggle("is-active", enabled);
+  els.wakeBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
+  els.wakeBtn.setAttribute(
+    "aria-label",
+    `Фоновое прослушивание имени «Киви»: ${enabled ? "включено" : "выключено"}`,
+  );
+}
+
+function stopWakeMode({ keepAuto = false } = {}) {
+  if (state.wake.timer) {
+    window.clearInterval(state.wake.timer);
+    state.wake.timer = 0;
+  }
+  state.wake.probing = false;
+  if (!keepAuto) state.wake.auto = false;
+  setWakeUI(false);
+  if (state.mic.background) {
+    state.mic.background = false;
+    state.mic.want = false;
+    state.mic.active = false;
+    cleanupMic();
+    setMicStatus("Фоновое прослушивание выключено.");
+  }
+}
+
+function trimMicSamples(seconds) {
+  const rate = state.mic.sampleRate || 48000;
+  let remaining = Math.max(1, Math.round(rate * seconds));
+  const kept = [];
+  for (let index = state.mic.pcmChunks.length - 1; index >= 0 && remaining > 0; index -= 1) {
+    const chunk = state.mic.pcmChunks[index];
+    const take = Math.min(chunk.length, remaining);
+    kept.unshift(chunk.slice(chunk.length - take));
+    remaining -= take;
+  }
+  state.mic.pcmChunks = kept;
+}
+
+function scheduleWakeResume(delay = 1200) {
+  if (!state.wake.auto) return;
+  window.setTimeout(() => {
+    if (!state.wake.auto) return;
+    if (state.audio || state.speakingMessageId !== null) {
+      scheduleWakeResume(900);
+      return;
+    }
+    if (!state.mic.active) void startWakeMode();
+  }, delay);
+}
+
+async function probeWake() {
+  if (!state.wake.enabled || state.wake.probing || !state.mic.active) return;
+  if (state.mic.sending || state.mic.finishing || state.audio || state.speakingMessageId !== null) {
+    return;
+  }
+  const rate = state.mic.sampleRate || 48000;
+  const needed = Math.round(rate * 2);
+  const available = state.mic.pcmChunks.reduce((total, chunk) => total + chunk.length, 0);
+  if (available < needed * 0.75) return;
+  state.wake.probing = true;
+  try {
+    trimMicSamples(2);
+    const total = state.mic.pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const samples = new Float32Array(total);
+    let offset = 0;
+    for (const chunk of state.mic.pcmChunks) {
+      samples.set(chunk, offset);
+      offset += chunk.length;
+    }
+    const wav = encodeWav(samples, rate);
+    const data = await apiRequest("/wake", {
+      method: "POST",
+      body: wav,
+      rawBody: true,
+      contentType: "audio/wav",
+      timeout: 12000,
+    });
+    if (!state.wake.enabled) return;
+    if (data && data.detected === true) {
+      window.clearInterval(state.wake.timer);
+      state.wake.timer = 0;
+      state.mic.background = false;
+      setMicStatus("Услышала «Киви». Слушаю команду…", "ok");
+      setAvatar("listening");
+      trimMicSamples(2.4);
+      state.mic.active = false;
+      stopMicMeter();
+      void finishMicRecording();
+    }
+  } catch (error) {
+    if (state.wake.enabled) {
+      setMicStatus(`Фоновый wake: ${describeApiError(error, "проверке имени")}`, "error");
+    }
+  } finally {
+    state.wake.probing = false;
+  }
+}
+
+async function startWakeMode() {
+  if (!state.wake.auto || state.mic.active) return;
+  setWakeUI(true);
+  setMicStatus("Слушаю «Киви» в фоне…", "ok");
+  await startMic({ background: true });
+  if (!state.mic.active) {
+    setWakeUI(false);
+    return;
+  }
+  if (!state.wake.timer) {
+    state.wake.timer = window.setInterval(() => void probeWake(), 900);
+  }
+}
+
+function toggleWakeMode() {
+  if (state.wake.enabled || state.wake.auto) {
+    stopWakeMode();
+    return;
+  }
+  state.wake.auto = true;
+  void startWakeMode();
 }
 
 function encodeWav(samples, sampleRate) {
@@ -1931,6 +2065,7 @@ async function finishMicRecording() {
     els.composerInput.value = text;
     renderComposer();
     submitComposer();
+    scheduleWakeResume(1600);
   } catch (error) {
     const detail = String((error && error.message) || error || "unknown");
     console.error("Kivi UI: speech recognition failed", error);
@@ -1944,7 +2079,7 @@ async function finishMicRecording() {
   }
 }
 
-async function startMic() {
+async function startMic({ background = false } = {}) {
   if (state.mic.active || state.mic.sending) return;
   if (state.mic.requesting) {
     state.mic.want = true;
@@ -1960,8 +2095,9 @@ async function startMic() {
   }
   state.mic.want = true;
   state.mic.requesting = true;
+  state.mic.background = background;
   stopAudio();
-  setMicStatus("Запрашиваю доступ к микрофону…");
+  setMicStatus(background ? "Слушаю «Киви»…" : "Запрашиваю доступ к микрофону…");
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -1996,6 +2132,7 @@ async function startMic() {
     state.mic.audioCtx = ctx;
     state.mic.processor = processor;
     state.mic.sampleRate = ctx.sampleRate;
+    if (background) setMicStatus("Слушаю «Киви»…");
     if (els.micBtn) {
       els.micBtn.classList.add("is-active");
       els.micBtn.setAttribute("aria-pressed", "true");
@@ -7753,6 +7890,7 @@ function bindMicControls() {
     if (event.type === "pointerdown" && event.pointerType === "mouse" && event.button !== 0) {
       return;
     }
+    if (state.wake.enabled || state.wake.auto) stopWakeMode();
     event.preventDefault();
     state.mic.pressAt = Date.now();
     state.mic.pressStartedActive = state.mic.active;
@@ -7793,7 +7931,12 @@ function bindMicControls() {
     }
   });
   button.addEventListener("contextmenu", (event) => event.preventDefault());
-  window.addEventListener("blur", () => stopMic());
+  if (els.wakeBtn) {
+    els.wakeBtn.addEventListener("click", toggleWakeMode);
+  }
+  window.addEventListener("blur", () => {
+    if (!state.mic.background) stopMic();
+  });
 }
 
 function bindEvents() {
@@ -8209,6 +8352,7 @@ function cacheDom() {
     composerInput: $id("composer-input"),
     composerHint: $id("composer-hint"),
     micBtn: $id("mic-btn"),
+    wakeBtn: $id("wake-btn"),
     micStatus: $id("mic-status"),
     speakerToggle: $id("speaker-toggle"),
     sendBtn: $id("send-btn"),
