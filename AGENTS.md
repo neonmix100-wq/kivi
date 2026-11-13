@@ -160,6 +160,17 @@ Vault — сама папка `docs/`. Открой её в Obsidian: **Open fol
 powershell -ExecutionPolicy Bypass -File scripts\publish_github.ps1
 ```
 
+## ECC
+
+ECC установлен локально в `D:\ECC` (MIT). В проекте подключены выбранные skills
+в `.agents/skills`: `tdd-workflow`, `verification-loop`, `security-review`,
+`python-testing`, `coding-standards`, `plan-canvas`, `docs-governance`,
+`context-and-decisions`, `token-budget-advisor`, `ecc-conventions`.
+
+Правило: перед коммитом использовать `verification-loop`; для новых модулей —
+`tdd-workflow`; для API/CRM — `security-review`. Полный Claude-плагин ECC
+отключён, потому что добавляет ~34k токенов всегда. Подробности: `docs/ECC.md`.
+
 ## Skills
 
 `kivi-core`, `kivi-verify`, `kivi-gateway`, `kivi-cloud`, `kivi-security`,

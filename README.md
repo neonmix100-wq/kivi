@@ -222,6 +222,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/VOICE-FISH.md`](docs/VOICE-FISH.md) | Fish Audio voice ID, API-ключ и права |
 | [`docs/VOICE-LIBRARY.md`](docs/VOICE-LIBRARY.md) | Импорт голосов из файлов/URL, consent |
 | [`docs/CRM-EXTENSION.md`](docs/CRM-EXTENSION.md) | AltCRM через расширение Яндекс.Браузера |
+| [`docs/ECC.md`](docs/ECC.md) | ECC: установка, skills и рабочий цикл |
 | [`docs/WAKE-TRAINING.md`](docs/WAKE-TRAINING.md) | обучение своей ONNX wake-модели |
 | [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) | матрица приёмки и acceptance-smoke |
 | [`docs/RELEASE-0.20.md`](docs/RELEASE-0.20.md) | release notes первого прототипа |
