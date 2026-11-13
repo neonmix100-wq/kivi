@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import struct
 import subprocess
+import sys
 import wave
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
@@ -231,16 +232,25 @@ PiperRunner = Callable[[list[str], str], None]
 
 
 def _default_piper_runner(argv: list[str], text: str) -> None:
-    """Run Piper with a UTF-8 input file (its stdin path is unreliable)."""
+    """Run Piper with a UTF-8 input file and without a console window."""
     import tempfile
 
     with tempfile.TemporaryDirectory(prefix="kivi-piper-") as directory:
         input_path = Path(directory) / "input.txt"
         input_path.write_text(text, encoding="utf-8")
+        kwargs: dict[str, Any] = {
+            "capture_output": True,
+            "check": False,
+        }
+        if sys.platform == "win32":
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            kwargs["startupinfo"] = startupinfo
         completed = subprocess.run(
             [*argv, "-i", str(input_path)],
-            capture_output=True,
-            check=False,
+            **kwargs,
         )
     if completed.returncode != 0:
         stderr = completed.stderr.decode("utf-8", errors="replace").strip()

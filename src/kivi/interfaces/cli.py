@@ -1313,6 +1313,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
                 return result.answer
 
     voice_provider = _load_voice_provider(paths, config.voice.provider)
+    if voice_provider == "fish" and not os.environ.get("FISH_AUDIO_API_KEY"):
+        # Fish is a cloud voice; without its key the local Qwen clone is the
+        # only truthful choice. Do not silently speak with a different fallback.
+        voice_provider = "qwen"
+        _save_voice_provider(paths, voice_provider)
 
     def ui_voices() -> list[dict[str, Any]]:
         """Return provider voices plus imported voice-library profiles."""
@@ -1372,6 +1377,10 @@ def cmd_serve(args: argparse.Namespace) -> int:
             "piper:irina": "piper",
         }
         if voice_id in providers:
+            if voice_id == "fish:astrea" and not os.environ.get("FISH_AUDIO_API_KEY"):
+                raise ValueError(
+                    "Fish Audio недоступен: задай FISH_AUDIO_API_KEY и перезапусти Kivi"
+                )
             voice_provider = providers[voice_id]
             _save_voice_provider(paths, voice_provider)
             if voice_id == "qwen:kivi-warm":

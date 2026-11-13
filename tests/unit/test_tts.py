@@ -160,6 +160,48 @@ def test_pipeline_does_not_fall_back_when_disabled(tmp_path: Path) -> None:
     assert fallback.calls == []
 
 
+def test_piper_runner_uses_utf8_input_file(tmp_path: Path, monkeypatch) -> None:
+    from kivi.senses import tts as tts_module
+
+    seen: dict[str, object] = {}
+
+    def fake_run(argv: list[str], **kwargs: object):
+        seen["argv"] = argv
+        seen["creationflags"] = kwargs.get("creationflags")
+        seen["startupinfo"] = kwargs.get("startupinfo")
+        return type("Completed", (), {"returncode": 0, "stderr": b""})()
+
+    monkeypatch.setattr(tts_module.subprocess, "run", fake_run)
+    tts_module._default_piper_runner(
+        ["piper", "-m", "voice.onnx", "-f", str(tmp_path / "out.wav")],
+        "Привет, Киви!",
+    )
+    argv = seen["argv"]
+    assert isinstance(argv, list)
+    assert "-i" in argv
+    input_path = Path(argv[argv.index("-i") + 1])
+    assert not input_path.exists()
+
+
+@pytest.mark.skipif(
+    __import__("sys").platform != "win32",
+    reason="Windows subprocess flags",
+)
+def test_piper_runner_hides_console_window(monkeypatch) -> None:
+    from kivi.senses import tts as tts_module
+
+    seen: dict[str, object] = {}
+
+    def fake_run(argv: list[str], **kwargs: object):
+        seen.update(kwargs)
+        return type("Completed", (), {"returncode": 0, "stderr": b""})()
+
+    monkeypatch.setattr(tts_module.subprocess, "run", fake_run)
+    tts_module._default_piper_runner(["piper"], "Киви")
+    assert seen["creationflags"] == tts_module.subprocess.CREATE_NO_WINDOW
+    assert seen["startupinfo"] is not None
+
+
 def test_piper_runner_is_injected_and_argv_is_exact(tmp_path: Path) -> None:
     executable = tmp_path / "piper.exe"
     model = tmp_path / "voice.onnx"
