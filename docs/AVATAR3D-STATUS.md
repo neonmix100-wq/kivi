@@ -13,6 +13,7 @@ assets/avatar/kivi.vrm   (~35 МБ, VRM 0.x / glTF 2.0)
 - three.js и `@pixiv/three-vrm` установлены локально в
   `web/avatar3d/node_modules` (в git не входят);
 - камера исправлена: персонаж виден целиком, а не только макушка;
+- T-pose убран: руки опущены, добавлено лёгкое idle-дыхание/жест;
 - HUD показывает `VRM`, состояние `idle`, визему `CLOSED`.
 
 ![Kivi VRM](images/kivi-vrm.png)

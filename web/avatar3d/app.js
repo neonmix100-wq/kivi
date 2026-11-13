@@ -500,6 +500,7 @@ async function loadVrm(url) {
     optimizeVrm(gltf.scene, model);
     disposeVrm();
     vrm = model;
+    window.__kiviVrm = model;
     avatarRoot.add(model.scene);
     try {
       frameVrm(model);
@@ -675,6 +676,34 @@ function applyVrmGaze(model, state, elapsed, damp) {
   lookTarget.position.z = 2;
 }
 
+function applyRelativeBone(node, axis, angle, damp) {
+  if (!node) return;
+  if (!node.userData.kiviRestQuaternion) {
+    node.userData.kiviRestQuaternion = node.quaternion.clone();
+  }
+  const target = new THREE.Quaternion()
+    .setFromAxisAngle(axis, angle)
+    .multiply(node.userData.kiviRestQuaternion);
+  node.quaternion.slerp(target, damp);
+}
+
+function applyVrmArms(state, elapsed, damp) {
+  if (window.__kiviDisableArmPose) return;
+  const leftUpper = vrm.humanoid?.getNormalizedBoneNode("leftUpperArm");
+  const rightUpper = vrm.humanoid?.getNormalizedBoneNode("rightUpperArm");
+  const leftLower = vrm.humanoid?.getNormalizedBoneNode("leftLowerArm");
+  const rightLower = vrm.humanoid?.getNormalizedBoneNode("rightLowerArm");
+  if (!leftUpper || !rightUpper) return;
+  // The raw VRM is in a T-pose. Lower the arms relative to their rest
+  // rotations (absolute Euler edits would break the humanoid bind pose).
+  const gesture = state === "speaking" ? Math.sin(elapsed * 4.2) * 0.04 : 0;
+  const sway = Math.sin(elapsed * 0.8) * 0.018;
+  applyRelativeBone(leftUpper, new THREE.Vector3(0, 0, 1), 0.9 + gesture + sway, damp);
+  applyRelativeBone(rightUpper, new THREE.Vector3(0, 0, 1), -0.9 + gesture - sway, damp);
+  applyRelativeBone(leftLower, new THREE.Vector3(0, 0, 1), 0.12, damp);
+  applyRelativeBone(rightLower, new THREE.Vector3(0, 0, 1), -0.12, damp);
+}
+
 function updateVrm(delta, elapsed, level) {
   if (!vrm) return;
   const pose = poseFor(current.state, elapsed, level);
@@ -692,6 +721,7 @@ function updateVrm(delta, elapsed, level) {
     neck.rotation.y += (pose.yaw * 0.35 - neck.rotation.y) * damp;
     neck.rotation.z += (pose.roll * 0.35 - neck.rotation.z) * damp;
   }
+  applyVrmArms(current.state, elapsed, damp);
 
   const breathing = Math.sin(elapsed * 1.7) * 0.004;
   const bounce = current.state === "happy" ? Math.abs(Math.sin(elapsed * 4)) * 0.006 : 0;
