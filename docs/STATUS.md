@@ -2,7 +2,7 @@
 
 Дата среза: **12.11.2026**. Дорожная карта: [ROADMAP](ROADMAP.md).
 Новый план после перепроверки железа: [PLAN-2026-11-12](PLAN-2026-11-12.md).
-Тесты: **1582**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
+Тесты: **1583**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
 
 ## 0. Железо на 12.11.2026
 
@@ -58,11 +58,12 @@
 - **Этап 9 (M4 Communicator) закрыт:** Gmail OAuth readonly+compose без send,
   `mail.list/search/read/attachment/draft`, Telegram-бот с allowlist и rate limit,
   CLI `kivi mail`/`kivi telegram`; 10+5 сценариев.
-- **Этап 10 (M5 Voice & Avatar) ~75%:** audio/VAD/STT, barge-in, подтверждения,
+- **Этап 10 (M5 Voice & Avatar) ~80%:** audio/VAD/STT, barge-in, подтверждения,
   voice pipeline, avatar3d/visemes/states, CLI `listen`, **Qwen3-TTS
   VoiceDesign/Base (3 взрослых тембра)**, **Fish Audio S2.1 Pro Free / Astrea/s
   как основной голос**, библиотека голосов (файл/URL/consent), **`chat --speak`
-  озвучивает ответ без аватара**, `audio devices/test` для выбора выхода. Блокеры:
+  озвучивает ответ без аватара**, `audio devices/test`, **голосовой ввод в UI
+  через `/transcribe` + локальный Whisper**. Блокеры:
   `assets/wake/kivi.onnx`, `assets/avatar/kivi.vrm`, микрофон и замеры false wake/WER.
 - **Этап 11 (M6 Work CRM) ~70%:** headless-домен из `ai-agent`, AltCRM CDP
   adapter, `crm.read/fill/act/task`, CLI и метрики. Блокеры: реальный AltCRM,
@@ -70,9 +71,9 @@
 - **Этап 12 (M7 Cloud Media) ~30%:** бесплатный `media.image` (Pollinations,
   flux/turbo) и локальный `media.sdxl` через SD WebUI API готовы; видео,
   job-очередь и ComfyUI ещё нет.
-- **Этап 13 (M8 Kivi Shell) ~25%:** локальный веб-интерфейс `kivi ui`,
-  отдельное Edge/Chrome app-окно, трей, чат, история, голоса, настройки, аватар;
-  микрофон в UI и Explorer-замена ещё впереди.
+- **Этап 13 (M8 Kivi Shell) ~30%:** локальный веб-интерфейс `kivi ui`,
+  отдельное Edge/Chrome app-окно, трей, чат, история, голоса, настройки, аватар,
+  голосовой ввод; Explorer-замена ещё впереди.
 
 ## 2. Этапы
 
@@ -88,10 +89,10 @@
 | 7. M2: Coder | ✅ готово | code.run sandbox, repo.index, code.patch, git, Coder loop, CLI | WSL2/Sandbox — апгрейд |
 | 8. M3: Operator | ✅ готово | окна/приложения, UI, system, browser, 20 сценариев | — |
 | 9. M4: Communicator | ✅ готово | Gmail drafts, Telegram bot, CLI, 15 сценариев | — |
-| 10. M5: Voice & Avatar | 🟡 ~75% | audio/VAD/STT, barge-in, avatar3d, Qwen3-TTS, Fish Audio, voice library | wake ONNX, VRM, микрофон |
+| 10. M5: Voice & Avatar | 🟡 ~80% | audio/VAD/STT, barge-in, avatar3d, Qwen3-TTS, Fish Audio, voice library, UI mic | wake ONNX, VRM, замеры |
 | 11. M6: Work CRM | 🟡 ~70% | домен, AltCRM CDP, tools, CLI, метрики | реальный CRM, UI-панель |
 | 12. M7: Cloud Media | 🟡 ~30% | `media.image`, `media.sdxl`, CLI, tests | видео, job queue, ComfyUI |
-| 13. M8: Kivi Shell | 🟡 ~25% | Kivi UI, app-окно, трей, чат, голоса, настройки, аватар | mic UI, Explorer |
+| 13. M8: Kivi Shell | 🟡 ~30% | Kivi UI, app-окно, трей, голосовой ввод, аватар | Explorer |
 
 ## 3. Что уже сделано
 

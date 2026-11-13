@@ -26,17 +26,21 @@ kivi ui --no-browser
 kivi ui --app
 kivi ui --tray
 kivi ui --model hf.co/Qwen/Qwen3-8B-GGUF:Q4_K_M
+kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 ```
 
 ## Что умеет интерфейс
 
 - чат с историей (SQLite), новые чаты, очистка;
 - голосовые ответы: кнопка «Озвучить», авто-озвучка, `/tts`;
+- **голосовой ввод**: удерживай кнопку микрофона, браузер запишет WAV и
+  отправит его в локальный Whisper (`/transcribe`);
 - голоса из локальной библиотеки: `kivi voice add/list/use`;
 - текущий провайдер и модель в настройках;
 - аватар Kivi с состояниями idle/listening/thinking/speaking;
 - проверка звука через WebAudio;
-- локальный API: `/health`, `/chat`, `/tts`, `/history`, `/voices`, `/settings`.
+- локальный API: `/health`, `/chat`, `/tts`, `/transcribe`, `/history`,
+  `/voices`, `/settings`.
 
 ## API
 
@@ -46,6 +50,7 @@ kivi ui --model hf.co/Qwen/Qwen3-8B-GGUF:Q4_K_M
 | GET | `/health` | статус и версия |
 | POST | `/chat` | `{message}` → `{answer, task_id}` |
 | POST | `/tts` | `{text}` → `audio/wav` |
+| POST | `/transcribe` | WAV-тело → `{text}` (локальный Whisper) |
 | GET | `/history?limit=50` | последние сообщения |
 | GET | `/voices` | голоса библиотеки |
 | POST | `/voices/active` | `{id}` → активный голос |
@@ -57,8 +62,8 @@ API слушает только loopback и не имеет аутентифик
 
 ## Ограничения текущего среза
 
-- микрофон в браузере — заготовка push-to-talk; серверный STT ещё не подключён
-  к UI (используй `kivi listen --mic`);
-- нет системного трея и нативного окна;
+- первый голосовой ввод загружает Whisper и может занять несколько секунд;
+- браузерный микрофон требует разрешения; при отказе UI покажет причину;
+- нет системного трея-уведомления о новых сообщениях;
 - нет стриминга Fish Audio: WAV приходит целиком;
 - история — последние сообщения, без ветвления диалогов.

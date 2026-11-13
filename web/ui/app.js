@@ -89,6 +89,9 @@ const state = {
     buffer: null,
     raf: 0,
     startTs: 0,
+    recorder: null,
+    chunks: [],
+    sending: false,
   },
   prefs: {
     autoSpeak: false,
@@ -1471,10 +1474,10 @@ function stopMicMeter() {
   if (els.avatarMeterFill) els.avatarMeterFill.style.width = "0%";
 }
 
-function stopMic() {
-  const wasActive = state.mic.active;
-  state.mic.want = false;
+function cleanupMic() {
   state.mic.active = false;
+  state.mic.recorder = null;
+  state.mic.chunks = [];
   stopMicMeter();
   if (state.mic.stream) {
     try {
@@ -1489,14 +1492,131 @@ function stopMic() {
     els.micBtn.setAttribute("aria-pressed", "false");
   }
   if (els.avatarPanel) els.avatarPanel.classList.remove("is-mic");
+  idleIfQuiet();
+}
+
+function stopMic() {
+  const wasActive = state.mic.active;
+  state.mic.want = false;
+  state.mic.active = false;
+  stopMicMeter();
+  const recorder = state.mic.recorder;
+  if (recorder && recorder.state !== "inactive") {
+    try {
+      recorder.stop();
+      return;
+    } catch {
+      /* fall through to cleanup */
+    }
+  }
+  cleanupMic();
   if (wasActive) {
-    setMicStatus("Микрофон выключен. Голосовой ввод пока не отправляется на сервер.", "ok");
-    idleIfQuiet();
+    setMicStatus("Микрофон выключен.", "ok");
+  }
+}
+
+function encodeWav(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const write = (offset, text) => {
+    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+  write(0, "RIFF");
+  view.setUint32(4, 36 + samples.length * 2, true);
+  write(8, "WAVE");
+  write(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  write(36, "data");
+  view.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i += 1) {
+    const value = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(44 + i * 2, value < 0 ? value * 0x8000 : value * 0x7fff, true);
+  }
+  return buffer;
+}
+
+async function blobToWav(blob, targetRate = 16000) {
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) throw new Error("WebAudio недоступен");
+  const ctx = new Ctor();
+  try {
+    const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+    const channels = decoded.numberOfChannels;
+    const length = Math.max(1, Math.ceil(decoded.duration * targetRate));
+    const output = new Float32Array(length);
+    const ratio = decoded.sampleRate / targetRate;
+    for (let i = 0; i < length; i += 1) {
+      const sourceIndex = Math.min(decoded.length - 1, Math.floor(i * ratio));
+      let value = 0;
+      for (let channel = 0; channel < channels; channel += 1) {
+        value += decoded.getChannelData(channel)[sourceIndex] || 0;
+      }
+      output[i] = value / channels;
+    }
+    return encodeWav(output, targetRate);
+  } finally {
+    try {
+      void ctx.close().catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+async function finishMicRecording() {
+  const chunks = state.mic.chunks.slice();
+  state.mic.chunks = [];
+  const duration = Date.now() - state.mic.startTs;
+  if (chunks.length === 0 || duration < 350) {
+    cleanupMic();
+    setMicStatus("Слишком короткая запись. Удерживай кнопку и говори.", "error");
+    return;
+  }
+  state.mic.sending = true;
+  setMicStatus("Распознаю речь…", "ok");
+  setAvatar("thinking");
+  try {
+    const blob = new Blob(chunks, { type: chunks[0].type || "audio/webm" });
+    const wav = await blobToWav(blob);
+    const response = await fetch(apiUrl("/transcribe"), {
+      method: "POST",
+      headers: { "Content-Type": "audio/wav" },
+      body: wav,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const text = String(data.text || "").trim();
+    if (!text) {
+      setMicStatus("Речь не распознана. Попробуй ещё раз.", "error");
+      setAvatar("idle");
+      return;
+    }
+    setMicStatus(`Распознано: ${text}`, "ok");
+    cleanupMic();
+    els.composerInput.value = text;
+    renderComposer();
+    submitComposer();
+  } catch (error) {
+    setMicStatus(
+      "Не удалось распознать речь. Проверь микрофон и серверный STT.",
+      "error",
+    );
+    showToast(`Голосовой ввод: ${error.message || error}`, "error");
+    cleanupMic();
+    setAvatar("idle");
+  } finally {
+    state.mic.sending = false;
   }
 }
 
 async function startMic() {
-  if (state.mic.active) return;
+  if (state.mic.active || state.mic.sending) return;
   if (state.mic.requesting) {
     state.mic.want = true;
     return;
@@ -1526,16 +1646,28 @@ async function startMic() {
     state.mic.stream = stream;
     state.mic.active = true;
     state.mic.startTs = Date.now();
+    state.mic.chunks = [];
+    if (window.MediaRecorder) {
+      const mime = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/webm"].find(
+        (type) => window.MediaRecorder.isTypeSupported(type),
+      );
+      const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) state.mic.chunks.push(event.data);
+      };
+      recorder.onstop = () => {
+        void finishMicRecording();
+      };
+      state.mic.recorder = recorder;
+      recorder.start(200);
+    }
     if (els.micBtn) {
       els.micBtn.classList.add("is-active");
       els.micBtn.setAttribute("aria-pressed", "true");
     }
     if (els.avatarPanel) els.avatarPanel.classList.add("is-mic");
     setAvatar("listening");
-    setMicStatus(
-      "Слушаю… Отпустите кнопку, чтобы остановить. Запись пока не отправляется на сервер.",
-      "ok",
-    );
+    setMicStatus("Слушаю… Отпусти кнопку, чтобы отправить речь.", "ok");
     startMicMeter(stream);
   } catch (error) {
     state.mic.active = false;

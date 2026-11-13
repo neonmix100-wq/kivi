@@ -39,6 +39,7 @@ _MAX_DRAIN_BYTES = 16 * 1024 * 1024
 
 Handler = Callable[[str], str]
 TtsHandler = Callable[[str], bytes]
+SttHandler = Callable[[bytes], str]
 HistoryHandler = Callable[[int], list[dict[str, Any]]]
 VoicesHandler = Callable[[], list[dict[str, Any]]]
 SettingsHandler = Callable[[], dict[str, Any]]
@@ -89,6 +90,7 @@ class LocalApi:
         static_dir: Path | str | None = None,
         docs_dir: Path | str | None = None,
         tts_handler: TtsHandler | None = None,
+        stt_handler: SttHandler | None = None,
         history_handler: HistoryHandler | None = None,
         voices_handler: VoicesHandler | None = None,
         settings_handler: SettingsHandler | None = None,
@@ -110,6 +112,7 @@ class LocalApi:
         self._static_dir = Path(static_dir).resolve() if static_dir is not None else None
         self._docs_dir = Path(docs_dir).resolve() if docs_dir is not None else None
         self._tts_handler = tts_handler
+        self._stt_handler = stt_handler
         self._history_handler = history_handler
         self._voices_handler = voices_handler
         self._settings_handler = settings_handler
@@ -274,6 +277,8 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._serve_doc(path)
         elif method == "POST" and path == "/tts":
             self._handle_tts()
+        elif method == "POST" and path == "/transcribe":
+            self._handle_transcribe()
         elif method == "GET" and path == "/history":
             self._handle_history(split.query)
         elif method == "GET" and path == "/voices":
@@ -375,6 +380,25 @@ class _ApiHandler(BaseHTTPRequestHandler):
             return
         self._send_bytes(200, bytes(audio), "audio/wav")
 
+    def _handle_transcribe(self) -> None:
+        api = self.server.api
+        if api._stt_handler is None:
+            self._send_json(503, {"error": "speech recognition is not configured"})
+            return
+        body = self._read_body(10 * 1024 * 1024)
+        if body is None:
+            return
+        if len(body) < 44 or not body.startswith(b"RIFF"):
+            self._send_json(400, {"error": "audio/wav body expected"})
+            return
+        try:
+            text = api._stt_handler(body)
+        except Exception:
+            logger.warning("stt handler failed")
+            self._send_json(500, {"error": "transcription failed"})
+            return
+        self._send_json(200, {"text": str(text).strip()})
+
     def _handle_history(self, query: str) -> None:
         api = self.server.api
         if api._history_handler is None:
@@ -454,7 +478,7 @@ class _ApiHandler(BaseHTTPRequestHandler):
             return None
         return payload
 
-    def _read_body(self) -> bytes | None:
+    def _read_body(self, max_bytes: int = MAX_BODY_BYTES) -> bytes | None:
         raw_length = self.headers.get("Content-Length")
         if raw_length is None:
             self._send_json(400, {"error": "missing Content-Length"})
@@ -467,7 +491,7 @@ class _ApiHandler(BaseHTTPRequestHandler):
         if length < 0:
             self._send_json(400, {"error": "invalid Content-Length"})
             return None
-        if length > MAX_BODY_BYTES:
+        if length > max_bytes:
             self.close_connection = True
             if length <= _MAX_DRAIN_BYTES:
                 self._discard_body(length)

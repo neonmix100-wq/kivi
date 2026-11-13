@@ -27,6 +27,7 @@ def ui_api(tmp_path: Path):
         static_dir=static,
         docs_dir=docs,
         tts_handler=lambda text: b"RIFF" + text.encode("utf-8"),
+        stt_handler=lambda data: "распознано" if data.startswith(b"RIFF") else "",
         history_handler=lambda limit: [
             {"role": "user", "content": f"limit={limit}"},
         ],
@@ -63,6 +64,19 @@ def test_tts_returns_wav_and_rejects_empty(ui_api: LocalApi) -> None:
     assert response.headers["content-type"] == "audio/wav"
     assert response.content.startswith(b"RIFF")
     assert empty.status_code == 400
+
+
+def test_transcribe_accepts_wav(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        response = client.post(
+            "/transcribe",
+            content=b"RIFF" + b"\x00" * 60,
+            headers={"Content-Type": "audio/wav"},
+        )
+        bad = client.post("/transcribe", content=b"not-wav")
+    assert response.status_code == 200
+    assert response.json() == {"text": "распознано"}
+    assert bad.status_code == 400
 
 
 def test_history_limit_and_voices_settings(ui_api: LocalApi) -> None:

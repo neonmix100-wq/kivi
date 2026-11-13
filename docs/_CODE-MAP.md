@@ -54,10 +54,10 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 21 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.api` | 507 | Local-only HTTP API for Kivi chat. |
+| `src.kivi.interfaces.api` | 531 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
 | `src.kivi.interfaces.avatar3d` | 637 | 3D avatar (VRM) state, viseme lip-sync and a loopback web renderer. |
-| `src.kivi.interfaces.cli` | 3253 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 3296 | Command-line interface (stage 1). |
 
 ## kernel
 

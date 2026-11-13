@@ -689,6 +689,32 @@ def _run_tray(api: LocalApi) -> None:
     icon.run()
 
 
+def _transcribe_wav_bytes(data: bytes, model: str) -> str:
+    """Decode a mono 16-bit WAV and run faster-whisper once."""
+    import numpy as np
+
+    with wave.open(io.BytesIO(data), "rb") as handle:
+        channels = handle.getnchannels()
+        width = handle.getsampwidth()
+        rate = handle.getframerate()
+        raw = handle.readframes(handle.getnframes())
+    if width != 2:
+        raise ValueError("only 16-bit PCM WAV is supported")
+    samples = np.frombuffer(raw, dtype="<i2").astype("float32") / 32768.0
+    if channels > 1:
+        samples = samples.reshape(-1, channels).mean(axis=1)
+    if rate != 16000:
+        import librosa
+
+        samples = librosa.resample(samples, orig_sr=rate, target_sr=16000)
+    target = Path(model)
+    if target.is_dir():
+        transcriber = WhisperTranscriber(model_path=target)
+    else:
+        transcriber = WhisperTranscriber(model)
+    return transcriber.transcribe(samples).text
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     if getattr(args, "app", False) or getattr(args, "tray", False):
         args.ui = True
@@ -765,6 +791,14 @@ def cmd_serve(args: argparse.Namespace) -> int:
                 return result.answer
 
     ui_speech = _speech_pipeline(config) if getattr(args, "ui", False) else None
+    ui_stt = (
+        (lambda data: _transcribe_wav_bytes(
+            data,
+            getattr(args, "whisper_model", "data/models/faster-whisper-large-v3-turbo"),
+        ))
+        if getattr(args, "ui", False)
+        else None
+    )
     api = LocalApi(
         answer,
         host=args.host,
@@ -778,6 +812,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
             if ui_speech is not None
             else None
         ),
+        stt_handler=ui_stt,
         history_handler=lambda limit: _serve_history(paths, limit),
         voices_handler=lambda: [
             {
@@ -2795,6 +2830,10 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--ui", action="store_true", help="serve the Kivi web UI")
     serve.add_argument("--app", action="store_true", help="open a standalone app window")
     serve.add_argument("--tray", action="store_true", help="run a system tray icon")
+    serve.add_argument(
+        "--whisper-model",
+        default="data/models/faster-whisper-large-v3-turbo",
+    )
     serve.set_defaults(func=cmd_serve)
 
     ui = sub.add_parser("ui", help="open the Kivi local interface")
@@ -2807,6 +2846,10 @@ def build_parser() -> argparse.ArgumentParser:
     ui.add_argument("--no-browser", action="store_true")
     ui.add_argument("--app", action="store_true", help="standalone app window")
     ui.add_argument("--tray", action="store_true", help="run a system tray icon")
+    ui.add_argument(
+        "--whisper-model",
+        default="data/models/faster-whisper-large-v3-turbo",
+    )
     ui.set_defaults(func=cmd_ui)
 
     say = sub.add_parser("say", help="synthesize text with Silero/Piper/Qwen3-TTS")
