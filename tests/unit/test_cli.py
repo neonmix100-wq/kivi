@@ -584,3 +584,8 @@ def test_module_entrypoint_delegates(monkeypatch) -> None:
     monkeypatch.setattr(entry, "main", FakeMain.main)
     assert entry.main(["config", "check"]) == 7
     assert calls == [["config", "check"]]
+
+
+def test_clean_transcript_drops_silence_hallucinations() -> None:
+    assert cli_module._clean_transcript("Продолжение следует...") == ""
+    assert cli_module._clean_transcript("Привет, Киви") == "Привет, Киви"

@@ -313,6 +313,12 @@ const state = {
     auto: false,
     timer: 0,
     probing: false,
+    command: false,
+    commandTimer: 0,
+    commandStarted: 0,
+    lastVoiceAt: 0,
+    heardVoice: false,
+    requireWake: false,
   },
   prefs: {
     autoSpeak: false,
@@ -1861,6 +1867,12 @@ function stopWakeMode({ keepAuto = false } = {}) {
     window.clearInterval(state.wake.timer);
     state.wake.timer = 0;
   }
+  if (state.wake.commandTimer) {
+    window.clearInterval(state.wake.commandTimer);
+    state.wake.commandTimer = 0;
+  }
+  state.wake.command = false;
+  state.wake.requireWake = false;
   state.wake.probing = false;
   if (!keepAuto) state.wake.auto = false;
   setWakeUI(false);
@@ -1884,6 +1896,57 @@ function trimMicSamples(seconds) {
     remaining -= take;
   }
   state.mic.pcmChunks = kept;
+}
+
+function micRms(seconds = 0.25) {
+  const rate = state.mic.sampleRate || 48000;
+  const need = Math.max(1, Math.round(rate * seconds));
+  let total = 0;
+  let sum = 0;
+  for (let index = state.mic.pcmChunks.length - 1; index >= 0 && total < need; index -= 1) {
+    const chunk = state.mic.pcmChunks[index];
+    const count = Math.min(chunk.length, need - total);
+    for (let offset = chunk.length - count; offset < chunk.length; offset += 1) {
+      const value = chunk[offset];
+      sum += value * value;
+    }
+    total += count;
+  }
+  return total ? Math.sqrt(sum / total) : 0;
+}
+
+function normalizeTranscript(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasWakeWord(text) {
+  return /(^|\s)(киви|kivi)(\s|$)/i.test(normalizeTranscript(text));
+}
+
+function stripWakeWord(text) {
+  return String(text || "")
+    .replace(/^\s*(киви|kivi)\s*[,!?.-]?\s*/i, "")
+    .trim();
+}
+
+const STT_HALLUCINATIONS = [
+  "продолжение следует",
+  "субтитры",
+  "редактор субтитров",
+  "спасибо за просмотр",
+  "подписывайтесь",
+  "ставьте лайки",
+  "dimatorzok",
+];
+
+function looksLikeHallucination(text) {
+  const value = normalizeTranscript(text);
+  if (!value) return true;
+  return STT_HALLUCINATIONS.some((item) => value === item || value.startsWith(`${item} `));
 }
 
 function scheduleWakeResume(delay = 1200) {
@@ -1929,13 +1992,16 @@ async function probeWake() {
     if (data && data.detected === true) {
       window.clearInterval(state.wake.timer);
       state.wake.timer = 0;
-      state.mic.background = false;
-      setMicStatus("Услышала «Киви». Слушаю команду…", "ok");
+      state.wake.command = true;
+      state.wake.commandStarted = Date.now();
+      state.wake.lastVoiceAt = Date.now();
+      state.wake.heardVoice = false;
+      state.wake.requireWake = true;
+      state.mic.background = true;
+      setMicStatus("Услышала «Киви». Говори, я подожду паузу…", "ok");
       setAvatar("listening");
       trimMicSamples(2.4);
-      state.mic.active = false;
-      stopMicMeter();
-      void finishMicRecording();
+      state.wake.commandTimer = window.setInterval(() => void probeWakeCommand(), 120);
     }
   } catch (error) {
     if (state.wake.enabled) {
@@ -1957,6 +2023,53 @@ async function startWakeMode() {
   }
   if (!state.wake.timer) {
     state.wake.timer = window.setInterval(() => void probeWake(), 900);
+  }
+}
+
+function clearWakeCommand() {
+  if (state.wake.commandTimer) {
+    window.clearInterval(state.wake.commandTimer);
+    state.wake.commandTimer = 0;
+  }
+  state.wake.command = false;
+}
+
+async function probeWakeCommand() {
+  if (!state.wake.command || !state.mic.active) return;
+  const now = Date.now();
+  const rms = micRms(0.22);
+  if (rms > 0.012) {
+    state.wake.heardVoice = true;
+    state.wake.lastVoiceAt = now;
+  }
+  const elapsed = now - state.wake.commandStarted;
+  if (!state.wake.heardVoice && elapsed > 4200) {
+    clearWakeCommand();
+    state.wake.requireWake = false;
+    state.mic.background = false;
+    state.mic.active = false;
+    cleanupMic();
+    setMicStatus("Не услышала команду. Снова слушаю «Киви»…", "ok");
+    scheduleWakeResume(500);
+    return;
+  }
+  const silence = now - state.wake.lastVoiceAt;
+  if (state.wake.heardVoice && silence >= 2000) {
+    clearWakeCommand();
+    state.mic.background = false;
+    state.mic.active = false;
+    stopMicMeter();
+    setMicStatus("Распознаю команду…", "ok");
+    void finishMicRecording();
+    return;
+  }
+  if (elapsed > 12000) {
+    clearWakeCommand();
+    state.mic.background = false;
+    state.mic.active = false;
+    stopMicMeter();
+    setMicStatus("Слишком долгая команда. Распознаю…", "ok");
+    void finishMicRecording();
   }
 }
 
@@ -2053,13 +2166,33 @@ async function finishMicRecording() {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    const text = String(data.text || "").trim();
-    if (!text) {
+    let text = String(data.text || "").trim();
+    if (!text || looksLikeHallucination(text)) {
+      state.wake.requireWake = false;
       setMicStatus("Речь не распознана. Попробуй ещё раз.", "error");
       setAvatar("idle");
       cleanupMic();
+      scheduleWakeResume(800);
       return;
     }
+    if (state.wake.requireWake) {
+      if (!hasWakeWord(text)) {
+        state.wake.requireWake = false;
+        setMicStatus("Не услышала обращение «Киви». Продолжаю слушать.", "ok");
+        cleanupMic();
+        scheduleWakeResume(700);
+        return;
+      }
+      text = stripWakeWord(text);
+      if (!text) {
+        state.wake.requireWake = false;
+        setMicStatus("Услышала «Киви». Скажи команду.", "ok");
+        cleanupMic();
+        scheduleWakeResume(700);
+        return;
+      }
+    }
+    state.wake.requireWake = false;
     setMicStatus(`Распознано: ${text}`, "ok");
     cleanupMic();
     els.composerInput.value = text;

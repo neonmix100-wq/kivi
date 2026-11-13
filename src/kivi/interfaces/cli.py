@@ -11,6 +11,7 @@ import base64
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1262,6 +1263,30 @@ def _ui_wake(data: bytes, detector: Any, lock: Any) -> dict[str, Any]:
     return {"detected": bool(hit)}
 
 
+_TRANSCRIPT_HALLUCINATIONS = (
+    "продолжение следует",
+    "субтитры",
+    "редактор субтитров",
+    "спасибо за просмотр",
+    "подписывайтесь",
+    "ставьте лайки",
+)
+
+
+def _clean_transcript(text: str) -> str:
+    """Drop Whisper's stock hallucinations produced on silence."""
+    cleaned = str(text or "").strip()
+    normalized = " ".join(
+        re.sub(r"[^\w\s]", " ", cleaned.lower(), flags=re.UNICODE).split()
+    )
+    if not normalized:
+        return ""
+    for phrase in _TRANSCRIPT_HALLUCINATIONS:
+        if normalized == phrase or normalized.startswith(f"{phrase} "):
+            return ""
+    return cleaned
+
+
 def _transcribe_wav_bytes(data: bytes, model: str) -> str:
     """Decode a mono 16-bit WAV and run faster-whisper once."""
     import numpy as np
@@ -1280,12 +1305,14 @@ def _transcribe_wav_bytes(data: bytes, model: str) -> str:
         import librosa
 
         samples = librosa.resample(samples, orig_sr=rate, target_sr=16000)
+    if samples.size == 0 or float(np.sqrt(np.mean(samples**2))) < 0.0025:
+        return ""
     target = Path(model)
     if target.is_dir():
         transcriber = WhisperTranscriber(model_path=target)
     else:
         transcriber = WhisperTranscriber(model)
-    return transcriber.transcribe(samples).text
+    return _clean_transcript(transcriber.transcribe(samples).text)
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -2190,7 +2217,10 @@ def cmd_listen(args: argparse.Namespace) -> int:
                     )
             session = VoiceSession(
                 SoundDeviceSource(),
-                VadSegmenter(EnergyVad()),
+                VadSegmenter(
+                    EnergyVad(hangover_ms=1200),
+                    hangover_ms=500,
+                ),
                 WhisperTranscriber(args.whisper_model),
                 answer=answer,
                 speak=speak,
