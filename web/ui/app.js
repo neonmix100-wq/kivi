@@ -298,7 +298,12 @@ const state = {
     startTs: 0,
     recorder: null,
     chunks: [],
+    pcmChunks: [],
+    audioCtx: null,
+    processor: null,
+    sampleRate: 48000,
     sending: false,
+    finishing: false,
   },
   prefs: {
     autoSpeak: false,
@@ -1779,7 +1784,25 @@ function cleanupMic() {
   state.mic.active = false;
   state.mic.recorder = null;
   state.mic.chunks = [];
+  state.mic.pcmChunks = [];
   stopMicMeter();
+  if (state.mic.processor) {
+    try {
+      state.mic.processor.disconnect();
+    } catch {
+      /* ignore */
+    }
+    state.mic.processor = null;
+  }
+  if (state.mic.audioCtx) {
+    const ctx = state.mic.audioCtx;
+    state.mic.audioCtx = null;
+    try {
+      void ctx.close().catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  }
   if (state.mic.stream) {
     try {
       state.mic.stream.getTracks().forEach((track) => track.stop());
@@ -1801,19 +1824,13 @@ function stopMic() {
   state.mic.want = false;
   state.mic.active = false;
   stopMicMeter();
-  const recorder = state.mic.recorder;
-  if (recorder && recorder.state !== "inactive") {
-    try {
-      recorder.stop();
-      return;
-    } catch {
-      /* fall through to cleanup */
-    }
+  if (state.mic.finishing || state.mic.sending) return;
+  if (wasActive) {
+    void finishMicRecording();
+    return;
   }
   cleanupMic();
-  if (wasActive) {
-    setMicStatus("Микрофон выключен.", "ok");
-  }
+  setMicStatus("Микрофон выключен.", "ok");
 }
 
 function encodeWav(samples, sampleRate) {
@@ -1871,10 +1888,13 @@ async function blobToWav(blob, targetRate = 16000) {
 }
 
 async function finishMicRecording() {
-  const chunks = state.mic.chunks.slice();
-  state.mic.chunks = [];
-  const duration = Date.now() - state.mic.startTs;
-  if (chunks.length === 0 || duration < 350) {
+  if (state.mic.finishing) return;
+  state.mic.finishing = true;
+  const chunks = state.mic.pcmChunks.slice();
+  state.mic.pcmChunks = [];
+  const sampleCount = chunks.reduce((total, chunk) => total + chunk.length, 0);
+  if (chunks.length === 0 || sampleCount < state.mic.sampleRate * 0.25) {
+    state.mic.finishing = false;
     cleanupMic();
     setMicStatus("Слишком короткая запись. Удерживай кнопку и говори.", "error");
     return;
@@ -1883,8 +1903,13 @@ async function finishMicRecording() {
   setMicStatus("Распознаю речь…", "ok");
   setAvatar("thinking");
   try {
-    const blob = new Blob(chunks, { type: chunks[0].type || "audio/webm" });
-    const wav = await blobToWav(blob);
+    const samples = new Float32Array(sampleCount);
+    let offset = 0;
+    for (const chunk of chunks) {
+      samples.set(chunk, offset);
+      offset += chunk.length;
+    }
+    const wav = encodeWav(samples, state.mic.sampleRate);
     const response = await fetch(apiUrl("/transcribe"), {
       method: "POST",
       headers: { "Content-Type": "audio/wav" },
@@ -1896,6 +1921,7 @@ async function finishMicRecording() {
     if (!text) {
       setMicStatus("Речь не распознана. Попробуй ещё раз.", "error");
       setAvatar("idle");
+      cleanupMic();
       return;
     }
     setMicStatus(`Распознано: ${text}`, "ok");
@@ -1904,14 +1930,14 @@ async function finishMicRecording() {
     renderComposer();
     submitComposer();
   } catch (error) {
-    setMicStatus(
-      "Не удалось распознать речь. Проверь микрофон и серверный STT.",
-      "error",
-    );
-    showToast(`Голосовой ввод: ${error.message || error}`, "error");
+    const detail = String((error && error.message) || error || "unknown");
+    console.error("Kivi UI: speech recognition failed", error);
+    setMicStatus(`Не удалось распознать речь: ${detail}`, "error");
+    showToast(`Голосовой ввод: ${detail}`, "error");
     cleanupMic();
     setAvatar("idle");
   } finally {
+    state.mic.finishing = false;
     state.mic.sending = false;
   }
 }
@@ -1948,20 +1974,26 @@ async function startMic() {
     state.mic.active = true;
     state.mic.startTs = Date.now();
     state.mic.chunks = [];
-    if (window.MediaRecorder) {
-      const mime = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/webm"].find(
-        (type) => window.MediaRecorder.isTypeSupported(type),
-      );
-      const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-      recorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) state.mic.chunks.push(event.data);
-      };
-      recorder.onstop = () => {
-        void finishMicRecording();
-      };
-      state.mic.recorder = recorder;
-      recorder.start(200);
-    }
+    state.mic.pcmChunks = [];
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if (!Ctor) throw new Error("WebAudio недоступен");
+    const ctx = new Ctor();
+    const source = ctx.createMediaStreamSource(stream);
+    const processor = ctx.createScriptProcessor(4096, 1, 1);
+    const sink = ctx.createGain();
+    sink.gain.value = 0;
+    processor.onaudioprocess = (event) => {
+      if (!state.mic.active) return;
+      const data = event.inputBuffer.getChannelData(0);
+      state.mic.pcmChunks.push(new Float32Array(data));
+    };
+    source.connect(processor);
+    processor.connect(sink);
+    sink.connect(ctx.destination);
+    if (ctx.state === "suspended") await ctx.resume();
+    state.mic.audioCtx = ctx;
+    state.mic.processor = processor;
+    state.mic.sampleRate = ctx.sampleRate;
     if (els.micBtn) {
       els.micBtn.classList.add("is-active");
       els.micBtn.setAttribute("aria-pressed", "true");
@@ -7705,7 +7737,6 @@ function bindMicControls() {
   button.addEventListener("pointerdown", press);
   button.addEventListener("pointerup", release);
   button.addEventListener("pointercancel", release);
-  button.addEventListener("lostpointercapture", release);
   button.addEventListener("keydown", (event) => {
     if ((event.key === " " || event.key === "Enter") && !event.repeat) {
       event.preventDefault();
@@ -8013,6 +8044,14 @@ function installDebugHook() {
           gallery: state.media.gallery.length,
           model: state.media.model,
           error: state.media.error,
+        },
+        mic: {
+          active: state.mic.active,
+          sending: state.mic.sending,
+          pcmChunks: state.mic.pcmChunks.length,
+          samples: state.mic.pcmChunks.reduce((total, chunk) => total + chunk.length, 0),
+          sampleRate: state.mic.sampleRate,
+          error: els.micStatus ? els.micStatus.textContent : "",
         },
         files: {
           path: state.files.path,
