@@ -194,6 +194,14 @@ const state = {
     searchMatches: [],
     searchTruncated: false,
     searchEpoch: 0,
+    menuOpen: false,
+    menuPath: "",
+    menuType: "",
+    menuRow: null,
+    menuIndex: 0,
+    menuKeyboard: false,
+    // Entry the rename/trash/transfer forms act on; null means "use preview".
+    target: null,
   },
   crm: {
     statusState: "idle",
@@ -2487,6 +2495,35 @@ function fileIcon(kind) {
   return svg;
 }
 
+function filesTarget() {
+  if (state.files.target) return state.files.target;
+  const preview = state.files.preview;
+  if (!preview) return null;
+  return {
+    path: preview.path,
+    name: preview.name || fsName(preview.path),
+    type: "file",
+    loading: preview.loading === true,
+  };
+}
+
+function setFilesTarget(target) {
+  if (!target || !target.path) {
+    state.files.target = null;
+    return;
+  }
+  state.files.target = {
+    path: target.path,
+    name: target.name || fsName(target.path),
+    type: target.type === "dir" ? "dir" : "file",
+  };
+}
+
+function syncFilesTarget() {
+  if (state.files.renameOpen || state.files.trashOpen || state.files.transferOpen) return;
+  state.files.target = null;
+}
+
 function resetFilesWriteForms() {
   state.files.mkdirOpen = false;
   state.files.mkdirError = "";
@@ -2497,6 +2534,7 @@ function resetFilesWriteForms() {
   state.files.transferOpen = false;
   state.files.transferMode = "";
   state.files.transferError = "";
+  state.files.target = null;
   if (els.filesMkdirInput) els.filesMkdirInput.value = "";
   if (els.filesRenameInput) els.filesRenameInput.value = "";
   if (els.filesTrashInput) els.filesTrashInput.value = "";
@@ -2765,6 +2803,7 @@ function closeFilesPreview({ returnFocus = true } = {}) {
   state.files.transferOpen = false;
   state.files.transferMode = "";
   state.files.transferError = "";
+  state.files.target = null;
   if (els.filesTrashInput) els.filesTrashInput.value = "";
   if (els.filesTransferInput) els.filesTransferInput.value = "";
   renderFilesList();
@@ -2918,6 +2957,8 @@ function renderFilesWriteForm() {
 
 function renderFilesList() {
   if (!els.filesList || !els.filesStatus) return;
+  // Rows are rebuilt below: an open menu would point at a detached anchor.
+  if (state.files.menuOpen) closeFilesMenu({ returnFocus: false });
   const fs = state.files;
   const searching = filesSearchActive();
   const loading = searching ? fs.searchState === "loading" : fs.state === "loading";
@@ -3065,6 +3106,9 @@ function renderFilesSearchRow(match) {
             : `Открыть файл ${match.name}, путь ${path}${
                 match.size !== null ? `, ${formatFileSize(match.size)}` : ""
               }`,
+        "aria-haspopup": "menu",
+        "aria-expanded": "false",
+        "aria-controls": "files-menu",
       })
     : el("div", { class: "file-row is-static is-search" });
 
@@ -3112,6 +3156,9 @@ function renderFileRow(entry) {
           entry.type === "dir"
             ? `Открыть папку ${entry.name}`
             : `Открыть файл ${entry.name}${entry.size !== null ? `, ${formatFileSize(entry.size)}` : ""}`,
+        "aria-haspopup": "menu",
+        "aria-expanded": "false",
+        "aria-controls": "files-menu",
       })
     : el("div", { class: "file-row is-static" });
 
@@ -3136,11 +3183,12 @@ function renderFileRow(entry) {
 
 function renderFilesPreview() {
   if (!els.filesPreviewCard) return;
+  // The write forms live outside the preview card now, but they still follow
+  // preview/action state on every preview update.
+  renderFilesActionForms();
   const preview = state.files.preview;
   const open = Boolean(preview);
   const busy = Boolean(state.files.busy);
-  const renaming = state.files.busy === "rename";
-  const trashing = state.files.busy === "trash";
   els.filesPreviewCard.hidden = !open;
   if (els.filesLayout) els.filesLayout.classList.toggle("has-preview", open);
   if (!open) {
@@ -3159,17 +3207,14 @@ function renderFilesPreview() {
       els.filesPreviewError.hidden = true;
       els.filesPreviewError.textContent = "";
     }
-    if (els.filesRenameForm) els.filesRenameForm.hidden = true;
     if (els.filesPreviewRename) {
       els.filesPreviewRename.disabled = true;
       els.filesPreviewRename.setAttribute("aria-expanded", "false");
     }
-    if (els.filesTrashForm) els.filesTrashForm.hidden = true;
     if (els.filesPreviewTrash) {
       els.filesPreviewTrash.disabled = true;
       els.filesPreviewTrash.setAttribute("aria-expanded", "false");
     }
-    if (els.filesTransferForm) els.filesTransferForm.hidden = true;
     if (els.filesTransferCopy) {
       els.filesTransferCopy.disabled = true;
       els.filesTransferCopy.setAttribute("aria-expanded", "false");
@@ -3243,73 +3288,9 @@ function renderFilesPreview() {
     els.filesPreviewTruncated.hidden = !preview.truncated || loading || Boolean(error);
   }
   const renameOpen = state.files.renameOpen;
-  if (els.filesRenameForm) {
-    els.filesRenameForm.hidden = !renameOpen;
-    els.filesRenameForm.setAttribute("aria-busy", renaming ? "true" : "false");
-  }
-  if (els.filesRenameError) {
-    els.filesRenameError.textContent = renameOpen ? state.files.renameError : "";
-    els.filesRenameError.hidden = !renameOpen || !state.files.renameError;
-  }
-  if (els.filesRenameInput) els.filesRenameInput.disabled = renaming;
-  if (els.filesRenameSubmit) {
-    els.filesRenameSubmit.disabled = renaming;
-    els.filesRenameSubmit.textContent = renaming ? "Переименовываю…" : "Переименовать";
-  }
-  if (els.filesRenameCancel) els.filesRenameCancel.disabled = renaming;
   const trashOpen = state.files.trashOpen;
-  if (els.filesTrashForm) {
-    els.filesTrashForm.hidden = !trashOpen;
-    els.filesTrashForm.setAttribute("aria-busy", trashing ? "true" : "false");
-  }
-  if (els.filesTrashName) {
-    els.filesTrashName.textContent = preview.name || fsName(preview.path);
-  }
-  if (els.filesTrashError) {
-    els.filesTrashError.textContent = trashOpen ? state.files.trashError : "";
-    els.filesTrashError.hidden = !trashOpen || !state.files.trashError;
-  }
-  if (els.filesTrashInput) els.filesTrashInput.disabled = trashing;
-  if (els.filesTrashSubmit) {
-    els.filesTrashSubmit.disabled = trashing;
-    els.filesTrashSubmit.textContent = trashing ? "Перемещаю…" : "В корзину";
-  }
-  if (els.filesTrashCancel) els.filesTrashCancel.disabled = trashing;
   const transferOpen = state.files.transferOpen;
   const transferMode = state.files.transferMode === "move" ? "move" : "copy";
-  const transferring = state.files.busy === "transfer";
-  if (els.filesTransferForm) {
-    els.filesTransferForm.hidden = !transferOpen;
-    els.filesTransferForm.setAttribute("aria-busy", transferring ? "true" : "false");
-  }
-  if (els.filesTransferTitle) {
-    els.filesTransferTitle.textContent =
-      transferMode === "move" ? "Переместить файл" : "Копировать файл";
-  }
-  if (els.filesTransferHint) {
-    els.filesTransferHint.textContent =
-      transferMode === "move"
-        ? "Укажите полный путь вместе с новым именем. Файл переедет из текущей папки; " +
-          "существующие элементы не перезаписываются."
-        : "Укажите полный путь вместе с новым именем. Файл останется на месте; " +
-          "существующие элементы не перезаписываются.";
-  }
-  if (els.filesTransferError) {
-    els.filesTransferError.textContent = transferOpen ? state.files.transferError : "";
-    els.filesTransferError.hidden = !transferOpen || !state.files.transferError;
-  }
-  if (els.filesTransferInput) els.filesTransferInput.disabled = transferring;
-  if (els.filesTransferSubmit) {
-    els.filesTransferSubmit.disabled = transferring;
-    els.filesTransferSubmit.textContent = transferring
-      ? transferMode === "move"
-        ? "Перемещаю…"
-        : "Копирую…"
-      : transferMode === "move"
-        ? "Переместить"
-        : "Копировать";
-  }
-  if (els.filesTransferCancel) els.filesTransferCancel.disabled = transferring;
   if (els.filesPreviewRename) {
     els.filesPreviewRename.disabled = loading || busy;
     els.filesPreviewRename.setAttribute("aria-expanded", renameOpen ? "true" : "false");
@@ -3338,6 +3319,89 @@ function renderFilesPreview() {
   }
   if (els.filesPreviewRefresh) els.filesPreviewRefresh.disabled = loading || busy;
   if (els.filesCopyStatus) els.filesCopyStatus.textContent = state.files.copyStatus;
+}
+
+// Rename / trash / transfer forms are shared by the preview actions and by the
+// row context menu. They act on filesTarget(): the explicit menu target first,
+// then the open preview.
+function renderFilesActionForms() {
+  const target = filesTarget();
+  const renameOpen = state.files.renameOpen;
+  const renaming = state.files.busy === "rename";
+  if (els.filesRenameTitle) {
+    els.filesRenameTitle.textContent =
+      target && target.type === "dir" ? "Переименовать папку" : "Переименовать файл";
+  }
+  if (els.filesRenameForm) {
+    els.filesRenameForm.hidden = !renameOpen;
+    els.filesRenameForm.setAttribute("aria-busy", renaming ? "true" : "false");
+  }
+  if (els.filesRenameError) {
+    els.filesRenameError.textContent = renameOpen ? state.files.renameError : "";
+    els.filesRenameError.hidden = !renameOpen || !state.files.renameError;
+  }
+  if (els.filesRenameInput) els.filesRenameInput.disabled = renaming;
+  if (els.filesRenameSubmit) {
+    els.filesRenameSubmit.disabled = renaming || !target;
+    els.filesRenameSubmit.textContent = renaming ? "Переименовываю…" : "Переименовать";
+  }
+  if (els.filesRenameCancel) els.filesRenameCancel.disabled = renaming;
+
+  const trashOpen = state.files.trashOpen;
+  const trashing = state.files.busy === "trash";
+  if (els.filesTrashForm) {
+    els.filesTrashForm.hidden = !trashOpen;
+    els.filesTrashForm.setAttribute("aria-busy", trashing ? "true" : "false");
+  }
+  if (els.filesTrashName) {
+    els.filesTrashName.textContent = target ? target.name : "";
+  }
+  if (els.filesTrashError) {
+    els.filesTrashError.textContent = trashOpen ? state.files.trashError : "";
+    els.filesTrashError.hidden = !trashOpen || !state.files.trashError;
+  }
+  if (els.filesTrashInput) els.filesTrashInput.disabled = trashing;
+  if (els.filesTrashSubmit) {
+    els.filesTrashSubmit.disabled = trashing || !target;
+    els.filesTrashSubmit.textContent = trashing ? "Перемещаю…" : "В корзину";
+  }
+  if (els.filesTrashCancel) els.filesTrashCancel.disabled = trashing;
+
+  const transferOpen = state.files.transferOpen;
+  const transferMode = state.files.transferMode === "move" ? "move" : "copy";
+  const transferring = state.files.busy === "transfer";
+  if (els.filesTransferForm) {
+    els.filesTransferForm.hidden = !transferOpen;
+    els.filesTransferForm.setAttribute("aria-busy", transferring ? "true" : "false");
+  }
+  if (els.filesTransferTitle) {
+    els.filesTransferTitle.textContent =
+      transferMode === "move" ? "Переместить файл" : "Копировать файл";
+  }
+  if (els.filesTransferHint) {
+    els.filesTransferHint.textContent =
+      transferMode === "move"
+        ? "Укажите полный путь вместе с новым именем. Файл переедет из текущей папки; " +
+          "существующие элементы не перезаписываются."
+        : "Укажите полный путь вместе с новым именем. Файл останется на месте; " +
+          "существующие элементы не перезаписываются.";
+  }
+  if (els.filesTransferError) {
+    els.filesTransferError.textContent = transferOpen ? state.files.transferError : "";
+    els.filesTransferError.hidden = !transferOpen || !state.files.transferError;
+  }
+  if (els.filesTransferInput) els.filesTransferInput.disabled = transferring;
+  if (els.filesTransferSubmit) {
+    els.filesTransferSubmit.disabled = transferring || !target;
+    els.filesTransferSubmit.textContent = transferring
+      ? transferMode === "move"
+        ? "Перемещаю…"
+        : "Копирую…"
+      : transferMode === "move"
+        ? "Переместить"
+        : "Копировать";
+  }
+  if (els.filesTransferCancel) els.filesTransferCancel.disabled = transferring;
 }
 
 async function copyTextToClipboard(text) {
@@ -3416,6 +3480,15 @@ function focusFileRow(path) {
   return true;
 }
 
+function revealFilesForm(form) {
+  if (!form) return;
+  try {
+    form.scrollIntoView({ block: "nearest" });
+  } catch {
+    /* scrolling is optional */
+  }
+}
+
 function openFilesMkdirForm() {
   if (state.files.busy || state.files.state === "loading") return;
   // A new folder belongs to the current directory: leave search mode first.
@@ -3457,8 +3530,8 @@ function toggleFilesMkdirForm() {
 }
 
 function openFilesRenameForm() {
-  const preview = state.files.preview;
-  if (!preview || preview.loading || state.files.busy) return;
+  const target = filesTarget();
+  if (!target || target.loading || state.files.busy) return;
   state.files.renameOpen = true;
   state.files.renameError = "";
   state.files.mkdirOpen = false;
@@ -3471,25 +3544,33 @@ function openFilesRenameForm() {
   if (els.filesTrashInput) els.filesTrashInput.value = "";
   if (els.filesTransferInput) els.filesTransferInput.value = "";
   if (els.filesRenameInput) {
-    els.filesRenameInput.value = preview.name || fsName(preview.path);
+    els.filesRenameInput.value = target.name || fsName(target.path);
   }
   renderFilesChrome();
+  revealFilesForm(els.filesRenameForm);
   focusFilesInput(els.filesRenameInput);
 }
 
 function closeFilesRenameForm({ returnFocus = true } = {}) {
   if (!state.files.renameOpen || state.files.busy === "rename") return;
+  const target = filesTarget();
+  const targetPath = target ? target.path : "";
   state.files.renameOpen = false;
   state.files.renameError = "";
   if (els.filesRenameInput) els.filesRenameInput.value = "";
+  syncFilesTarget();
   renderFilesPreview();
-  if (returnFocus && els.filesPreviewRename) {
+  if (!returnFocus) return;
+  if (state.files.preview && els.filesPreviewRename && !els.filesPreviewRename.disabled) {
     try {
       els.filesPreviewRename.focus({ preventScroll: true });
     } catch {
       els.filesPreviewRename.focus();
     }
+    return;
   }
+  if (targetPath && focusFileRow(targetPath)) return;
+  focusFilesList();
 }
 
 function toggleFilesRenameForm() {
@@ -3498,8 +3579,8 @@ function toggleFilesRenameForm() {
 }
 
 function openFilesTrashForm() {
-  const preview = state.files.preview;
-  if (!preview || preview.loading || state.files.busy) return;
+  const target = filesTarget();
+  if (!target || target.loading || state.files.busy) return;
   state.files.trashOpen = true;
   state.files.trashError = "";
   state.files.renameOpen = false;
@@ -3512,22 +3593,30 @@ function openFilesTrashForm() {
   if (els.filesTransferInput) els.filesTransferInput.value = "";
   if (els.filesTrashInput) els.filesTrashInput.value = "";
   renderFilesChrome();
+  revealFilesForm(els.filesTrashForm);
   focusFilesInput(els.filesTrashInput);
 }
 
 function closeFilesTrashForm({ returnFocus = true } = {}) {
   if (!state.files.trashOpen || state.files.busy === "trash") return;
+  const target = filesTarget();
+  const targetPath = target ? target.path : "";
   state.files.trashOpen = false;
   state.files.trashError = "";
   if (els.filesTrashInput) els.filesTrashInput.value = "";
+  syncFilesTarget();
   renderFilesPreview();
-  if (returnFocus && els.filesPreviewTrash) {
+  if (!returnFocus) return;
+  if (state.files.preview && els.filesPreviewTrash && !els.filesPreviewTrash.disabled) {
     try {
       els.filesPreviewTrash.focus({ preventScroll: true });
     } catch {
       els.filesPreviewTrash.focus();
     }
+    return;
   }
+  if (targetPath && focusFileRow(targetPath)) return;
+  focusFilesList();
 }
 
 function toggleFilesTrashForm() {
@@ -3538,12 +3627,12 @@ function toggleFilesTrashForm() {
 async function submitFilesTrash(event) {
   if (event) event.preventDefault();
   if (state.files.busy) return;
-  const preview = state.files.preview;
-  if (!preview) {
+  const target = filesTarget();
+  if (!target) {
     closeFilesTrashForm({ returnFocus: false });
     return;
   }
-  const name = preview.name || fsName(preview.path);
+  const name = target.name || fsName(target.path);
   const typed = els.filesTrashInput ? els.filesTrashInput.value.trim() : "";
   if (!typed) {
     state.files.trashError = `Введите имя «${name}», чтобы подтвердить.`;
@@ -3565,7 +3654,7 @@ async function submitFilesTrash(event) {
   try {
     await apiRequest("/fs/trash", {
       method: "POST",
-      body: { path: preview.path, confirm: typed },
+      body: { path: target.path, confirm: typed },
       timeout: 20000,
     });
     trashed = true;
@@ -3585,6 +3674,7 @@ async function submitFilesTrash(event) {
     state.files.trashError = describeFsWriteError(error, "перемещение в корзину");
   } finally {
     state.files.busy = "";
+    syncFilesTarget();
     renderFilesChrome();
     if (!trashed && state.files.trashOpen) {
       focusFilesInput(els.filesTrashInput);
@@ -3637,12 +3727,12 @@ async function submitFilesMkdir(event) {
 async function submitFilesRename(event) {
   if (event) event.preventDefault();
   if (state.files.busy) return;
-  const preview = state.files.preview;
-  if (!preview) {
+  const target = filesTarget();
+  if (!target) {
     closeFilesRenameForm({ returnFocus: false });
     return;
   }
-  const currentName = preview.name || fsName(preview.path);
+  const currentName = target.name || fsName(target.path);
   const check = validateFsName(
     els.filesRenameInput ? els.filesRenameInput.value : "",
     "новое имя",
@@ -3659,12 +3749,14 @@ async function submitFilesRename(event) {
     focusFilesInput(els.filesRenameInput);
     return;
   }
-  const source = preview.path;
+  const source = target.path;
   const destination = fsJoin(fsParent(source) || ".", check.name);
   state.files.busy = "rename";
   state.files.renameError = "";
   renderFilesChrome();
   let renamed = false;
+  let renamedPath = "";
+  let focusHandled = false;
   try {
     const data = await apiRequest("/fs/rename", {
       method: "POST",
@@ -3677,6 +3769,7 @@ async function submitFilesRename(event) {
         : destination;
     state.files.renameOpen = false;
     renamed = true;
+    renamedPath = resolved;
     showToast(`Переименовано: ${currentName} → ${fsName(resolved)}`, "ok");
     await loadFiles(state.files.path, { force: true });
     // Keep search results accurate after a rename.
@@ -3685,21 +3778,26 @@ async function submitFilesRename(event) {
     }
     if (state.files.preview && state.files.preview.path === source) {
       await loadFilesPreview(resolved, fileRow(resolved));
+      focusHandled = true;
     }
   } catch (error) {
     state.files.renameError = describeFsWriteError(error, "переименование файла");
   } finally {
     state.files.busy = "";
+    syncFilesTarget();
     renderFilesChrome();
     if (!renamed && state.files.renameOpen) {
       focusFilesInput(els.filesRenameInput);
+    } else if (renamed && !focusHandled) {
+      // No preview followed the rename: keep the renamed row reachable.
+      if (!focusFileRow(renamedPath)) focusFilesList();
     }
   }
 }
 
 function openFilesTransferForm(mode) {
-  const preview = state.files.preview;
-  if (!preview || preview.loading || state.files.busy) return;
+  const target = filesTarget();
+  if (!target || target.loading || state.files.busy) return;
   const transferMode = mode === "move" ? "move" : "copy";
   const previousValue =
     state.files.transferOpen && els.filesTransferInput ? els.filesTransferInput.value : "";
@@ -3712,28 +3810,36 @@ function openFilesTransferForm(mode) {
   state.files.trashError = "";
   if (els.filesTrashInput) els.filesTrashInput.value = "";
   if (els.filesTransferInput) {
-    els.filesTransferInput.value = previousValue || preview.path || "";
+    els.filesTransferInput.value = previousValue || target.path || "";
   }
   renderFilesChrome();
+  revealFilesForm(els.filesTransferForm);
   focusFilesInput(els.filesTransferInput);
 }
 
 function closeFilesTransferForm({ returnFocus = true } = {}) {
   if (!state.files.transferOpen || state.files.busy === "transfer") return;
+  const target = filesTarget();
+  const targetPath = target ? target.path : "";
   const mode = state.files.transferMode;
   state.files.transferOpen = false;
   state.files.transferMode = "";
   state.files.transferError = "";
   if (els.filesTransferInput) els.filesTransferInput.value = "";
+  syncFilesTarget();
   renderFilesPreview();
   if (!returnFocus) return;
-  const target = mode === "move" ? els.filesTransferMove : els.filesTransferCopy;
-  if (!target) return;
-  try {
-    target.focus({ preventScroll: true });
-  } catch {
-    target.focus();
+  const trigger = mode === "move" ? els.filesTransferMove : els.filesTransferCopy;
+  if (state.files.preview && trigger && !trigger.disabled) {
+    try {
+      trigger.focus({ preventScroll: true });
+    } catch {
+      trigger.focus();
+    }
+    return;
   }
+  if (targetPath && focusFileRow(targetPath)) return;
+  focusFilesList();
 }
 
 function toggleFilesTransferForm(mode) {
@@ -3747,13 +3853,13 @@ function toggleFilesTransferForm(mode) {
 async function submitFilesTransfer(event) {
   if (event) event.preventDefault();
   if (state.files.busy) return;
-  const preview = state.files.preview;
-  if (!preview) {
+  const target = filesTarget();
+  if (!target) {
     closeFilesTransferForm({ returnFocus: false });
     return;
   }
   const mode = state.files.transferMode === "move" ? "move" : "copy";
-  const source = preview.path;
+  const source = target.path;
   const check = validateFsDestination(
     els.filesTransferInput ? els.filesTransferInput.value : "",
     source,
@@ -3765,12 +3871,14 @@ async function submitFilesTransfer(event) {
     return;
   }
   const destination = check.path;
-  const name = preview.name || fsName(source);
+  const name = target.name || fsName(source);
   const endpoint = mode === "move" ? "/fs/move" : "/fs/copy";
   state.files.busy = "transfer";
   state.files.transferError = "";
   renderFilesChrome();
   let transferred = false;
+  let transferredPath = "";
+  let focusHandled = false;
   try {
     const data = await apiRequest(endpoint, {
       method: "POST",
@@ -3785,6 +3893,7 @@ async function submitFilesTransfer(event) {
     state.files.transferMode = "";
     if (els.filesTransferInput) els.filesTransferInput.value = "";
     transferred = true;
+    transferredPath = resolved;
     showToast(
       mode === "move"
         ? `Перемещено: ${name} → ${resolved}`
@@ -3799,26 +3908,48 @@ async function submitFilesTransfer(event) {
     if (mode === "move" && state.files.preview && state.files.preview.path === source) {
       // Follow the moved file so the preview does not point at a missing path.
       await loadFilesPreview(resolved, fileRow(resolved));
+      focusHandled = true;
     } else if (state.files.preview) {
       focusFilesPreview();
+      focusHandled = true;
     }
   } catch (error) {
     state.files.transferError = describeFilesTransferError(error, mode);
   } finally {
     state.files.busy = "";
+    syncFilesTarget();
     renderFilesChrome();
     if (!transferred && state.files.transferOpen) {
       focusFilesInput(els.filesTransferInput);
+    } else if (transferred && !focusHandled) {
+      // No preview to follow: keep the result keyboard-reachable.
+      if (mode === "copy" && transferredPath) {
+        if (!focusFileRow(transferredPath)) focusFilesList();
+      } else {
+        focusFilesList();
+      }
     }
   }
 }
 
 function onFilesListKeydown(event) {
-  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
   if (!els.filesList) return;
   const rows = Array.from(els.filesList.querySelectorAll("button.file-row"));
   if (!rows.length) return;
   const current = rows.indexOf(document.activeElement);
+  // Shift+F10, the ContextMenu key and its legacy "Apps" alias open the row
+  // menu anchored to the focused row.
+  if (
+    event.key === "ContextMenu" ||
+    event.key === "Apps" ||
+    (event.key === "F10" && event.shiftKey)
+  ) {
+    if (current === -1) return;
+    event.preventDefault();
+    openFilesMenuForRow(rows[current], { keyboard: true });
+    return;
+  }
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
   if (current === -1) return;
   let next = current;
   if (event.key === "ArrowDown") next = Math.min(rows.length - 1, current + 1);
@@ -3832,6 +3963,335 @@ function onFilesListKeydown(event) {
   } catch {
     rows[next].focus();
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Files context menu (right click / Shift+F10 / ContextMenu key)      */
+/* ------------------------------------------------------------------ */
+
+const FILES_MENU_MARGIN = 8;
+const FILES_MENU_LABELS = Object.freeze({
+  open: "Открыть",
+  preview: "Открыть/предпросмотр",
+  copy: "Копировать",
+  move: "Переместить",
+  rename: "Переименовать",
+  trash: "В корзину",
+  path: "Копировать путь",
+});
+
+function filesMenuItemsFor(type) {
+  const busy = Boolean(state.files.busy);
+  if (type === "dir") {
+    return [
+      { action: "open", label: FILES_MENU_LABELS.open },
+      { action: "rename", label: FILES_MENU_LABELS.rename, disabled: busy },
+      { action: "trash", label: FILES_MENU_LABELS.trash, danger: true, disabled: busy },
+      { action: "path", label: FILES_MENU_LABELS.path, separatorBefore: true },
+    ];
+  }
+  return [
+    { action: "open", label: FILES_MENU_LABELS.preview },
+    { action: "copy", label: FILES_MENU_LABELS.copy, disabled: busy },
+    { action: "move", label: FILES_MENU_LABELS.move, disabled: busy },
+    { action: "rename", label: FILES_MENU_LABELS.rename, disabled: busy },
+    { action: "trash", label: FILES_MENU_LABELS.trash, danger: true, disabled: busy },
+    { action: "path", label: FILES_MENU_LABELS.path, separatorBefore: true },
+  ];
+}
+
+function filesMenuButtons() {
+  if (!els.filesMenu) return [];
+  return Array.from(els.filesMenu.querySelectorAll("button[data-fs-menu-action]:not(:disabled)"));
+}
+
+function focusFilesMenuItem(index) {
+  const buttons = filesMenuButtons();
+  if (!buttons.length) return;
+  const safe = ((index % buttons.length) + buttons.length) % buttons.length;
+  state.files.menuIndex = safe;
+  const button = buttons[safe];
+  try {
+    button.focus({ preventScroll: true });
+  } catch {
+    button.focus();
+  }
+}
+
+function renderFilesMenuItems(items) {
+  const menu = els.filesMenu;
+  if (!menu) return;
+  menu.replaceChildren();
+  for (const item of items) {
+    if (item.separatorBefore) {
+      menu.append(el("div", { class: "files-menu-sep", role: "separator" }));
+    }
+    menu.append(
+      el("button", {
+        type: "button",
+        class: `files-menu-item${item.danger ? " is-danger" : ""}`,
+        role: "menuitem",
+        tabindex: "-1",
+        "data-fs-menu-action": item.action,
+        disabled: item.disabled ? true : null,
+      }, el("span", { text: item.label })),
+    );
+  }
+}
+
+function positionFilesMenu(x, y, row, keyboard) {
+  const menu = els.filesMenu;
+  if (!menu) return;
+  const viewportW = window.innerWidth;
+  const viewportH = window.innerHeight;
+  // Cap the height before measuring so a long menu cannot push itself offscreen.
+  menu.style.maxHeight = `${Math.max(120, viewportH - FILES_MENU_MARGIN * 2)}px`;
+  const rect = menu.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+  let left;
+  let top;
+  if (keyboard || !Number.isFinite(x) || !Number.isFinite(y)) {
+    const rowRect = row ? row.getBoundingClientRect() : null;
+    left = rowRect ? rowRect.left : FILES_MENU_MARGIN;
+    if (rowRect) {
+      const spaceBelow = viewportH - rowRect.bottom;
+      // Flip above the row when the menu would overflow the bottom edge.
+      top =
+        spaceBelow >= height + FILES_MENU_MARGIN
+          ? rowRect.bottom + 4
+          : Math.max(FILES_MENU_MARGIN, rowRect.top - height - 4);
+    } else {
+      top = FILES_MENU_MARGIN;
+    }
+  } else {
+    left = x;
+    top = y;
+    // Flip to the opposite side of the pointer, then clamp to the viewport.
+    if (left + width > viewportW - FILES_MENU_MARGIN) left = x - width;
+    if (top + height > viewportH - FILES_MENU_MARGIN) top = y - height;
+  }
+  left = Math.max(FILES_MENU_MARGIN, Math.min(left, viewportW - FILES_MENU_MARGIN - width));
+  top = Math.max(FILES_MENU_MARGIN, Math.min(top, viewportH - FILES_MENU_MARGIN - height));
+  menu.style.left = `${Math.round(left)}px`;
+  menu.style.top = `${Math.round(top)}px`;
+}
+
+function openFilesMenu({ row, path, type, x, y, keyboard = false }) {
+  const menu = els.filesMenu;
+  if (!menu || !path) return;
+  closeFilesMenu({ returnFocus: false });
+  const menuType = type === "dir" ? "dir" : "file";
+  const name = fsName(path);
+  state.files.menuOpen = true;
+  state.files.menuRow = row || null;
+  state.files.menuPath = path;
+  state.files.menuType = menuType;
+  state.files.menuKeyboard = Boolean(keyboard);
+  state.files.menuIndex = 0;
+  renderFilesMenuItems(filesMenuItemsFor(menuType));
+  menu.setAttribute(
+    "aria-label",
+    `${menuType === "dir" ? "Действия с папкой" : "Действия с файлом"} ${
+      name ? name.slice(0, 120) : path.slice(0, 120)
+    }`,
+  );
+  menu.hidden = false;
+  positionFilesMenu(x, y, row, keyboard);
+  if (row && row.isConnected) {
+    row.setAttribute("aria-expanded", "true");
+    row.classList.add("is-menu-open");
+  }
+  focusFilesMenuItem(0);
+}
+
+function closeFilesMenu({ returnFocus = false } = {}) {
+  const menu = els.filesMenu;
+  if (!menu || !state.files.menuOpen) return;
+  const row = state.files.menuRow;
+  const path = state.files.menuPath;
+  state.files.menuOpen = false;
+  state.files.menuRow = null;
+  state.files.menuPath = "";
+  state.files.menuType = "";
+  state.files.menuIndex = 0;
+  state.files.menuKeyboard = false;
+  menu.hidden = true;
+  menu.replaceChildren();
+  menu.style.left = "";
+  menu.style.top = "";
+  menu.style.maxHeight = "";
+  if (row && row.isConnected) {
+    row.setAttribute("aria-expanded", "false");
+    row.classList.remove("is-menu-open");
+  }
+  if (!returnFocus) return;
+  const targetRow = row && row.isConnected ? row : path ? fileRow(path) : null;
+  if (!targetRow) return;
+  try {
+    targetRow.focus({ preventScroll: true });
+  } catch {
+    targetRow.focus();
+  }
+}
+
+function openFilesMenuForRow(row, { keyboard = false, x = NaN, y = NaN } = {}) {
+  if (!row || !row.dataset) return;
+  const path = row.dataset.fsPath || "";
+  const type = row.dataset.fsType === "dir" ? "dir" : row.dataset.fsType === "file" ? "file" : "";
+  if (!path || !type) return;
+  openFilesMenu({ row, path, type, x, y, keyboard });
+}
+
+function onFilesListContextMenu(event) {
+  if (!els.filesList) return;
+  const row =
+    event.target instanceof Element ? event.target.closest("button.file-row") : null;
+  if (!row || !els.filesList.contains(row)) return;
+  event.preventDefault();
+  openFilesMenuForRow(row, { x: event.clientX, y: event.clientY });
+}
+
+async function copyFilesPath(path) {
+  const value = normalizeFsPath(path);
+  if (!value) return;
+  try {
+    await copyTextToClipboard(value);
+    showToast(`Путь скопирован: ${value}`, "ok");
+  } catch {
+    showToast("Не удалось скопировать путь: буфер обмена недоступен.", "error");
+  }
+}
+
+function activateFilesMenuItem(action) {
+  const path = state.files.menuPath;
+  const type = state.files.menuType;
+  if (!path || !type) {
+    closeFilesMenu({ returnFocus: false });
+    return;
+  }
+  const keyboard = state.files.menuKeyboard;
+  closeFilesMenu({ returnFocus: keyboard });
+  const target = { path, name: fsName(path), type };
+  switch (action) {
+    case "open":
+      if (type === "dir") {
+        if (filesSearchActive()) clearFilesSearch({ render: false });
+        void loadFiles(path, { focus: true });
+      } else {
+        void loadFilesPreview(path, fileRow(path));
+      }
+      break;
+    case "copy":
+    case "move": {
+      if (state.files.busy) break;
+      setFilesTarget(target);
+      openFilesTransferForm(action);
+      syncFilesTarget();
+      break;
+    }
+    case "rename": {
+      if (state.files.busy) break;
+      setFilesTarget(target);
+      openFilesRenameForm();
+      syncFilesTarget();
+      break;
+    }
+    case "trash": {
+      if (state.files.busy) break;
+      setFilesTarget(target);
+      openFilesTrashForm();
+      syncFilesTarget();
+      break;
+    }
+    case "path":
+      void copyFilesPath(path);
+      break;
+    default:
+      break;
+  }
+}
+
+function onFilesMenuItemClick(event) {
+  if (!(event.target instanceof Element)) return;
+  const button = event.target.closest("button[data-fs-menu-action]");
+  if (!button || !els.filesMenu || !els.filesMenu.contains(button)) return;
+  event.preventDefault();
+  activateFilesMenuItem(button.dataset.fsMenuAction || "");
+}
+
+function onFilesMenuKeydown(event) {
+  if (!state.files.menuOpen) return;
+  const buttons = filesMenuButtons();
+  const current = buttons.indexOf(document.activeElement);
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    focusFilesMenuItem(current + 1);
+    return;
+  }
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    focusFilesMenuItem(current - 1);
+    return;
+  }
+  if (event.key === "Home") {
+    event.preventDefault();
+    focusFilesMenuItem(0);
+    return;
+  }
+  if (event.key === "End") {
+    event.preventDefault();
+    focusFilesMenuItem(buttons.length - 1);
+    return;
+  }
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    if (current !== -1) {
+      activateFilesMenuItem(buttons[current].dataset.fsMenuAction || "");
+    } else {
+      closeFilesMenu({ returnFocus: true });
+    }
+    return;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    closeFilesMenu({ returnFocus: true });
+    return;
+  }
+  if (event.key === "Tab") {
+    // Let Tab move focus; just dismiss the menu.
+    closeFilesMenu({ returnFocus: false });
+  }
+}
+
+function onFilesMenuPointerDown(event) {
+  if (!state.files.menuOpen) return;
+  if (
+    event.target instanceof Element &&
+    els.filesMenu &&
+    els.filesMenu.contains(event.target)
+  ) {
+    return;
+  }
+  closeFilesMenu({ returnFocus: false });
+}
+
+function onFilesMenuScroll(event) {
+  if (!state.files.menuOpen) return;
+  if (
+    event &&
+    event.target instanceof Element &&
+    els.filesMenu &&
+    els.filesMenu.contains(event.target)
+  ) {
+    return;
+  }
+  closeFilesMenu({ returnFocus: false });
+}
+
+function onFilesMenuResize() {
+  if (state.files.menuOpen) closeFilesMenu({ returnFocus: false });
 }
 
 /* ------------------------------------------------------------------ */
@@ -5907,6 +6367,7 @@ function updateViewHeader() {
 
 function setView(name, { focus = true } = {}) {
   if (!VIEWS.has(name)) return;
+  closeFilesMenu({ returnFocus: false });
   state.view = name;
   document.querySelectorAll("[data-view]").forEach((section) => {
     section.hidden = section.dataset.view !== name;
@@ -6031,6 +6492,11 @@ function onComposerKeydown(event) {
 
 function onGlobalKeydown(event) {
   if (event.key !== "Escape") return;
+  if (state.files.menuOpen) {
+    event.preventDefault();
+    closeFilesMenu({ returnFocus: true });
+    return;
+  }
   const searchFocused =
     Boolean(els.filesSearchForm) && els.filesSearchForm.contains(document.activeElement);
   if (
@@ -6225,6 +6691,11 @@ function bindEvents() {
       void loadFiles(parent, { focus: true });
     });
     els.filesList.addEventListener("keydown", onFilesListKeydown);
+    els.filesList.addEventListener("contextmenu", onFilesListContextMenu);
+    if (els.filesMenu) {
+      els.filesMenu.addEventListener("click", onFilesMenuItemClick);
+      els.filesMenu.addEventListener("keydown", onFilesMenuKeydown);
+    }
     els.filesPreviewClose.addEventListener("click", () => closeFilesPreview());
     els.filesPreviewRefresh.addEventListener("click", () => {
       const preview = state.files.preview;
@@ -6257,6 +6728,9 @@ function bindEvents() {
       renderFilesPreview();
     });
   }
+  document.addEventListener("pointerdown", onFilesMenuPointerDown, true);
+  window.addEventListener("scroll", onFilesMenuScroll, true);
+  window.addEventListener("resize", onFilesMenuResize);
   if (els.crmCheck) {
     els.crmCheck.addEventListener("click", () => void loadCrmStatus({ force: true }));
     els.crmRead.addEventListener("click", () => void readCrmOrder());
@@ -6393,6 +6867,9 @@ function installDebugHook() {
           trashOpen: state.files.trashOpen,
           transferOpen: state.files.transferOpen,
           transferMode: state.files.transferMode,
+          menuOpen: state.files.menuOpen,
+          menuPath: state.files.menuPath || null,
+          target: state.files.target ? state.files.target.path : null,
           searchQuery: state.files.searchQuery,
           searchState: state.files.searchState,
           searchMatches: state.files.searchMatches.length,
@@ -6559,6 +7036,7 @@ function cacheDom() {
     filesListTitle: $id("files-list-title"),
     filesStatus: $id("files-status"),
     filesList: $id("files-list"),
+    filesMenu: $id("files-menu"),
     filesEmpty: $id("files-empty"),
     filesNote: $id("files-note"),
     filesCount: $id("files-count"),
@@ -6577,6 +7055,7 @@ function cacheDom() {
     filesPreviewRefresh: $id("files-preview-refresh"),
     filesPreviewRename: $id("files-preview-rename"),
     filesRenameForm: $id("files-rename-form"),
+    filesRenameTitle: $id("files-rename-form-title"),
     filesRenameInput: $id("files-rename-input"),
     filesRenameSubmit: $id("files-rename-submit"),
     filesRenameCancel: $id("files-rename-cancel"),
