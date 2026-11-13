@@ -107,6 +107,7 @@ def build_registry(
     )
     from kivi.tools.telegram import build_telegram_tools
     from kivi.tools.ui import UiClickTool, UiFindTool, UiHotkeyTool, UiTypeTool
+    from kivi.tools.video import MediaVideoTool
     from kivi.tools.windows import (
         AppLaunchTool,
         AppTerminateTool,
@@ -170,6 +171,7 @@ def build_registry(
         *build_telegram_tools(),
         *build_crm_tools(crm_factory),
         MediaImageTool(),
+        MediaVideoTool(),
         SdxlTool(),
     ):
         registry.register(tool)

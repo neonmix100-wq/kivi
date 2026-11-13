@@ -49,6 +49,7 @@ FsTrashHandler = Callable[[str], dict[str, Any]]
 FsSearchHandler = Callable[[str], dict[str, Any]]
 CrmStatusHandler = Callable[[], dict[str, Any]]
 CrmReadHandler = Callable[[], dict[str, Any]]
+CrmWriteHandler = Callable[[dict[str, Any]], dict[str, Any]]
 SettingsUpdateHandler = Callable[[dict[str, Any]], dict[str, Any]]
 HistoryHandler = Callable[[int], list[dict[str, Any]]]
 VoicesHandler = Callable[[], list[dict[str, Any]]]
@@ -60,6 +61,20 @@ _STATIC_FILES = {
     "/index.html": ("index.html", "text/html; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+}
+
+_JSON_POST_PATHS = {
+    "/chat",
+    "/tts",
+    "/voices/active",
+    "/settings",
+    "/media/image",
+    "/fs/mkdir",
+    "/fs/rename",
+    "/fs/trash",
+    "/crm/fill",
+    "/crm/act",
+    "/crm/task",
 }
 
 
@@ -110,6 +125,9 @@ class LocalApi:
         fs_search_handler: FsSearchHandler | None = None,
         crm_status_handler: CrmStatusHandler | None = None,
         crm_read_handler: CrmReadHandler | None = None,
+        crm_fill_handler: CrmWriteHandler | None = None,
+        crm_act_handler: CrmWriteHandler | None = None,
+        crm_task_handler: CrmWriteHandler | None = None,
         settings_update_handler: SettingsUpdateHandler | None = None,
         history_handler: HistoryHandler | None = None,
         voices_handler: VoicesHandler | None = None,
@@ -128,6 +146,7 @@ class LocalApi:
 
         self._handler = handler
         self._host = host
+        self._allow_remote = allow_remote
         self._port = port
         self._static_dir = Path(static_dir).resolve() if static_dir is not None else None
         self._docs_dir = Path(docs_dir).resolve() if docs_dir is not None else None
@@ -142,6 +161,9 @@ class LocalApi:
         self._fs_search_handler = fs_search_handler
         self._crm_status_handler = crm_status_handler
         self._crm_read_handler = crm_read_handler
+        self._crm_fill_handler = crm_fill_handler
+        self._crm_act_handler = crm_act_handler
+        self._crm_task_handler = crm_task_handler
         self._settings_update_handler = settings_update_handler
         self._history_handler = history_handler
         self._voices_handler = voices_handler
@@ -297,6 +319,8 @@ class _ApiHandler(BaseHTTPRequestHandler):
     def _dispatch(self, method: str) -> None:
         split = urlsplit(self.path)
         path = split.path
+        if not self._request_allowed(method, path):
+            return
         if method == "GET" and path == "/health":
             self._send_json(200, {"status": "ok", "version": __version__})
         elif method == "POST" and path == "/chat":
@@ -327,6 +351,12 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._handle_crm_status()
         elif method == "GET" and path == "/crm/read":
             self._handle_crm_read()
+        elif method == "POST" and path == "/crm/fill":
+            self._handle_crm_write("/crm/fill")
+        elif method == "POST" and path == "/crm/act":
+            self._handle_crm_write("/crm/act")
+        elif method == "POST" and path == "/crm/task":
+            self._handle_crm_write("/crm/task")
         elif method == "GET" and path == "/history":
             self._handle_history(split.query)
         elif method == "GET" and path == "/voices":
@@ -368,6 +398,42 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "internal error"})
             return
         self._send_json(200, {"answer": answer, "task_id": task_id})
+
+    def _request_allowed(self, method: str, path: str) -> bool:
+        host = self.headers.get("Host", "")
+        try:
+            host_name = urlsplit(f"//{host}").hostname or ""
+        except ValueError:
+            host_name = ""
+        if not _is_loopback(host_name):
+            remote_ok = bool(getattr(self.server.api, "_allow_remote", False))
+            if not remote_ok:
+                self._send_json(403, {"error": "forbidden host"})
+                return False
+        origin = self.headers.get("Origin")
+        if origin:
+            try:
+                parsed = urlsplit(origin)
+                origin_host = parsed.hostname or ""
+                origin_ok = parsed.scheme in {"http", "https"} and (
+                    _is_loopback(origin_host) or origin_host == host_name
+                )
+            except ValueError:
+                origin_ok = False
+            if not origin_ok:
+                self._send_json(403, {"error": "forbidden origin"})
+                return False
+        if method == "POST" and path in _JSON_POST_PATHS:
+            content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
+            if content_type.lower() != "application/json":
+                self._send_json(415, {"error": "application/json required"})
+                return False
+        if method == "POST" and path == "/transcribe":
+            content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
+            if content_type.lower() != "audio/wav":
+                self._send_json(415, {"error": "audio/wav required"})
+                return False
+        return True
 
     def _serve_static(self, path: str) -> None:
         api = self.server.api
@@ -533,8 +599,8 @@ class _ApiHandler(BaseHTTPRequestHandler):
             return
         try:
             result = api._fs_mkdir_handler(path.strip())
-        except Exception as exc:  # noqa: BLE001 - no internals to the client
-            self._send_json(400, {"error": str(exc)[:300] or "cannot create directory"})
+        except Exception:  # noqa: BLE001 - no internals to the client
+            self._send_json(400, {"error": "cannot create directory"})
             return
         self._send_json(200, result)
 
@@ -556,8 +622,8 @@ class _ApiHandler(BaseHTTPRequestHandler):
             return
         try:
             result = api._fs_rename_handler(source.strip(), destination.strip())
-        except Exception as exc:  # noqa: BLE001 - no internals to the client
-            self._send_json(400, {"error": str(exc)[:300] or "cannot rename"})
+        except Exception:  # noqa: BLE001 - no internals to the client
+            self._send_json(400, {"error": "cannot rename"})
             return
         self._send_json(200, result)
 
@@ -581,8 +647,30 @@ class _ApiHandler(BaseHTTPRequestHandler):
             return
         try:
             result = api._fs_trash_handler(clean)
-        except Exception as exc:  # noqa: BLE001 - no internals to the client
-            self._send_json(400, {"error": str(exc)[:300] or "cannot trash"})
+        except Exception:  # noqa: BLE001 - no internals to the client
+            self._send_json(400, {"error": "cannot trash"})
+            return
+        self._send_json(200, result)
+
+    def _handle_crm_write(self, path: str) -> None:
+        api = self.server.api
+        handlers = {
+            "/crm/fill": api._crm_fill_handler,
+            "/crm/act": api._crm_act_handler,
+            "/crm/task": api._crm_task_handler,
+        }
+        handler = handlers[path]
+        if handler is None:
+            self._send_json(503, {"error": "crm write is not configured"})
+            return
+        payload = self._read_json_object()
+        if payload is None:
+            return
+        try:
+            result = handler(payload)
+        except Exception:  # noqa: BLE001 - no internals to the client
+            logger.warning("crm write failed")
+            self._send_json(400, {"error": "crm action failed"})
             return
         self._send_json(200, result)
 
@@ -754,6 +842,7 @@ class _ApiHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
         if getattr(self, "command", None) != "HEAD":

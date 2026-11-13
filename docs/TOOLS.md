@@ -127,6 +127,7 @@ elevated broker; до тех пор R2 — обязательный барьер
 | `crm.task` | R2 | `crm.write` | форма задачи; создание задачи вручную |
 | `media.image` | R1 | `media.generate` | бесплатный Pollinations (flux/turbo), prompt 1..500, PNG/JPEG/WebP в `data/media` |
 | `media.sdxl` | R1 | `media.generate` | локальный SDXL через SD WebUI API, только loopback, 512–1024 |
+| `media.video` | R1 | `media.generate` | локальный MP4 из AI-кадра, 2–8 с, без видео-ключа |
 
 `http.get` дополнительно проверяет `security.blocked_hosts` из
 `config/kivi.yaml` (точное имя или glob, например `*.tracker.example`).

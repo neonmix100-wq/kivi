@@ -9,11 +9,18 @@ from __future__ import annotations
 
 import threading
 import tomllib
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from kivi.integrations.extension_bridge import BridgeError, ExtensionBridge
-from kivi.modules.work_crm.altcrm import AltCrmError, FieldResult, OrderInfo
+from kivi.modules.work_crm.altcrm import (
+    AltCrmError,
+    FieldResult,
+    OrderInfo,
+    format_due,
+    parse_when,
+)
 
 DEFAULT_TOKEN_FILE = Path("D:/ai-agent/data/bridge_token.txt")
 DEFAULT_SELECTORS = Path("config/crm-selectors.toml")
@@ -92,7 +99,7 @@ class ExtensionCrmClient:
 
     def _payload(self) -> dict[str, Any]:
         assert self._selectors is not None
-        return {"sel": self._selectors, "click_edit": False}
+        return {"sel": self._selectors, "click_edit": True}
 
     def read_order(self) -> OrderInfo:
         bridge = self._ensure()
@@ -125,7 +132,15 @@ class ExtensionCrmClient:
 
     def add_work_rows(self, rows: list[dict[str, Any]]) -> list[FieldResult]:
         bridge = self._ensure()
-        payload = {**self._payload(), "rows": rows}
+        mapped = [
+            {
+                "name": str(row.get("name", "")),
+                "price_rub": int(row.get("price", 0) or 0),
+                "warranty_days": int(row.get("warranty", 0) or 0),
+            }
+            for row in rows
+        ]
+        payload = {**self._payload(), "rows": mapped}
         try:
             data = bridge.request("add_work_rows", payload, timeout=60)
         except BridgeError as exc:
@@ -134,7 +149,22 @@ class ExtensionCrmClient:
 
     def create_task(self, comment: str, when_text: str = "") -> list[FieldResult]:
         bridge = self._ensure()
-        payload = {**self._payload(), "comment": comment, "when_text": when_text}
+        due_text = ""
+        due_error = ""
+        if when_text.strip():
+            target = parse_when(when_text, datetime.now())
+            if target is None:
+                due_error = (
+                    f"не понял срок «{when_text}» — оставлен срок CRM по умолчанию"
+                )
+            else:
+                due_text = format_due(target)
+        payload = {
+            **self._payload(),
+            "comment": comment,
+            "due_text": due_text,
+            "due_error": due_error,
+        }
         try:
             data = bridge.request("create_task", payload, timeout=60)
         except BridgeError as exc:

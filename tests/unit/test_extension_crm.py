@@ -19,6 +19,7 @@ class FakeBridge:
         return True
 
     def request(self, action, payload, timeout=30):
+        self.last = (action, payload)
         if action == "read_order":
             return {
                 "url": "https://gs-leads.ru/devices/order/1",
@@ -29,6 +30,10 @@ class FakeBridge:
             }
         if action == "fill_order":
             return [{"field": "deadline", "ok": True}]
+        if action == "add_work_rows":
+            return [{"field": "работа", "ok": True}]
+        if action == "create_task":
+            return [{"field": "окно задачи", "ok": True}]
         raise AssertionError(action)
 
     def stop(self) -> None:
@@ -68,6 +73,29 @@ def test_extension_fill_results(tmp_path: Path, monkeypatch) -> None:
     results = client.fill_order("комментарий", {"deadline": "завтра"})
     assert results[0].field == "deadline"
     assert results[0].ok is True
+
+
+def test_extension_act_and_task_payloads(tmp_path: Path, monkeypatch) -> None:
+    client, bridge = make_client(tmp_path, monkeypatch)
+    client.add_work_rows([{"name": "Пайка", "price": 1500, "warranty": 30}])
+    assert bridge.last == (
+        "add_work_rows",
+        {
+            "sel": bridge.last[1]["sel"],
+            "click_edit": True,
+            "rows": [{"name": "Пайка", "price_rub": 1500, "warranty_days": 30}],
+        },
+    )
+    client.create_task("Позвонить", "завтра")
+    action, payload = bridge.last
+    assert action == "create_task"
+    assert payload["click_edit"] is True
+    assert payload["due_text"]
+    assert payload["due_error"] == ""
+    client.create_task("Позвонить", "непонятно когда")
+    _, payload = bridge.last
+    assert payload["due_text"] == ""
+    assert "не понял срок" in payload["due_error"]
 
 
 def test_extension_rejects_missing_token(tmp_path: Path) -> None:

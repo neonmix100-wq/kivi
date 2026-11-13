@@ -71,6 +71,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe voice add --file my_voice.wav --name my-voice --consent --transcript "Привет, это Киви."
 .venv\Scripts\kivi.exe media image "kivi portrait" --width 1024
 .venv\Scripts\kivi.exe media sdxl "kivi portrait" --width 1024
+.venv\Scripts\kivi.exe media video "kivi portrait" --duration 4
 .venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\kivi.exe ui
 .venv\Scripts\kivi.exe avatar --port 8766

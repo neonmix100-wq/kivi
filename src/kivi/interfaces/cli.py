@@ -822,6 +822,47 @@ def _ui_fs_trash(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
     return {"ok": True, "path": rel, "output": result.output}
 
 
+def _ui_crm_write(
+    paths: Any,
+    config: KiviConfig,
+    tool: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    if tool == "crm.fill":
+        labels = {
+            "deadline": "Согласованные сроки ремонта",
+            "parts": "Согласованные зап. части",
+            "works": "Фактические выполняемые работы",
+            "risks": "Согласованные риски",
+        }
+        checklist = payload.get("checklist")
+        mapped = {
+            labels.get(key, key): str(value)
+            for key, value in (checklist or {}).items()
+            if (key in labels or key in labels.values()) and str(value).strip()
+        }
+        payload = {
+            "comment": str(payload.get("comment", "")),
+            "checklist": mapped,
+        }
+    result = _run_direct_tool(
+        paths,
+        config,
+        tool,
+        payload,
+        ["crm.write"],
+        approved=True,
+    )
+    return {
+        "ok": result.ok,
+        "results": result.meta.get("results", []),
+        "message": result.output,
+        "error": result.error,
+        "saved": False,
+        "created": False,
+    }
+
+
 def _ui_crm_status(config: KiviConfig) -> dict[str, Any]:
     """Check the extension bridge or the local AltCRM CDP endpoint."""
     if config.crm.backend == "extension":
@@ -932,8 +973,10 @@ def cmd_avatar(args: argparse.Namespace) -> int:
     paths = get_paths()
     status = vrm_status(paths.root)
     if not status.available:
-        console.print(f"[red]avatar error:[/red] {_plain(status.message)}")
-        return 1
+        console.print(
+            f"[yellow]avatar:[/yellow] {_plain(status.message)}; "
+            "запускаю процедурный 3D-аватар."
+        )
     renderer = ThreeVrmRenderer(
         paths.root,
         open_browser=not args.no_browser,
@@ -995,14 +1038,14 @@ def _open_app_window(url: str) -> bool:
     return True
 
 
-def _run_tray(api: LocalApi) -> None:
+def _run_tray(api: LocalApi) -> bool:
     """Run the optional Kivi tray icon until the user stops it."""
     try:
         import pystray
         from PIL import Image, ImageDraw
     except ImportError:
         console.print("[yellow]tray unavailable: install pystray[/yellow]")
-        return
+        return False
     image = Image.new("RGBA", (64, 64), (4, 32, 29, 255))
     draw = ImageDraw.Draw(image)
     draw.ellipse((10, 10, 54, 54), fill=(94, 242, 214, 255))
@@ -1022,6 +1065,7 @@ def _run_tray(api: LocalApi) -> None:
     )
     console.print("Kivi в трее: правый клик по иконке — открыть/остановить.")
     icon.run()
+    return True
 
 
 def _transcribe_wav_bytes(data: bytes, model: str) -> str:
@@ -1216,6 +1260,21 @@ def cmd_serve(args: argparse.Namespace) -> int:
         crm_read_handler=(
             (lambda: _ui_crm_read(paths, config)) if getattr(args, "ui", False) else None
         ),
+        crm_fill_handler=(
+            (lambda payload: _ui_crm_write(paths, config, "crm.fill", payload))
+            if getattr(args, "ui", False)
+            else None
+        ),
+        crm_act_handler=(
+            (lambda payload: _ui_crm_write(paths, config, "crm.act", payload))
+            if getattr(args, "ui", False)
+            else None
+        ),
+        crm_task_handler=(
+            (lambda payload: _ui_crm_write(paths, config, "crm.task", payload))
+            if getattr(args, "ui", False)
+            else None
+        ),
         settings_update_handler=(
             update_ui_settings if getattr(args, "ui", False) else None
         ),
@@ -1249,8 +1308,9 @@ def cmd_serve(args: argparse.Namespace) -> int:
             _open_app_window(api.url)
         else:
             webbrowser.open(api.url)
-    if getattr(args, "tray", False):
-        _run_tray(api)
+    if getattr(args, "tray", False) and _run_tray(api):
+        api.stop()
+        return 0
     console.print(f"Kivi API: [bold]{api.url}[/bold] (Ctrl+C чтобы остановить)")
     try:
         threading.Event().wait()
@@ -1955,6 +2015,36 @@ def cmd_audio(args: argparse.Namespace) -> int:
         console.print(f"[red]audio test failed:[/red] {_plain(str(exc))}")
         return 1
     console.print("audio test played (440 Hz, 1 s)")
+    return 0
+
+
+def cmd_media_video(args: argparse.Namespace) -> int:
+    paths = get_paths()
+    config = _config(paths)
+    payload = {
+        "prompt": args.prompt,
+        "width": args.width,
+        "height": args.height,
+        "duration": args.duration,
+        "model": args.model,
+    }
+    if args.seed is not None:
+        payload["seed"] = args.seed
+    try:
+        result = _run_direct_tool(
+            paths,
+            config,
+            "media.video",
+            payload,
+            ["media.generate"],
+        )
+    except RuntimeError as exc:
+        console.print(f"[red]{_plain(str(exc))}[/red]")
+        return 1
+    if not result.ok:
+        console.print(f"[red]video error:[/red] {_plain(result.error)}")
+        return 1
+    console.print(_plain(result.output))
     return 0
 
 
@@ -3324,6 +3414,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     media_sdxl.add_argument("--negative", default="")
     media_sdxl.set_defaults(func=cmd_media_sdxl)
+    media_video = media_sub.add_parser("video", help="short local video from a prompt")
+    media_video.add_argument("prompt")
+    media_video.add_argument("--width", type=int, choices=(512, 768), default=512)
+    media_video.add_argument("--height", type=int, choices=(512, 768), default=512)
+    media_video.add_argument("--duration", type=int, choices=(2, 3, 4, 5, 6, 7, 8), default=4)
+    media_video.add_argument("--model", choices=("flux", "turbo"), default="flux")
+    media_video.add_argument("--seed", type=int, default=None)
+    media_video.set_defaults(func=cmd_media_video)
 
     coder = sub.add_parser("coder", help="generate code, run tests and fix up to N times")
     coder.add_argument("goal")

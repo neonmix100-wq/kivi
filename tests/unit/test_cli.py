@@ -376,6 +376,38 @@ def test_open_app_window_uses_edge(monkeypatch) -> None:
     ]
 
 
+def test_ui_crm_fill_maps_checklist_keys(monkeypatch) -> None:
+    seen: dict = {}
+
+    def fake_tool(paths, config, tool, payload, caps, *, approved=False):
+        seen.update({"tool": tool, "payload": payload, "approved": approved})
+        return SimpleNamespace(ok=True, output="ok", error="", meta={})
+
+    monkeypatch.setattr(cli_module, "_run_direct_tool", fake_tool)
+    cli_module._ui_crm_write(
+        None,
+        None,
+        "crm.fill",
+        {
+            "comment": "test",
+            "checklist": {
+                "deadline": "завтра",
+                "parts": "плата",
+                "works": "пайка",
+                "risks": "нет",
+            },
+        },
+    )
+    assert seen["tool"] == "crm.fill"
+    assert seen["approved"] is True
+    assert seen["payload"]["checklist"] == {
+        "Согласованные сроки ремонта": "завтра",
+        "Согласованные зап. части": "плата",
+        "Фактические выполняемые работы": "пайка",
+        "Согласованные риски": "нет",
+    }
+
+
 def test_feed_avatar_updates_3d_controller(tmp_path: Path, monkeypatch) -> None:
     import wave
 

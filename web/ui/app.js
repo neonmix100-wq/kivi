@@ -52,6 +52,38 @@ const CRM_FALLBACK_HINT =
   "Включи расширение AltCRM в Яндекс.Браузере и открой карточку заказа. " +
   "Альтернатива: Chrome с --remote-debugging-port=9222.";
 const CRM_ORDER_MAX_CHARS = 120000;
+// Mirrors the server-side crm.* schemas so the UI never posts invalid payloads.
+const CRM_LIMITS = {
+  commentChars: 5000,
+  checklistChars: 2000,
+  taskCommentChars: 500,
+  whenChars: 100,
+  rowNameChars: 200,
+  rows: 20,
+  priceMax: 100000000,
+  warrantyMax: 3650,
+  results: 60,
+};
+const CRM_CHECKLIST_FIELDS = Object.freeze([
+  ["deadline", "Согласованные сроки ремонта"],
+  ["parts", "Согласованные зап. части"],
+  ["works", "Фактические выполняемые работы"],
+  ["risks", "Согласованные риски"],
+]);
+const CRM_ACT_FIELDS = Object.freeze(["name", "price", "warranty"]);
+const CRM_FIELD_LABELS = Object.freeze({
+  comment: "Комментарий",
+  deadline: "Согласованные сроки ремонта",
+  parts: "Согласованные зап. части",
+  works: "Фактические выполняемые работы",
+  risks: "Согласованные риски",
+  due: "Срок выполнения",
+  when_text: "Срок выполнения",
+  name: "Работа",
+  price: "Цена",
+  warranty: "Гарантия",
+});
+const CRM_TABS = Object.freeze(["fill", "act", "task"]);
 const VOICE_PROVIDERS = Object.freeze({
   fish: {
     label: "Fish Audio (основной)",
@@ -157,6 +189,45 @@ const state = {
     copyStatus: "",
     statusEpoch: 0,
     readEpoch: 0,
+    tab: "fill",
+    fill: {
+      comment: "",
+      deadline: "",
+      parts: "",
+      works: "",
+      risks: "",
+      confirm: false,
+      busy: false,
+      error: "",
+      validation: "",
+      results: [],
+      status: "",
+      statusKind: "",
+      epoch: 0,
+    },
+    act: {
+      rows: [],
+      confirm: false,
+      busy: false,
+      error: "",
+      validation: "",
+      results: [],
+      status: "",
+      statusKind: "",
+      epoch: 0,
+    },
+    task: {
+      comment: "",
+      when: "",
+      confirm: false,
+      busy: false,
+      error: "",
+      validation: "",
+      results: [],
+      status: "",
+      statusKind: "",
+      epoch: 0,
+    },
   },
   sending: false,
   pendingConversationId: null,
@@ -3316,11 +3387,16 @@ function describeCrmError(error, context) {
   if (error.status === 503) {
     return "CRM не настроен на сервере (503). Запустите Kivi с поддержкой CRM и обновите страницу.";
   }
+  if (error.status === 403) {
+    return "Сервер запретил действие (403). Включите расширение AltCRM и откройте карточку заказа, затем повторите.";
+  }
   if (error.status === 404) return `Сервер не поддерживает ${error.path || context} (404).`;
   if (error.status === 400) {
     return `Сервер отклонил запрос${error.code ? `: ${error.code}` : ""}.`;
   }
-  if (error.status >= 500) return `Сервер Kivi сообщил об ошибке (${error.status}).`;
+  if (error.status >= 500) {
+    return `Сервер Kivi не смог выполнить действие (${error.status}). Проверьте карточку и повторите позже.`;
+  }
   return describeApiError(error, context);
 }
 
@@ -3351,6 +3427,7 @@ async function loadCrmStatus({ force = false } = {}) {
       state.crm.readError = "";
       state.crm.readHint = "";
       state.crm.copyStatus = "";
+      resetCrmActionFeedback();
     }
   } catch (error) {
     if (epoch !== state.crm.statusEpoch) return;
@@ -3364,6 +3441,7 @@ async function loadCrmStatus({ force = false } = {}) {
     state.crm.readError = "";
     state.crm.readHint = "";
     state.crm.copyStatus = "";
+    resetCrmActionFeedback();
     if (isUnsupported(error)) {
       state.crm.statusState = "unavailable";
       state.crm.statusError =
@@ -3533,8 +3611,8 @@ function renderCrm() {
         emptyText = "Карточка ещё не прочитана. Нажмите «Прочитать заказ».";
       } else {
         emptyText = extensionMode
-          ? "Включите расширение AltCRM и откройте карточку заказа. Интерфейс ничего не заполняет и не отправляет."
-          : "Сначала подключитесь к Chrome, затем нажмите «Прочитать заказ». Интерфейс ничего не заполняет и не отправляет.";
+          ? "Включите расширение AltCRM и откройте карточку заказа. Действия ниже только заполняют поля."
+          : "Сначала подключитесь к Chrome, затем нажмите «Прочитать заказ». Действия ниже только заполняют поля.";
       }
     }
     els.crmOrderEmpty.hidden = !emptyText;
@@ -3560,7 +3638,9 @@ function renderCrm() {
     } else if (crm.connected) {
       orderStatus = "Готово к чтению открытой вкладки.";
     } else {
-      orderStatus = "Ожидаю подключения к Chrome.";
+      orderStatus = extensionMode
+        ? "Ожидаю подключения расширения AltCRM."
+        : "Ожидаю подключения к Chrome.";
     }
     els.crmOrderStatus.textContent = orderStatus;
     els.crmOrderStatus.classList.toggle("is-error", readState === "error");
@@ -3568,6 +3648,679 @@ function renderCrm() {
 
   if (els.crmCopy) els.crmCopy.disabled = !hasOrder;
   if (els.crmCopyStatus) els.crmCopyStatus.textContent = crm.copyStatus;
+  renderCrmActions();
+}
+
+/* ------------------------------------------------------------------ */
+/* CRM actions (POST /crm/fill, /crm/act, /crm/task)                  */
+/*                                                                    */
+/* Prepare-only by design: every call fills fields on the open card,  */
+/* never saves, sends or creates anything, and every submit needs the */
+/* explicit human confirmation checkbox.                             */
+/* ------------------------------------------------------------------ */
+
+function crmReady() {
+  return state.crm.statusState === "ready" && state.crm.connected;
+}
+
+function makeCrmActRow() {
+  return { id: makeId("actrow"), name: "", price: "", warranty: "" };
+}
+
+function crmActRemoveIcon() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(ns, "path");
+  path.setAttribute("d", "M6 6l12 12M18 6 6 18");
+  svg.append(path);
+  return svg;
+}
+
+function resetCrmActionFeedback() {
+  for (const key of CRM_TABS) {
+    const action = state.crm[key];
+    action.epoch += 1;
+    action.busy = false;
+    action.confirm = false;
+    action.error = "";
+    action.validation = "";
+    action.results = [];
+    action.status = "";
+    action.statusKind = "";
+  }
+  if (els.crmFillConfirm) els.crmFillConfirm.checked = false;
+  if (els.crmActConfirm) els.crmActConfirm.checked = false;
+  if (els.crmTaskConfirm) els.crmTaskConfirm.checked = false;
+}
+
+function parseCrmInt(raw, max, label) {
+  const text = String(raw ?? "")
+    .trim()
+    .replace(/[\s\u00a0]+/g, "");
+  if (!text) return { ok: true, value: 0 };
+  if (!/^\d+$/.test(text)) return { ok: false, error: `${label}: введите целое число.` };
+  const value = Number(text);
+  if (!Number.isSafeInteger(value) || value < 0 || value > max) {
+    return {
+      ok: false,
+      error: `${label}: допустимо от 0 до ${numberFmt.format(max)}.`,
+    };
+  }
+  return { ok: true, value };
+}
+
+function normalizeCrmResults(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, CRM_LIMITS.results).map((item, index) => {
+    const data = item && typeof item === "object" && !Array.isArray(item) ? item : {};
+    const rawField =
+      typeof data.field === "string" && data.field.trim()
+        ? data.field.trim().slice(0, 200)
+        : "";
+    const field = rawField
+      ? CRM_FIELD_LABELS[rawField] || rawField
+      : `Результат ${index + 1}`;
+    return {
+      field,
+      ok: data.ok === true,
+      error: typeof data.error === "string" ? data.error.trim().slice(0, 400) : "",
+      note: typeof data.note === "string" ? data.note.trim().slice(0, 400) : "",
+    };
+  });
+}
+
+function renderCrmResultsList(list, results) {
+  if (!list) return;
+  const signature = JSON.stringify(results);
+  if (list.dataset.crmResults === signature) {
+    list.hidden = results.length === 0;
+    return;
+  }
+  list.dataset.crmResults = signature;
+  list.replaceChildren();
+  if (!results.length) {
+    list.hidden = true;
+    return;
+  }
+  for (const item of results) {
+    const row = el("li", { class: `crm-result${item.ok ? " is-ok" : " is-error"}` });
+    const head = el("div", { class: "crm-result-head" });
+    head.append(el("span", { class: "crm-result-field", text: item.field }));
+    head.append(
+      el("span", {
+        class: "crm-result-state",
+        text: item.ok ? "заполнено" : "ошибка",
+      }),
+    );
+    row.append(head);
+    const detail = item.ok ? item.note : item.error || item.note;
+    if (detail) row.append(el("p", { class: "crm-result-note", text: detail }));
+    list.append(row);
+  }
+  list.hidden = false;
+}
+
+function setCrmFormFeedback(action, errorEl, statusEl, resultsEl) {
+  if (errorEl) {
+    const text = action.error || action.validation;
+    if (errorEl.textContent !== text) errorEl.textContent = text;
+    errorEl.hidden = !text;
+  }
+  if (statusEl) {
+    if (statusEl.textContent !== action.status) statusEl.textContent = action.status;
+    statusEl.classList.toggle("is-ok", action.statusKind === "ok");
+    statusEl.classList.toggle("is-partial", action.statusKind === "partial");
+  }
+  renderCrmResultsList(resultsEl, action.results);
+}
+
+function crmFillHasInput() {
+  const fill = state.crm.fill;
+  return Boolean(
+    fill.comment.trim() ||
+      CRM_CHECKLIST_FIELDS.some(([key]) => fill[key].trim().length > 0),
+  );
+}
+
+function crmActReady() {
+  const act = state.crm.act;
+  if (!crmReady() || act.busy || !act.confirm || !act.rows.length) return false;
+  return act.rows.every((row) => row.name.trim().length > 0);
+}
+
+function renderCrmTabs() {
+  const entries = [
+    ["fill", els.crmTabFill, els.crmFillPanel],
+    ["act", els.crmTabAct, els.crmActPanel],
+    ["task", els.crmTabTask, els.crmTaskPanel],
+  ];
+  for (const [key, tab, panel] of entries) {
+    if (!tab) continue;
+    const active = state.crm.tab === key;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", active ? "true" : "false");
+    tab.tabIndex = active ? 0 : -1;
+    if (panel) panel.hidden = !active;
+  }
+}
+
+function setCrmTab(name, { focus = false } = {}) {
+  if (!CRM_TABS.includes(name)) return;
+  state.crm.tab = name;
+  renderCrmActions();
+  if (!focus) return;
+  const tabs = { fill: els.crmTabFill, act: els.crmTabAct, task: els.crmTabTask };
+  const tab = tabs[name];
+  if (tab) tab.focus();
+}
+
+function onCrmTabKeydown(event) {
+  const current = CRM_TABS.indexOf(state.crm.tab);
+  if (current < 0) return;
+  let next = "";
+  if (event.key === "ArrowRight") next = CRM_TABS[(current + 1) % CRM_TABS.length];
+  else if (event.key === "ArrowLeft") {
+    next = CRM_TABS[(current + CRM_TABS.length - 1) % CRM_TABS.length];
+  } else if (event.key === "Home") next = CRM_TABS[0];
+  else if (event.key === "End") next = CRM_TABS[CRM_TABS.length - 1];
+  if (!next) return;
+  event.preventDefault();
+  setCrmTab(next, { focus: true });
+}
+
+function renderCrmActRows() {
+  if (!els.crmActRows) return;
+  els.crmActRows.replaceChildren();
+  state.crm.act.rows.forEach((row, index) => {
+    const wrap = el("div", { class: "crm-act-row", dataset: { rowId: row.id } });
+    wrap.append(
+      renderCrmActField(row, "name", "Работа", index + 1, {
+        type: "text",
+        placeholder: "например, замена экрана",
+        maxlength: CRM_LIMITS.rowNameChars,
+        class: "crm-act-field-name",
+      }),
+      renderCrmActField(row, "price", "Цена, ₽", index + 1, {
+        type: "number",
+        inputmode: "numeric",
+        min: 0,
+        max: CRM_LIMITS.priceMax,
+        step: 1,
+        placeholder: "0",
+        class: "crm-act-field-price",
+      }),
+      renderCrmActField(row, "warranty", "Гарантия, дней", index + 1, {
+        type: "number",
+        inputmode: "numeric",
+        min: 0,
+        max: CRM_LIMITS.warrantyMax,
+        step: 1,
+        placeholder: "0",
+        class: "crm-act-field-warranty",
+      }),
+    );
+    const remove = el("button", {
+      type: "button",
+      class: "icon-btn crm-act-remove",
+      dataset: { actRemove: row.id },
+      "aria-label": `Удалить строку ${index + 1}`,
+      title: "Удалить строку",
+    });
+    const removeIcon = crmActRemoveIcon();
+    remove.append(removeIcon);
+    wrap.append(remove);
+    els.crmActRows.append(wrap);
+  });
+}
+
+function renderCrmActField(row, field, label, number, opts) {
+  const input = el("input", {
+    class: "crm-input",
+    type: opts.type,
+    inputmode: opts.inputmode || null,
+    min: opts.min ?? null,
+    max: opts.max ?? null,
+    step: opts.step ?? null,
+    maxlength: opts.maxlength ?? null,
+    placeholder: opts.placeholder || null,
+    autocomplete: "off",
+    spellcheck: "false",
+    value: row[field],
+    dataset: { actField: field },
+    "aria-label": `${label}, строка ${number}`,
+  });
+  const wrap = el("label", { class: `field ${opts.class || ""}`.trim() });
+  wrap.append(el("span", { class: "field-label", text: label }), input);
+  return wrap;
+}
+
+function renderCrmActions() {
+  if (!els.crmToolsCard) return;
+  const crm = state.crm;
+  const connected = crmReady();
+  const busy = crm.fill.busy || crm.act.busy || crm.task.busy;
+  els.crmToolsCard.setAttribute("aria-busy", busy ? "true" : "false");
+
+  if (els.crmToolsGate) {
+    let text = "Действия недоступны: подключите расширение AltCRM и нажмите «Проверить».";
+    let cls = "is-off";
+    if (busy) {
+      text = "Выполняю действие на открытой карточке…";
+      cls = "is-checking";
+    } else if (connected) {
+      text = "Подключено. Kivi только заполнит поля — сохранение и создание остаются за вами.";
+      cls = "is-ready";
+    } else if (crm.statusState === "checking") {
+      text = "Проверяю подключение к AltCRM…";
+      cls = "is-checking";
+    }
+    if (els.crmToolsGate.textContent !== text) els.crmToolsGate.textContent = text;
+    els.crmToolsGate.classList.remove("is-off", "is-ready", "is-checking");
+    els.crmToolsGate.classList.add(cls);
+  }
+
+  renderCrmTabs();
+
+  const fill = crm.fill;
+  if (els.crmFillForm) {
+    els.crmFillForm.setAttribute("aria-busy", fill.busy ? "true" : "false");
+  }
+  if (els.crmFillFieldset) els.crmFillFieldset.disabled = !connected || fill.busy;
+  if (els.crmFillSubmit) {
+    els.crmFillSubmit.disabled =
+      !connected || fill.busy || !fill.confirm || !crmFillHasInput();
+    els.crmFillSubmit.textContent = fill.busy
+      ? "Заполняю…"
+      : "Заполнить без сохранения";
+    els.crmFillSubmit.setAttribute("aria-busy", fill.busy ? "true" : "false");
+  }
+  setCrmFormFeedback(fill, els.crmFillError, els.crmFillStatus, els.crmFillResults);
+
+  const act = crm.act;
+  if (els.crmActForm) {
+    els.crmActForm.setAttribute("aria-busy", act.busy ? "true" : "false");
+  }
+  if (els.crmActFieldset) els.crmActFieldset.disabled = !connected || act.busy;
+  if (els.crmActSubmit) {
+    els.crmActSubmit.disabled = !crmActReady();
+    els.crmActSubmit.textContent = act.busy
+      ? "Добавляю…"
+      : "Добавить строки без сохранения";
+    els.crmActSubmit.setAttribute("aria-busy", act.busy ? "true" : "false");
+  }
+  if (els.crmActAdd) {
+    const atLimit = act.rows.length >= CRM_LIMITS.rows;
+    els.crmActAdd.disabled = !connected || act.busy || atLimit;
+    els.crmActAdd.textContent = atLimit ? "Лимит строк" : "Добавить строку";
+  }
+  if (els.crmActRows) {
+    const removeDisabled = !connected || act.busy || act.rows.length <= 1;
+    els.crmActRows.querySelectorAll("[data-act-remove]").forEach((button) => {
+      button.disabled = removeDisabled;
+    });
+  }
+  setCrmFormFeedback(act, els.crmActError, els.crmActStatus, els.crmActResults);
+
+  const task = crm.task;
+  if (els.crmTaskForm) {
+    els.crmTaskForm.setAttribute("aria-busy", task.busy ? "true" : "false");
+  }
+  if (els.crmTaskFieldset) els.crmTaskFieldset.disabled = !connected || task.busy;
+  if (els.crmTaskSubmit) {
+    els.crmTaskSubmit.disabled =
+      !connected || task.busy || !task.confirm || !task.comment.trim();
+    els.crmTaskSubmit.textContent = task.busy ? "Готовлю…" : "Подготовить задачу";
+    els.crmTaskSubmit.setAttribute("aria-busy", task.busy ? "true" : "false");
+  }
+  setCrmFormFeedback(task, els.crmTaskError, els.crmTaskStatus, els.crmTaskResults);
+}
+
+function syncCrmFillFields() {
+  const fill = state.crm.fill;
+  if (els.crmFillComment) {
+    fill.comment = els.crmFillComment.value.slice(0, CRM_LIMITS.commentChars);
+  }
+  if (els.crmFillDeadline) {
+    fill.deadline = els.crmFillDeadline.value.slice(0, CRM_LIMITS.checklistChars);
+  }
+  if (els.crmFillParts) {
+    fill.parts = els.crmFillParts.value.slice(0, CRM_LIMITS.checklistChars);
+  }
+  if (els.crmFillWorks) {
+    fill.works = els.crmFillWorks.value.slice(0, CRM_LIMITS.checklistChars);
+  }
+  if (els.crmFillRisks) {
+    fill.risks = els.crmFillRisks.value.slice(0, CRM_LIMITS.checklistChars);
+  }
+}
+
+function syncCrmTaskFields() {
+  const task = state.crm.task;
+  if (els.crmTaskComment) {
+    task.comment = els.crmTaskComment.value.slice(0, CRM_LIMITS.taskCommentChars);
+  }
+  if (els.crmTaskWhen) {
+    task.when = els.crmTaskWhen.value.slice(0, CRM_LIMITS.whenChars);
+  }
+}
+
+function onCrmFillInput() {
+  syncCrmFillFields();
+  if (state.crm.fill.validation) state.crm.fill.validation = "";
+  renderCrmActions();
+}
+
+function onCrmTaskInput() {
+  syncCrmTaskFields();
+  if (state.crm.task.validation) state.crm.task.validation = "";
+  renderCrmActions();
+}
+
+function onCrmActInput(event) {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const field = target.getAttribute("data-act-field");
+  const rowEl = target.closest(".crm-act-row");
+  if (!field || !rowEl || !CRM_ACT_FIELDS.includes(field)) return;
+  const row = state.crm.act.rows.find((item) => item.id === rowEl.dataset.rowId);
+  if (!row) return;
+  row[field] = target.value;
+  if (state.crm.act.validation) state.crm.act.validation = "";
+  renderCrmActions();
+}
+
+function onCrmConfirmChange(kind, input) {
+  const action = state.crm[kind];
+  action.confirm = Boolean(input && input.checked);
+  if (action.validation) action.validation = "";
+  renderCrmActions();
+}
+
+function buildCrmFillPayload() {
+  const fill = state.crm.fill;
+  const comment = fill.comment.trim().slice(0, CRM_LIMITS.commentChars);
+  const checklist = {};
+  for (const [key] of CRM_CHECKLIST_FIELDS) {
+    const value = fill[key].trim().slice(0, CRM_LIMITS.checklistChars);
+    if (value) checklist[key] = value;
+  }
+  if (!comment && !Object.keys(checklist).length) return null;
+  return { comment, checklist };
+}
+
+function buildCrmActPayload() {
+  const act = state.crm.act;
+  if (!act.rows.length) return { error: "Добавьте хотя бы одну строку акта." };
+  if (act.rows.length > CRM_LIMITS.rows) {
+    return { error: `Не больше ${CRM_LIMITS.rows} строк за один раз.` };
+  }
+  const rows = [];
+  for (let index = 0; index < act.rows.length; index += 1) {
+    const row = act.rows[index];
+    const number = index + 1;
+    const name = row.name.trim().slice(0, CRM_LIMITS.rowNameChars);
+    if (!name) return { error: `Строка ${number}: укажите название работы.` };
+    const price = parseCrmInt(row.price, CRM_LIMITS.priceMax, `Строка ${number}, цена`);
+    if (!price.ok) return { error: price.error };
+    const warranty = parseCrmInt(
+      row.warranty,
+      CRM_LIMITS.warrantyMax,
+      `Строка ${number}, гарантия`,
+    );
+    if (!warranty.ok) return { error: warranty.error };
+    rows.push({ name, price: price.value, warranty: warranty.value });
+  }
+  return { rows };
+}
+
+function buildCrmTaskPayload() {
+  const task = state.crm.task;
+  const comment = task.comment.trim().slice(0, CRM_LIMITS.taskCommentChars);
+  if (!comment) return { error: "Введите комментарий задачи." };
+  const when = task.when.replace(/\s+/g, " ").trim().slice(0, CRM_LIMITS.whenChars);
+  return { comment, when_text: when };
+}
+
+function crmWriteErrorMessage(kind, detail) {
+  const action =
+    kind === "fill"
+      ? "заполнить поля"
+      : kind === "act"
+        ? "добавить строки акта"
+        : "подготовить задачу";
+  const clean = String(detail || "")
+    .trim()
+    .replace(/[.\s]+$/, "")
+    .slice(0, 300);
+  return `Не удалось ${action}${clean ? `: ${clean}` : ""}. Проверьте, что карточка AltCRM открыта, и повторите.`;
+}
+
+function crmWriteSuccessMessage(kind, okCount, total) {
+  if (kind === "fill") {
+    return `Готово: заполнено ${okCount} из ${total}. Kivi ничего не сохранил — проверьте карточку и нажмите «Сохранить» вручную.`;
+  }
+  if (kind === "act") {
+    return `Готово: строки добавлены (${okCount} из ${total}). Kivi ничего не сохранил — проверьте акт и нажмите «Сохранить» вручную.`;
+  }
+  return `Готово: поля задачи заполнены (${okCount} из ${total}). Kivi не нажимал «Создать задачу» — создайте её вручную.`;
+}
+
+function crmWritePartialMessage(kind, okCount, total) {
+  const failed = total - okCount;
+  const tail =
+    kind === "task"
+      ? "Kivi не создавал задачу — проверьте поля и создайте её вручную."
+      : "Проверьте ошибки и карточку; сохранение остаётся за вами.";
+  return `Выполнено ${okCount} из ${total}, ошибок: ${failed}. ${tail}`;
+}
+
+function applyCrmWriteResponse(kind, action, data) {
+  const payload = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  const results = normalizeCrmResults(payload.results);
+  const ok = payload.ok === true;
+  const message =
+    typeof payload.message === "string" ? payload.message.trim().slice(0, 400) : "";
+  action.results = results;
+  action.error = "";
+  action.status = "";
+  action.statusKind = "";
+  if (!ok) {
+    const detail = firstString(payload.error, message);
+    action.error = crmWriteErrorMessage(kind, detail);
+    if (!results.length) return;
+  }
+  const total = results.length;
+  const okCount = results.filter((item) => item.ok).length;
+  if (!total) {
+    if (ok && message) {
+      action.status = message;
+      action.statusKind = "ok";
+    }
+    return;
+  }
+  if (ok && okCount === total) {
+    action.status = crmWriteSuccessMessage(kind, okCount, total);
+    action.statusKind = "ok";
+  } else {
+    action.status = crmWritePartialMessage(kind, okCount, total);
+    action.statusKind = "partial";
+  }
+}
+
+async function submitCrmFill(event) {
+  if (event) event.preventDefault();
+  const fill = state.crm.fill;
+  if (fill.busy) return;
+  fill.validation = "";
+  fill.error = "";
+  if (!crmReady()) {
+    fill.validation = "CRM не подключён. Включите расширение AltCRM и нажмите «Проверить».";
+    renderCrmActions();
+    return;
+  }
+  const payload = buildCrmFillPayload();
+  if (!payload) {
+    fill.validation = "Заполните комментарий или хотя бы одно поле чек-листа.";
+    renderCrmActions();
+    if (els.crmFillComment) els.crmFillComment.focus();
+    return;
+  }
+  if (!fill.confirm) {
+    fill.validation = "Подтвердите, что «Сохранить» нажмёте вы сами.";
+    renderCrmActions();
+    return;
+  }
+  const epoch = ++fill.epoch;
+  fill.results = [];
+  fill.status = "";
+  fill.statusKind = "";
+  fill.busy = true;
+  renderCrmActions();
+  try {
+    const data = await apiRequest("/crm/fill", {
+      method: "POST",
+      body: payload,
+      timeout: 60000,
+    });
+    if (epoch !== fill.epoch) return;
+    applyCrmWriteResponse("fill", fill, data);
+  } catch (error) {
+    if (epoch !== fill.epoch) return;
+    fill.error = describeCrmError(error, "заполнении полей карточки");
+  } finally {
+    if (epoch === fill.epoch) {
+      fill.busy = false;
+      fill.confirm = false;
+      if (els.crmFillConfirm) els.crmFillConfirm.checked = false;
+      renderCrmActions();
+    }
+  }
+}
+
+async function submitCrmAct(event) {
+  if (event) event.preventDefault();
+  const act = state.crm.act;
+  if (act.busy) return;
+  act.validation = "";
+  act.error = "";
+  if (!crmReady()) {
+    act.validation = "CRM не подключён. Включите расширение AltCRM и нажмите «Проверить».";
+    renderCrmActions();
+    return;
+  }
+  const payload = buildCrmActPayload();
+  if (payload.error) {
+    act.validation = payload.error;
+    renderCrmActions();
+    return;
+  }
+  if (!act.confirm) {
+    act.validation = "Подтвердите, что «Сохранить» в акте нажмёте вы сами.";
+    renderCrmActions();
+    return;
+  }
+  const epoch = ++act.epoch;
+  act.results = [];
+  act.status = "";
+  act.statusKind = "";
+  act.busy = true;
+  renderCrmActions();
+  try {
+    const data = await apiRequest("/crm/act", {
+      method: "POST",
+      body: { rows: payload.rows },
+      timeout: 60000,
+    });
+    if (epoch !== act.epoch) return;
+    applyCrmWriteResponse("act", act, data);
+  } catch (error) {
+    if (epoch !== act.epoch) return;
+    act.error = describeCrmError(error, "добавлении строк акта");
+  } finally {
+    if (epoch === act.epoch) {
+      act.busy = false;
+      act.confirm = false;
+      if (els.crmActConfirm) els.crmActConfirm.checked = false;
+      renderCrmActions();
+    }
+  }
+}
+
+async function submitCrmTask(event) {
+  if (event) event.preventDefault();
+  const task = state.crm.task;
+  if (task.busy) return;
+  task.validation = "";
+  task.error = "";
+  if (!crmReady()) {
+    task.validation = "CRM не подключён. Включите расширение AltCRM и нажмите «Проверить».";
+    renderCrmActions();
+    return;
+  }
+  const payload = buildCrmTaskPayload();
+  if (payload.error) {
+    task.validation = payload.error;
+    renderCrmActions();
+    if (els.crmTaskComment) els.crmTaskComment.focus();
+    return;
+  }
+  if (!task.confirm) {
+    task.validation = "Подтвердите, что задачу создадите вы сами.";
+    renderCrmActions();
+    return;
+  }
+  const epoch = ++task.epoch;
+  task.results = [];
+  task.status = "";
+  task.statusKind = "";
+  task.busy = true;
+  renderCrmActions();
+  try {
+    const data = await apiRequest("/crm/task", {
+      method: "POST",
+      body: payload,
+      timeout: 60000,
+    });
+    if (epoch !== task.epoch) return;
+    applyCrmWriteResponse("task", task, data);
+  } catch (error) {
+    if (epoch !== task.epoch) return;
+    task.error = describeCrmError(error, "подготовке задачи");
+  } finally {
+    if (epoch === task.epoch) {
+      task.busy = false;
+      task.confirm = false;
+      if (els.crmTaskConfirm) els.crmTaskConfirm.checked = false;
+      renderCrmActions();
+    }
+  }
+}
+
+function addCrmActRow() {
+  const act = state.crm.act;
+  if (!crmReady() || act.busy || act.rows.length >= CRM_LIMITS.rows) return;
+  act.rows.push(makeCrmActRow());
+  act.validation = "";
+  renderCrmActRows();
+  renderCrmActions();
+  const rowEls = els.crmActRows ? els.crmActRows.querySelectorAll("[data-row-id]") : [];
+  const last = rowEls[rowEls.length - 1];
+  const input = last ? last.querySelector('[data-act-field="name"]') : null;
+  if (input) input.focus();
+}
+
+function removeCrmActRow(id) {
+  const act = state.crm.act;
+  if (!crmReady() || act.busy || act.rows.length <= 1) return;
+  const index = act.rows.findIndex((row) => row.id === id);
+  if (index < 0) return;
+  act.rows.splice(index, 1);
+  act.validation = "";
+  renderCrmActRows();
+  renderCrmActions();
 }
 
 /* ------------------------------------------------------------------ */
@@ -4345,15 +5098,15 @@ function updateViewHeader() {
     const crm = state.crm;
     els.viewTitle.textContent = "CRM";
     if (crm.statusState === "checking") {
-      els.viewSubtitle.textContent = "Проверяю Chrome CDP…";
+      els.viewSubtitle.textContent = "Проверяю подключение CRM…";
     } else if (crm.statusState === "ready") {
-      els.viewSubtitle.textContent = "AltCRM · подключено · только чтение";
+      els.viewSubtitle.textContent = "AltCRM · подключено · без сохранения";
     } else if (crm.statusState === "offline") {
-      els.viewSubtitle.textContent = "AltCRM · Chrome CDP не найден";
+      els.viewSubtitle.textContent = "AltCRM · расширение не подключено";
     } else if (crm.statusState === "error" || crm.statusState === "unavailable") {
       els.viewSubtitle.textContent = "AltCRM · ошибка подключения";
     } else {
-      els.viewSubtitle.textContent = "AltCRM · только чтение";
+      els.viewSubtitle.textContent = "AltCRM · заполнение без сохранения";
     }
   } else if (state.view === "settings") {
     els.viewTitle.textContent = "Настройки";
@@ -4698,6 +5451,42 @@ function bindEvents() {
     els.crmRead.addEventListener("click", () => void readCrmOrder());
     els.crmCopy.addEventListener("click", () => void copyCrmOrder());
   }
+  if (els.crmToolsCard) {
+    const tabs = [els.crmTabFill, els.crmTabAct, els.crmTabTask];
+    for (const tab of tabs) {
+      if (!tab) continue;
+      tab.addEventListener("click", () => setCrmTab(tab.dataset.crmTab || ""));
+      tab.addEventListener("keydown", onCrmTabKeydown);
+    }
+    if (els.crmFillForm) {
+      els.crmFillForm.addEventListener("submit", (event) => void submitCrmFill(event));
+      els.crmFillForm.addEventListener("input", onCrmFillInput);
+      els.crmFillConfirm.addEventListener("change", () =>
+        onCrmConfirmChange("fill", els.crmFillConfirm),
+      );
+    }
+    if (els.crmActForm) {
+      els.crmActForm.addEventListener("submit", (event) => void submitCrmAct(event));
+      els.crmActRows.addEventListener("input", onCrmActInput);
+      els.crmActAdd.addEventListener("click", addCrmActRow);
+      els.crmActRows.addEventListener("click", (event) => {
+        const button =
+          event.target instanceof Element ? event.target.closest("[data-act-remove]") : null;
+        if (!button) return;
+        removeCrmActRow(button.getAttribute("data-act-remove") || "");
+      });
+      els.crmActConfirm.addEventListener("change", () =>
+        onCrmConfirmChange("act", els.crmActConfirm),
+      );
+    }
+    if (els.crmTaskForm) {
+      els.crmTaskForm.addEventListener("submit", (event) => void submitCrmTask(event));
+      els.crmTaskForm.addEventListener("input", onCrmTaskInput);
+      els.crmTaskConfirm.addEventListener("change", () =>
+        onCrmConfirmChange("task", els.crmTaskConfirm),
+      );
+    }
+  }
   els.messageList.addEventListener("click", onMessageAction);
   document.querySelectorAll("[data-prompt]").forEach((chip) => {
     chip.addEventListener("click", () => {
@@ -4801,6 +5590,14 @@ function installDebugHook() {
           connected: state.crm.connected,
           readState: state.crm.readState,
           orderChars: state.crm.order.length,
+          tab: state.crm.tab,
+          fillBusy: state.crm.fill.busy,
+          actBusy: state.crm.act.busy,
+          taskBusy: state.crm.task.busy,
+          actRows: state.crm.act.rows.length,
+          fillResults: state.crm.fill.results.length,
+          actResults: state.crm.act.results.length,
+          taskResults: state.crm.task.results.length,
         },
         autoSpeak: state.prefs.autoSpeak,
         avatar: avatarController.getState(),
@@ -4978,6 +5775,44 @@ function cacheDom() {
     crmOrderEmpty: $id("crm-order-empty"),
     crmCopy: $id("crm-copy"),
     crmCopyStatus: $id("crm-copy-status"),
+    crmToolsCard: $id("crm-tools-card"),
+    crmToolsGate: $id("crm-tools-gate"),
+    crmTabFill: $id("crm-tab-fill"),
+    crmTabAct: $id("crm-tab-act"),
+    crmTabTask: $id("crm-tab-task"),
+    crmFillPanel: $id("crm-fill-panel"),
+    crmActPanel: $id("crm-act-panel"),
+    crmTaskPanel: $id("crm-task-panel"),
+    crmFillForm: $id("crm-fill-form"),
+    crmFillFieldset: $id("crm-fill-fieldset"),
+    crmFillComment: $id("crm-fill-comment"),
+    crmFillDeadline: $id("crm-fill-deadline"),
+    crmFillParts: $id("crm-fill-parts"),
+    crmFillWorks: $id("crm-fill-works"),
+    crmFillRisks: $id("crm-fill-risks"),
+    crmFillConfirm: $id("crm-fill-confirm"),
+    crmFillSubmit: $id("crm-fill-submit"),
+    crmFillError: $id("crm-fill-error"),
+    crmFillStatus: $id("crm-fill-status"),
+    crmFillResults: $id("crm-fill-results"),
+    crmActForm: $id("crm-act-form"),
+    crmActFieldset: $id("crm-act-fieldset"),
+    crmActRows: $id("crm-act-rows"),
+    crmActAdd: $id("crm-act-add"),
+    crmActConfirm: $id("crm-act-confirm"),
+    crmActSubmit: $id("crm-act-submit"),
+    crmActError: $id("crm-act-error"),
+    crmActStatus: $id("crm-act-status"),
+    crmActResults: $id("crm-act-results"),
+    crmTaskForm: $id("crm-task-form"),
+    crmTaskFieldset: $id("crm-task-fieldset"),
+    crmTaskComment: $id("crm-task-comment"),
+    crmTaskWhen: $id("crm-task-when"),
+    crmTaskConfirm: $id("crm-task-confirm"),
+    crmTaskSubmit: $id("crm-task-submit"),
+    crmTaskError: $id("crm-task-error"),
+    crmTaskStatus: $id("crm-task-status"),
+    crmTaskResults: $id("crm-task-results"),
     avatarPanel: $id("avatar-panel"),
     avatar: $id("avatar"),
     avatarStateLabel: $id("avatar-state-label"),
@@ -5016,6 +5851,9 @@ function init() {
   renderMediaPromptCount();
   renderFiles();
   renderCrm();
+  if (!state.crm.act.rows.length) state.crm.act.rows.push(makeCrmActRow());
+  renderCrmActRows();
+  renderCrmActions();
   updateViewHeader();
   setView("chat", { focus: false });
   resizeComposer();

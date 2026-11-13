@@ -47,7 +47,7 @@ generated: true
 | --- | ---: | --- |
 | `src.kivi.integrations.__init__` | 0 | — |
 | `src.kivi.integrations.extension_bridge` | 252 | Loopback WebSocket bridge between Kivi and the AltCRM browser extension. |
-| `src.kivi.integrations.extension_crm` | 176 | Client for the existing AI-agent browser extension. |
+| `src.kivi.integrations.extension_crm` | 206 | Client for the existing AI-agent browser extension. |
 | `src.kivi.integrations.gmail` | 901 | Gmail integration: OAuth with readonly + compose, drafts and reading only. |
 | `src.kivi.integrations.telegram` | 516 | Telegram Bot API integration: bot-only, allowlisted and rate-limited. |
 | `src.kivi.integrations.ws_server` | 197 | Minimal RFC 6455 WebSocket server (stdlib only, text messages). |
@@ -57,10 +57,10 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 21 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.api` | 763 | Local-only HTTP API for Kivi chat. |
+| `src.kivi.interfaces.api` | 852 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
 | `src.kivi.interfaces.avatar3d` | 637 | 3D avatar (VRM) state, viseme lip-sync and a loopback web renderer. |
-| `src.kivi.interfaces.cli` | 3701 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 3799 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -162,7 +162,7 @@ generated: true
 | `src.kivi.tools.net` | 209 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
 | `src.kivi.tools.patch` | 209 | Exact-text patch tool: replace a counted occurrence inside one UTF-8 file. |
 | `src.kivi.tools.proc` | 278 | Process list tool: names and memory only, never command lines. |
-| `src.kivi.tools.registry` | 179 | Tool registry: one place that knows which tools exist. |
+| `src.kivi.tools.registry` | 181 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.repo` | 524 | Repository index: a read-only map of the text files inside the workspace. |
 | `src.kivi.tools.screen` | 306 | Screen capture tool: save the desktop as a BMP inside the workspace. |
 | `src.kivi.tools.sdxl` | 418 | Local SDXL generation through the Stable Diffusion WebUI API. |
@@ -170,11 +170,12 @@ generated: true
 | `src.kivi.tools.system` | 636 | System tools: notifications, volume and power control for the Operator stage. |
 | `src.kivi.tools.telegram` | 352 | Telegram tools: status, incoming updates and an allowlisted send. |
 | `src.kivi.tools.ui` | 698 | Operator UI automation: mouse, keyboard and window-text lookup. |
+| `src.kivi.tools.video` | 488 | Local video fallback (M7): animate one generated still into a short MP4. |
 | `src.kivi.tools.windows` | 1010 | Windows desktop control: top-level windows and application processes. |
 
 ## Тесты
 
-Всего файлов: **69**.
+Всего файлов: **70**.
 
 - `tests/scenarios/test_m1_scenarios.py`
 - `tests/scenarios/test_m3_browser.py`
@@ -237,6 +238,7 @@ generated: true
 - `tests/unit/test_tts.py`
 - `tests/unit/test_ui.py`
 - `tests/unit/test_vector_index.py`
+- `tests/unit/test_video.py`
 - `tests/unit/test_voice.py`
 - `tests/unit/test_voice_library.py`
 - `tests/unit/test_vram.py`

@@ -50,13 +50,11 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8765/chat `
   `::1` (loopback-адреса).
 - Не-loopback адрес (`0.0.0.0`, `::`, LAN-IP, внешнее имя) при создании
   `LocalApi` вызывает `ValueError`. Осознанный обход — `allow_remote=True`.
-- `allow_remote=True` **не добавляет** аутентификацию, TLS, rate limit или
-  проверку Origin. Используйте его только если доступ ограничен снаружи
-  (например, на уровне ОС или прокси).
-- Аутентификации нет намеренно: API рассчитан на один локальный процесс и
-  loopback-интерфейс.
-- CORS не включён. Web-UI на том же origin не нуждается в CORS; отдельный
-  origin потребует явного решения позже.
+- API проверяет loopback `Host` и `Origin` (если он передан), требует
+  `application/json` для JSON-мутаций и `audio/wav` для `/transcribe`,
+  отдаёт `X-Frame-Options: DENY`. CORS не включён.
+- `allow_remote=True` **не добавляет** аутентификацию, TLS или rate limit.
+  Используйте его только за доверенным reverse proxy.
 - Access-log стандартной библиотеки отключён. Аудит запросов и действий должен
   писать вызывающий код (обёртка вокруг `handler`), а не HTTP-слой.
 

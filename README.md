@@ -1,6 +1,6 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–9 закрыты, M5 ~92%, M6 ~95%, M7 ~50%, M8 ~80% (v0.19). Железо
+> **Статус:** этапы 0–9 закрыты, M5 ~92%, M6 ~95%, M7 ~65%, M8 ~80% (v0.19). Железо
 > перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q4/14B/SDXL/Whisper
 > стали реалистичны. Работают `kivi doctor`, `kivi models`, `kivi ask`,
 > `kivi chat`, `kivi serve`, `kivi say`, `kivi voice design`, `kivi coder`,
@@ -48,7 +48,7 @@ $env:FISH_AUDIO_API_KEY = "твой-ключ"
 
 ```powershell
 py -3.12 -m venv .venv
-.venv\Scripts\python.exe -m pip install -e ".[dev,gpu]"
+.venv\Scripts\python.exe -m pip install -e ".[dev,gpu,ui,voice]"
 .venv\Scripts\kivi.exe doctor
 .venv\Scripts\kivi.exe config check
 .venv\Scripts\kivi.exe ask "привет, кто ты?" --keep-alive 0
@@ -217,6 +217,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/CRM-EXTENSION.md`](docs/CRM-EXTENSION.md) | AltCRM через расширение Яндекс.Браузера |
 | [`docs/MEDIA.md`](docs/MEDIA.md) | M7: бесплатная генерация изображений |
 | [`docs/MEDIA-JOBS.md`](docs/MEDIA-JOBS.md) | M7: очередь медиа-заданий |
+| [`docs/VIDEO.md`](docs/VIDEO.md) | M7: локальный видео-fallback |
 | [`docs/SDXL.md`](docs/SDXL.md) | Локальный SDXL через SD WebUI API |
 | [`docs/SKILLS-PLUGINS.md`](docs/SKILLS-PLUGINS.md) | Аудит скиллов и плагинов |
 | [`docs/AVATAR3D.md`](docs/AVATAR3D.md) | 3D-VRM слой, виземы, состояния, fallback |

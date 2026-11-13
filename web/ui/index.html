@@ -880,8 +880,9 @@
               <div>
                 <h2 class="media-heading" id="crm-title">CRM</h2>
                 <p class="view-lead">
-                  AltCRM через расширение в Яндекс.Браузере. Интерфейс только читает
-                  карточку заказа: заполнение, сохранение и отправка недоступны.
+                  AltCRM через расширение в Яндекс.Браузере. Карточку заказа можно
+                  прочитать, а поля, акт и задачу — подготовить без сохранения:
+                  финальное действие всегда делает человек.
                 </p>
               </div>
             </div>
@@ -980,8 +981,8 @@
                   hidden
                 ></pre>
                 <p class="crm-order-empty" id="crm-order-empty">
-                  Здесь появится текст открытой карточки. Интерфейс ничего не заполняет,
-                  не сохраняет и не отправляет.
+                  Здесь появится текст открытой карточки. Действия ниже только
+                  заполняют поля — сохранение и отправка остаются за человеком.
                 </p>
 
                 <div class="crm-order-actions">
@@ -995,12 +996,350 @@
                   <span class="crm-copy-status" id="crm-copy-status" role="status" aria-live="polite"></span>
                 </div>
               </section>
+
+              <section
+                class="card crm-tools-card"
+                id="crm-tools-card"
+                aria-labelledby="crm-tools-title"
+                aria-busy="false"
+              >
+                <div class="card-head">
+                  <h2 id="crm-tools-title">Подготовка</h2>
+                  <span class="badge">без сохранения</span>
+                </div>
+
+                <p class="crm-tools-lead">
+                  Kivi заполнит поля на открытой карточке, но не нажмёт «Сохранить»,
+                  «Создать задачу» или «Отправить». Проверьте карточку и сохраните вручную.
+                </p>
+
+                <div class="crm-tabs" role="tablist" aria-label="Действия с заказом">
+                  <button
+                    type="button"
+                    class="crm-tab is-active"
+                    id="crm-tab-fill"
+                    role="tab"
+                    aria-selected="true"
+                    aria-controls="crm-fill-panel"
+                    tabindex="0"
+                    data-crm-tab="fill"
+                  >
+                    Заполнить
+                  </button>
+                  <button
+                    type="button"
+                    class="crm-tab"
+                    id="crm-tab-act"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="crm-act-panel"
+                    tabindex="-1"
+                    data-crm-tab="act"
+                  >
+                    Акт
+                  </button>
+                  <button
+                    type="button"
+                    class="crm-tab"
+                    id="crm-tab-task"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="crm-task-panel"
+                    tabindex="-1"
+                    data-crm-tab="task"
+                  >
+                    Задача
+                  </button>
+                </div>
+
+                <p class="crm-tools-gate is-off" id="crm-tools-gate" role="status" aria-live="polite">
+                  Действия недоступны: подключите расширение AltCRM и нажмите «Проверить».
+                </p>
+
+                <div
+                  class="crm-tabpanel"
+                  id="crm-fill-panel"
+                  role="tabpanel"
+                  aria-labelledby="crm-tab-fill"
+                  tabindex="0"
+                >
+                  <form class="crm-form" id="crm-fill-form" novalidate aria-busy="false">
+                    <fieldset class="crm-fieldset" id="crm-fill-fieldset">
+                      <legend class="sr-only">Заполнить заказ без сохранения</legend>
+
+                      <div class="field">
+                        <label class="field-label" for="crm-fill-comment">Комментарий</label>
+                        <textarea
+                          id="crm-fill-comment"
+                          name="comment"
+                          rows="3"
+                          maxlength="5000"
+                          placeholder="Например: согласовали сроки и запчасти, клиент ждёт звонка"
+                          aria-describedby="crm-fill-comment-hint"
+                        ></textarea>
+                        <p class="field-hint" id="crm-fill-comment-hint">
+                          <span>Попадёт в комментарий карточки.</span>
+                          <span>Без сохранения</span>
+                        </p>
+                      </div>
+
+                      <div class="crm-checklist-grid">
+                        <div class="field">
+                          <label class="field-label" for="crm-fill-deadline">
+                            Согласованные сроки ремонта
+                          </label>
+                          <input
+                            class="crm-input"
+                            id="crm-fill-deadline"
+                            name="deadline"
+                            type="text"
+                            maxlength="2000"
+                            autocomplete="off"
+                            placeholder="например, 3 рабочих дня"
+                          />
+                        </div>
+                        <div class="field">
+                          <label class="field-label" for="crm-fill-parts">
+                            Согласованные зап. части
+                          </label>
+                          <input
+                            class="crm-input"
+                            id="crm-fill-parts"
+                            name="parts"
+                            type="text"
+                            maxlength="2000"
+                            autocomplete="off"
+                            placeholder="например, экран, шлейф"
+                          />
+                        </div>
+                        <div class="field">
+                          <label class="field-label" for="crm-fill-works">
+                            Фактические выполняемые работы
+                          </label>
+                          <input
+                            class="crm-input"
+                            id="crm-fill-works"
+                            name="works"
+                            type="text"
+                            maxlength="2000"
+                            autocomplete="off"
+                            placeholder="например, замена экрана"
+                          />
+                        </div>
+                        <div class="field">
+                          <label class="field-label" for="crm-fill-risks">
+                            Согласованные риски
+                          </label>
+                          <input
+                            class="crm-input"
+                            id="crm-fill-risks"
+                            name="risks"
+                            type="text"
+                            maxlength="2000"
+                            autocomplete="off"
+                            placeholder="например, возможен след на корпусе"
+                          />
+                        </div>
+                      </div>
+
+                      <p class="crm-panel-note">
+                        Достаточно комментария или хотя бы одного поля. Если поля не
+                        сохранятся на сервере, Kivi сообщит об этом и ничего не запишет.
+                      </p>
+
+                      <label class="crm-confirm">
+                        <input type="checkbox" id="crm-fill-confirm" />
+                        <span>
+                          Я понимаю: Kivi только заполнит поля, а «Сохранить» в карточке
+                          нажму я сам(а).
+                        </span>
+                      </label>
+
+                      <div class="crm-form-actions">
+                        <button
+                          type="submit"
+                          class="btn btn-primary"
+                          id="crm-fill-submit"
+                          disabled
+                        >
+                          Заполнить без сохранения
+                        </button>
+                        <span class="muted">Kivi не сохраняет и не отправляет.</span>
+                      </div>
+
+                      <p class="crm-form-error" id="crm-fill-error" role="alert" hidden></p>
+                      <p
+                        class="crm-form-status"
+                        id="crm-fill-status"
+                        role="status"
+                        aria-live="polite"
+                      ></p>
+                      <ul
+                        class="crm-results"
+                        id="crm-fill-results"
+                        aria-label="Результаты заполнения"
+                        hidden
+                      ></ul>
+                    </fieldset>
+                  </form>
+                </div>
+
+                <div
+                  class="crm-tabpanel"
+                  id="crm-act-panel"
+                  role="tabpanel"
+                  aria-labelledby="crm-tab-act"
+                  tabindex="0"
+                  hidden
+                >
+                  <form class="crm-form" id="crm-act-form" novalidate aria-busy="false">
+                    <fieldset class="crm-fieldset" id="crm-act-fieldset">
+                      <legend class="sr-only">Добавить строки акта без сохранения</legend>
+
+                      <p class="crm-panel-note">
+                        Название работы, цена в рублях и гарантия в днях. Пустые цена или
+                        гарантия уйдут как 0 — их можно вписать вручную.
+                      </p>
+
+                      <div class="crm-act-rows" id="crm-act-rows"></div>
+
+                      <div class="crm-form-actions">
+                        <button
+                          type="button"
+                          class="btn btn-ghost btn-small"
+                          id="crm-act-add"
+                          disabled
+                        >
+                          Добавить строку
+                        </button>
+                        <span class="muted">Не больше 20 строк за раз.</span>
+                      </div>
+
+                      <label class="crm-confirm">
+                        <input type="checkbox" id="crm-act-confirm" />
+                        <span>
+                          Я понимаю: Kivi только впишет строки в акт, а «Сохранить» нажму
+                          я сам(а).
+                        </span>
+                      </label>
+
+                      <div class="crm-form-actions">
+                        <button
+                          type="submit"
+                          class="btn btn-primary"
+                          id="crm-act-submit"
+                          disabled
+                        >
+                          Добавить строки без сохранения
+                        </button>
+                        <span class="muted">Строки не сохраняются автоматически.</span>
+                      </div>
+
+                      <p class="crm-form-error" id="crm-act-error" role="alert" hidden></p>
+                      <p
+                        class="crm-form-status"
+                        id="crm-act-status"
+                        role="status"
+                        aria-live="polite"
+                      ></p>
+                      <ul
+                        class="crm-results"
+                        id="crm-act-results"
+                        aria-label="Результаты добавления строк"
+                        hidden
+                      ></ul>
+                    </fieldset>
+                  </form>
+                </div>
+
+                <div
+                  class="crm-tabpanel"
+                  id="crm-task-panel"
+                  role="tabpanel"
+                  aria-labelledby="crm-tab-task"
+                  tabindex="0"
+                  hidden
+                >
+                  <form class="crm-form" id="crm-task-form" novalidate aria-busy="false">
+                    <fieldset class="crm-fieldset" id="crm-task-fieldset">
+                      <legend class="sr-only">Подготовить задачу без создания</legend>
+
+                      <div class="field">
+                        <label class="field-label" for="crm-task-comment">Комментарий задачи</label>
+                        <textarea
+                          id="crm-task-comment"
+                          name="comment"
+                          rows="3"
+                          maxlength="500"
+                          placeholder="Например: позвонить клиенту и подтвердить сроки"
+                          aria-describedby="crm-task-comment-hint"
+                        ></textarea>
+                        <p class="field-hint" id="crm-task-comment-hint">
+                          <span>До 500 символов. Обязательное поле.</span>
+                        </p>
+                      </div>
+
+                      <div class="field">
+                        <label class="field-label" for="crm-task-when">Срок выполнения</label>
+                        <input
+                          class="crm-input"
+                          id="crm-task-when"
+                          name="when_text"
+                          type="text"
+                          maxlength="100"
+                          autocomplete="off"
+                          placeholder="например, завтра в 15:00"
+                          aria-describedby="crm-task-when-hint"
+                        />
+                        <p class="field-hint" id="crm-task-when-hint">
+                          <span>Можно оставить пустым — срок останется прежним.</span>
+                        </p>
+                      </div>
+
+                      <label class="crm-confirm">
+                        <input type="checkbox" id="crm-task-confirm" />
+                        <span>
+                          Я понимаю: Kivi только заполнит диалог задачи, а «Создать задачу»
+                          нажму я сам(а).
+                        </span>
+                      </label>
+
+                      <div class="crm-form-actions">
+                        <button
+                          type="submit"
+                          class="btn btn-primary"
+                          id="crm-task-submit"
+                          disabled
+                        >
+                          Подготовить задачу
+                        </button>
+                        <span class="muted">Задача не создаётся автоматически.</span>
+                      </div>
+
+                      <p class="crm-form-error" id="crm-task-error" role="alert" hidden></p>
+                      <p
+                        class="crm-form-status"
+                        id="crm-task-status"
+                        role="status"
+                        aria-live="polite"
+                      ></p>
+                      <ul
+                        class="crm-results"
+                        id="crm-task-results"
+                        aria-label="Результаты подготовки задачи"
+                        hidden
+                      ></ul>
+                    </fieldset>
+                  </form>
+                </div>
+              </section>
             </div>
 
             <p class="view-footnote">
-              Панель только для чтения: нет кнопок заполнения, сохранения или отправки.
-              Если карточка не открыта, сервер вернёт подсказку — включите расширение
-              AltCRM и откройте вкладку заказа в Яндекс.Браузере.
+              Подготовка ничего не сохраняет и не отправляет: Kivi заполняет поля, акт и
+              диалог задачи, но «Сохранить» и «Создать задачу» нажимает человек. Если
+              карточка не открыта, сервер вернёт подсказку — включите расширение AltCRM и
+              откройте вкладку заказа в Яндекс.Браузере.
             </p>
           </div>
         </section>

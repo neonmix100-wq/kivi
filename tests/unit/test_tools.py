@@ -155,6 +155,7 @@ def test_fs_rename_rejects_missing_source(env: ToolEnv) -> None:
         "mail.search",
         "media.image",
         "media.sdxl",
+        "media.video",
         "proc.kill",
         "proc.list",
         "proc.start",

@@ -58,6 +58,14 @@ def ui_api(tmp_path: Path):
             "error": "",
         },
         crm_read_handler=lambda: {"ok": False, "order": "", "hint": "not connected"},
+        crm_fill_handler=lambda payload: {"ok": True, "results": [], "saved": False},
+        crm_act_handler=lambda payload: {"ok": True, "results": [], "saved": False},
+        crm_task_handler=lambda payload: {
+            "ok": True,
+            "results": [],
+            "saved": False,
+            "created": False,
+        },
         history_handler=lambda limit: [
             {"role": "user", "content": f"limit={limit}"},
         ],
@@ -107,10 +115,16 @@ def test_transcribe_accepts_wav(ui_api: LocalApi) -> None:
             content=b"RIFF" + b"\x00" * 60,
             headers={"Content-Type": "audio/wav"},
         )
-        bad = client.post("/transcribe", content=b"not-wav")
+        bad = client.post(
+            "/transcribe",
+            content=b"not-wav",
+            headers={"Content-Type": "audio/wav"},
+        )
+        wrong_type = client.post("/transcribe", content=b"not-wav")
     assert response.status_code == 200
     assert response.json() == {"text": "распознано"}
     assert bad.status_code == 400
+    assert wrong_type.status_code == 415
 
 
 def test_media_image_endpoint(ui_api: LocalApi) -> None:
@@ -143,6 +157,28 @@ def test_fs_mkdir_and_rename(ui_api: LocalApi) -> None:
     assert rename.json()["destination"] == "renamed"
 
 
+def test_cross_site_and_non_json_mutations_are_rejected(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        evil_origin = client.post(
+            "/fs/mkdir",
+            json={"path": "evil"},
+            headers={"Origin": "https://evil.example"},
+        )
+        evil_host = client.post(
+            "/fs/mkdir",
+            json={"path": "evil"},
+            headers={"Host": "evil.example"},
+        )
+        text_plain = client.post(
+            "/fs/mkdir",
+            content=b'{"path":"evil"}',
+            headers={"Content-Type": "text/plain"},
+        )
+    assert evil_origin.status_code == 403
+    assert evil_host.status_code == 403
+    assert text_plain.status_code == 415
+
+
 def test_fs_search(ui_api: LocalApi) -> None:
     with _client(ui_api) as client:
         response = client.get("/fs/search?q=api")
@@ -162,6 +198,18 @@ def test_fs_trash_requires_matching_confirmation(ui_api: LocalApi) -> None:
         )
     assert good.status_code == 200
     assert bad.status_code == 400
+
+
+def test_crm_write_endpoints(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        fill = client.post("/crm/fill", json={"comment": "x", "checklist": {}})
+        act = client.post("/crm/act", json={"rows": []})
+        task = client.post("/crm/task", json={"comment": "x", "when_text": ""})
+    assert fill.status_code == 200
+    assert fill.json()["saved"] is False
+    assert act.status_code == 200
+    assert task.status_code == 200
+    assert task.json()["created"] is False
 
 
 def test_crm_status_and_read(ui_api: LocalApi) -> None:
