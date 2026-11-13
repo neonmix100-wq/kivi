@@ -7,6 +7,7 @@ durable event log and a chat placeholder that already records tasks and events.
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import sys
@@ -14,6 +15,7 @@ import threading
 import time
 import uuid
 import wave
+import webbrowser
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from pathlib import Path
@@ -572,6 +574,56 @@ def cmd_chat(args: argparse.Namespace) -> int:
     return 0
 
 
+def _wav_bytes_from_results(results: list[Any]) -> bytes:
+    """Concatenate synthesized WAV files into one in-memory WAV."""
+    frames: list[bytes] = []
+    params: tuple[int, int, int] | None = None
+    for result in results:
+        with wave.open(str(result.path), "rb") as handle:
+            current = (
+                handle.getnchannels(),
+                handle.getsampwidth(),
+                handle.getframerate(),
+            )
+            if params is None:
+                params = current
+            elif current != params:
+                # Mixed engines are rare; keep the first clip instead of
+                # returning malformed or chipmunk audio.
+                continue
+            frames.append(handle.readframes(handle.getnframes()))
+    if params is None:
+        return b""
+    output = io.BytesIO()
+    with wave.open(output, "wb") as handle:
+        handle.setnchannels(params[0])
+        handle.setsampwidth(params[1])
+        handle.setframerate(params[2])
+        handle.writeframes(b"".join(frames))
+    return output.getvalue()
+
+
+def _serve_history(paths: Any, limit: int) -> list[dict[str, Any]]:
+    with _state(paths) as (db, _bus):
+        messages = _memory(paths, db).recent_messages(limit)
+    return [
+        {
+            "role": str(item.get("role", "")),
+            "content": str(item.get("content", "")),
+            "task_id": str(item.get("task_id", "")),
+            "created_at": str(item.get("created_at", "")),
+        }
+        for item in reversed(messages)
+    ]
+
+
+def cmd_ui(args: argparse.Namespace) -> int:
+    """Start the local UI server and open it in the default browser."""
+    args.ui = True
+    args.open_browser = not args.no_browser
+    return cmd_serve(args)
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     paths = get_paths()
     config = _config(paths)
@@ -643,12 +695,53 @@ def cmd_serve(args: argparse.Namespace) -> int:
                 )
                 return result.answer
 
-    api = LocalApi(answer, host=args.host, port=args.port)
+    ui_speech = _speech_pipeline(config) if getattr(args, "ui", False) else None
+    api = LocalApi(
+        answer,
+        host=args.host,
+        port=args.port,
+        static_dir=(paths.root / "web" / "ui") if getattr(args, "ui", False) else None,
+        docs_dir=(paths.root / "docs") if getattr(args, "ui", False) else None,
+        tts_handler=(
+            (lambda text: _wav_bytes_from_results(
+                ui_speech.synthesize(text, paths.cache / "ui-tts")
+            ))
+            if ui_speech is not None
+            else None
+        ),
+        history_handler=lambda limit: _serve_history(paths, limit),
+        voices_handler=lambda: [
+            {
+                "id": profile.id,
+                "name": profile.name,
+                "engine": profile.engine,
+                "transcript": profile.transcript,
+                "active": bool(
+                    VoiceLibrary(paths.data / "voices").active()
+                    and VoiceLibrary(paths.data / "voices").active().id == profile.id
+                ),
+            }
+            for profile in VoiceLibrary(paths.data / "voices").list()
+        ],
+        settings_handler=lambda: {
+            "voice_provider": config.voice.provider,
+            "model": config.voice.model,
+            "speaker": config.voice.speaker,
+            "sample_rate": config.voice.sample_rate,
+            "fish_model": config.voice.fish_model,
+        },
+        voice_select_handler=lambda voice_id: {
+            "ok": True,
+            "id": VoiceLibrary(paths.data / "voices").set_active(voice_id).id,
+        },
+    )
     try:
         api.start()
     except OSError as exc:
         console.print(f"[red]api error:[/red] {_plain(str(exc))}")
         return 1
+    if getattr(args, "open_browser", False):
+        webbrowser.open(api.url)
     console.print(f"Kivi API: [bold]{api.url}[/bold] (Ctrl+C чтобы остановить)")
     try:
         threading.Event().wait()
@@ -2625,7 +2718,18 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--keep-alive", default="5m")
     serve.add_argument("--timeout", type=float, default=180.0)
     serve.add_argument("--num-predict", type=int, default=512)
+    serve.add_argument("--ui", action="store_true", help="serve the Kivi web UI")
     serve.set_defaults(func=cmd_serve)
+
+    ui = sub.add_parser("ui", help="open the Kivi local interface")
+    ui.add_argument("--host", default="127.0.0.1")
+    ui.add_argument("--port", type=int, default=8765)
+    ui.add_argument("-m", "--model", default=None)
+    ui.add_argument("--keep-alive", default="5m")
+    ui.add_argument("--timeout", type=float, default=180.0)
+    ui.add_argument("--num-predict", type=int, default=512)
+    ui.add_argument("--no-browser", action="store_true")
+    ui.set_defaults(func=cmd_ui)
 
     say = sub.add_parser("say", help="synthesize text with Silero/Piper/Qwen3-TTS")
     say.add_argument("text")

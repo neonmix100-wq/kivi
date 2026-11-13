@@ -1,0 +1,95 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import httpx
+import pytest
+
+from kivi.interfaces.api import LocalApi
+
+
+def _client(api: LocalApi) -> httpx.Client:
+    return httpx.Client(base_url=api.url, timeout=5.0, trust_env=False)
+
+
+@pytest.fixture()
+def ui_api(tmp_path: Path):
+    static = tmp_path / "ui"
+    static.mkdir()
+    (static / "index.html").write_text("<h1>Kivi</h1>", encoding="utf-8")
+    (static / "styles.css").write_text("body{}", encoding="utf-8")
+    (static / "app.js").write_text("console.log('kivi')", encoding="utf-8")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "API.md").write_text("# API", encoding="utf-8")
+    api = LocalApi(
+        lambda message: f"echo: {message}",
+        static_dir=static,
+        docs_dir=docs,
+        tts_handler=lambda text: b"RIFF" + text.encode("utf-8"),
+        history_handler=lambda limit: [
+            {"role": "user", "content": f"limit={limit}"},
+        ],
+        voices_handler=lambda: [{"id": "kivi-warm", "name": "Kivi warm"}],
+        settings_handler=lambda: {"voice_provider": "fish", "model": "s2.1-pro-free"},
+        voice_select_handler=lambda voice_id: {"ok": True, "id": voice_id},
+    )
+    api.start()
+    try:
+        yield api
+    finally:
+        api.stop()
+
+
+def test_static_index_and_assets(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        assert client.get("/").text == "<h1>Kivi</h1>"
+        assert client.get("/styles.css").headers["content-type"].startswith("text/css")
+        response = client.get("/app.js")
+        doc = client.get("/docs/API.md")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/javascript")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert doc.status_code == 200
+    assert doc.text == "# API"
+    assert doc.headers["content-type"].startswith("text/markdown")
+
+
+def test_tts_returns_wav_and_rejects_empty(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        response = client.post("/tts", json={"text": "привет"})
+        empty = client.post("/tts", json={"text": "  "})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "audio/wav"
+    assert response.content.startswith(b"RIFF")
+    assert empty.status_code == 400
+
+
+def test_history_limit_and_voices_settings(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        history = client.get("/history?limit=7")
+        voices = client.get("/voices")
+        settings = client.get("/settings")
+        selected = client.post("/voices/active", json={"id": "kivi-warm"})
+    assert history.json()["messages"][0]["content"] == "limit=7"
+    assert voices.json()["voices"][0]["id"] == "kivi-warm"
+    assert settings.json()["voice_provider"] == "fish"
+    assert selected.json() == {"ok": True, "id": "kivi-warm"}
+
+
+def test_ui_routes_503_when_not_configured(tmp_path: Path) -> None:
+    api = LocalApi(lambda message: message, static_dir=tmp_path)
+    api.start()
+    try:
+        with _client(api) as client:
+            assert client.post("/tts", json={"text": "x"}).status_code == 503
+            assert client.post("/voices/active", json={"id": "x"}).status_code == 503
+            assert client.get("/history").json() == {"messages": []}
+            assert client.get("/voices").json() == {"voices": []}
+    finally:
+        api.stop()
+
+
+def test_static_missing_file_is_404(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        assert client.get("/nope").status_code == 404

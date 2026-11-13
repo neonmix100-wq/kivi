@@ -2,7 +2,7 @@
 
 Дата среза: **12.11.2026**. Дорожная карта: [ROADMAP](ROADMAP.md).
 Новый план после перепроверки железа: [PLAN-2026-11-12](PLAN-2026-11-12.md).
-Тесты: **1576**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
+Тесты: **1581**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
 
 ## 0. Железо на 12.11.2026
 
@@ -70,7 +70,9 @@
 - **Этап 12 (M7 Cloud Media) ~30%:** бесплатный `media.image` (Pollinations,
   flux/turbo) и локальный `media.sdxl` через SD WebUI API готовы; видео,
   job-очередь и ComfyUI ещё нет.
-- **Этап 13 (M8 Kivi Shell)** — следующий крупный срез после media.
+- **Этап 13 (M8 Kivi Shell) ~20%:** локальный веб-интерфейс `kivi ui`,
+  чат, история, голоса, настройки, аватар; нативное окно/трей, микрофон в UI
+  и Explorer-замена ещё впереди.
 
 ## 2. Этапы
 
@@ -89,7 +91,7 @@
 | 10. M5: Voice & Avatar | 🟡 ~75% | audio/VAD/STT, barge-in, avatar3d, Qwen3-TTS, Fish Audio, voice library | wake ONNX, VRM, микрофон |
 | 11. M6: Work CRM | 🟡 ~70% | домен, AltCRM CDP, tools, CLI, метрики | реальный CRM, UI-панель |
 | 12. M7: Cloud Media | 🟡 ~30% | `media.image`, `media.sdxl`, CLI, tests | видео, job queue, ComfyUI |
-| 13. M8: Kivi Shell | ⬜ не начат | — | Explorer-замена, P0/P1, закалка |
+| 13. M8: Kivi Shell | 🟡 ~20% | Kivi UI: чат, история, голоса, настройки, аватар | нативное окно/трей, mic UI, Explorer |
 
 ## 3. Что уже сделано
 

@@ -22,8 +22,9 @@ import threading
 from collections.abc import Callable
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from kivi import __version__
 
@@ -37,6 +38,18 @@ MAX_BODY_BYTES = 64 * 1024
 _MAX_DRAIN_BYTES = 16 * 1024 * 1024
 
 Handler = Callable[[str], str]
+TtsHandler = Callable[[str], bytes]
+HistoryHandler = Callable[[int], list[dict[str, Any]]]
+VoicesHandler = Callable[[], list[dict[str, Any]]]
+SettingsHandler = Callable[[], dict[str, Any]]
+VoiceSelectHandler = Callable[[str], dict[str, Any]]
+
+_STATIC_FILES = {
+    "/": ("index.html", "text/html; charset=utf-8"),
+    "/index.html": ("index.html", "text/html; charset=utf-8"),
+    "/styles.css": ("styles.css", "text/css; charset=utf-8"),
+    "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+}
 
 
 def _is_loopback(host: str) -> bool:
@@ -73,6 +86,13 @@ class LocalApi:
         host: str = "127.0.0.1",
         port: int = 0,
         allow_remote: bool = False,
+        static_dir: Path | str | None = None,
+        docs_dir: Path | str | None = None,
+        tts_handler: TtsHandler | None = None,
+        history_handler: HistoryHandler | None = None,
+        voices_handler: VoicesHandler | None = None,
+        settings_handler: SettingsHandler | None = None,
+        voice_select_handler: VoiceSelectHandler | None = None,
     ) -> None:
         if not callable(handler):
             raise TypeError("handler must be callable")
@@ -87,6 +107,13 @@ class LocalApi:
         self._handler = handler
         self._host = host
         self._port = port
+        self._static_dir = Path(static_dir).resolve() if static_dir is not None else None
+        self._docs_dir = Path(docs_dir).resolve() if docs_dir is not None else None
+        self._tts_handler = tts_handler
+        self._history_handler = history_handler
+        self._voices_handler = voices_handler
+        self._settings_handler = settings_handler
+        self._voice_select_handler = voice_select_handler
         self._handler_lock = threading.Lock()
         self._lifecycle_lock = threading.Lock()
         self._server: _ApiServer | None = None
@@ -235,11 +262,26 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"error": "bad request"})
 
     def _dispatch(self, method: str) -> None:
-        path = urlsplit(self.path).path
+        split = urlsplit(self.path)
+        path = split.path
         if method == "GET" and path == "/health":
             self._send_json(200, {"status": "ok", "version": __version__})
         elif method == "POST" and path == "/chat":
             self._handle_chat()
+        elif method == "GET" and path in _STATIC_FILES:
+            self._serve_static(path)
+        elif method == "GET" and path.startswith("/docs/"):
+            self._serve_doc(path)
+        elif method == "POST" and path == "/tts":
+            self._handle_tts()
+        elif method == "GET" and path == "/history":
+            self._handle_history(split.query)
+        elif method == "GET" and path == "/voices":
+            self._handle_voices()
+        elif method == "POST" and path == "/voices/active":
+            self._handle_voice_select()
+        elif method == "GET" and path == "/settings":
+            self._handle_settings()
         else:
             self._send_json(404, {"error": "not found"})
 
@@ -271,6 +313,146 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "internal error"})
             return
         self._send_json(200, {"answer": answer, "task_id": task_id})
+
+    def _serve_static(self, path: str) -> None:
+        api = self.server.api
+        root = api._static_dir
+        if root is None:
+            self._send_json(404, {"error": "not found"})
+            return
+        name, content_type = _STATIC_FILES[path]
+        target = (root / name).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError:
+            self._send_json(404, {"error": "not found"})
+            return
+        if not target.is_file():
+            self._send_json(404, {"error": "not found"})
+            return
+        self._send_bytes(200, target.read_bytes(), content_type)
+
+    def _serve_doc(self, path: str) -> None:
+        root = self.server.api._docs_dir
+        name = path.removeprefix("/docs/")
+        if root is None or not name or "/" in name or "\\" in name:
+            self._send_json(404, {"error": "not found"})
+            return
+        if not name.endswith(".md"):
+            self._send_json(404, {"error": "not found"})
+            return
+        target = (root / name).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError:
+            self._send_json(404, {"error": "not found"})
+            return
+        if not target.is_file():
+            self._send_json(404, {"error": "not found"})
+            return
+        self._send_bytes(200, target.read_bytes(), "text/markdown; charset=utf-8")
+
+    def _handle_tts(self) -> None:
+        api = self.server.api
+        if api._tts_handler is None:
+            self._send_json(503, {"error": "tts is not configured"})
+            return
+        payload = self._read_json_object()
+        if payload is None:
+            return
+        text = payload.get("text")
+        if not isinstance(text, str) or not text.strip():
+            self._send_json(400, {"error": "text must be a non-empty string"})
+            return
+        try:
+            audio = api._tts_handler(text.strip())
+        except Exception:
+            logger.warning("tts handler failed")
+            self._send_json(500, {"error": "tts failed"})
+            return
+        if not isinstance(audio, (bytes, bytearray)) or not audio:
+            self._send_json(500, {"error": "tts returned empty audio"})
+            return
+        self._send_bytes(200, bytes(audio), "audio/wav")
+
+    def _handle_history(self, query: str) -> None:
+        api = self.server.api
+        if api._history_handler is None:
+            self._send_json(200, {"messages": []})
+            return
+        try:
+            raw = parse_qs(query).get("limit", ["50"])[0]
+            limit = max(1, min(int(raw), 200))
+        except (ValueError, TypeError):
+            self._send_json(400, {"error": "limit must be an integer"})
+            return
+        try:
+            messages = api._history_handler(limit)
+        except Exception:
+            logger.warning("history handler failed")
+            self._send_json(500, {"error": "history failed"})
+            return
+        self._send_json(200, {"messages": messages})
+
+    def _handle_voices(self) -> None:
+        api = self.server.api
+        if api._voices_handler is None:
+            self._send_json(200, {"voices": []})
+            return
+        try:
+            voices = api._voices_handler()
+        except Exception:
+            logger.warning("voices handler failed")
+            self._send_json(500, {"error": "voices failed"})
+            return
+        self._send_json(200, {"voices": voices})
+
+    def _handle_voice_select(self) -> None:
+        api = self.server.api
+        if api._voice_select_handler is None:
+            self._send_json(503, {"error": "voice selection is not configured"})
+            return
+        payload = self._read_json_object()
+        if payload is None:
+            return
+        voice_id = payload.get("id")
+        if not isinstance(voice_id, str) or not voice_id.strip():
+            self._send_json(400, {"error": "id must be a non-empty string"})
+            return
+        try:
+            result = api._voice_select_handler(voice_id.strip())
+        except Exception as exc:  # noqa: BLE001 - no details to the client
+            logger.warning("voice select failed: %s", type(exc).__name__)
+            self._send_json(400, {"error": "voice selection failed"})
+            return
+        self._send_json(200, result)
+
+    def _handle_settings(self) -> None:
+        api = self.server.api
+        if api._settings_handler is None:
+            self._send_json(200, {})
+            return
+        try:
+            settings = api._settings_handler()
+        except Exception:
+            logger.warning("settings handler failed")
+            self._send_json(500, {"error": "settings failed"})
+            return
+        self._send_json(200, settings)
+
+    def _read_json_object(self) -> dict[str, Any] | None:
+        body = self._read_body()
+        if body is None:
+            return None
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_json(400, {"error": "invalid JSON"})
+            return None
+        if not isinstance(payload, dict):
+            self._send_json(400, {"error": "JSON object expected"})
+            return None
+        return payload
 
     def _read_body(self) -> bytes | None:
         raw_length = self.headers.get("Content-Length")
@@ -308,10 +490,15 @@ class _ApiHandler(BaseHTTPRequestHandler):
 
     def _send_json(self, status: int, payload: dict[str, Any]) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self._send_bytes(status, body, "application/json; charset=utf-8")
+
+    def _send_bytes(self, status: int, body: bytes, content_type: str) -> None:
         self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
         if getattr(self, "command", None) != "HEAD":
             self.wfile.write(body)

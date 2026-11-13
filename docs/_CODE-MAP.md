@@ -54,10 +54,10 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.interfaces.__init__` | 21 | User-facing interfaces: CLI, API, voice, tray, avatar. |
-| `src.kivi.interfaces.api` | 320 | Local-only HTTP API for Kivi chat. |
+| `src.kivi.interfaces.api` | 507 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
 | `src.kivi.interfaces.avatar3d` | 637 | 3D avatar (VRM) state, viseme lip-sync and a loopback web renderer. |
-| `src.kivi.interfaces.cli` | 3071 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 3175 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -164,7 +164,7 @@ generated: true
 
 ## Тесты
 
-Всего файлов: **66**.
+Всего файлов: **67**.
 
 - `tests/scenarios/test_m1_scenarios.py`
 - `tests/scenarios/test_m3_browser.py`
@@ -175,6 +175,7 @@ generated: true
 - `tests/unit/test_admin_cli.py`
 - `tests/unit/test_altcrm.py`
 - `tests/unit/test_api.py`
+- `tests/unit/test_api_ui.py`
 - `tests/unit/test_audio.py`
 - `tests/unit/test_avatar2d.py`
 - `tests/unit/test_avatar3d.py`

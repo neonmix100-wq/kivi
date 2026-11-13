@@ -1,6 +1,6 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–9 закрыты, M5 ~65%, M6 ~70% (v0.19). Железо
+> **Статус:** этапы 0–9 закрыты, M5 ~75%, M6 ~70%, M7 ~30%, M8 ~20% (v0.19). Железо
 > перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q4/14B/SDXL/Whisper
 > стали реалистичны. Работают `kivi doctor`, `kivi models`, `kivi ask`,
 > `kivi chat`, `kivi serve`, `kivi say`, `kivi voice design`, `kivi coder`,
@@ -14,8 +14,27 @@
 > и Qwen3-TTS VoiceDesign/Base голос Kivi; **Fish Audio S2.1 Pro Free + Astrea/s
 > сейчас основной голос**. Есть импорт голосов из файлов/URL и `media.image`.
 > Новый план: [`docs/PLAN-2026-11-12.md`](docs/PLAN-2026-11-12.md).
-> Осталось: M7 Cloud Media, M5/M6 внешние ресурсы, OCR/PDF.
+> Осталось: M7 видео/job queue, M5/M6 внешние ресурсы, M8 нативное окно/трей,
+> OCR/PDF.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
+
+## Запуск интерфейса
+
+Дважды щёлкни **`Kivi UI.bat`** в корне проекта — откроется локальный
+интерфейс с чатом, голосом и аватаром.
+
+Или вручную:
+
+```powershell
+cd D:\AI-assistent
+.venv\Scripts\kivi.exe ui
+```
+
+Для Fish Audio нужен ключ в окружении:
+
+```powershell
+$env:FISH_AUDIO_API_KEY = "твой-ключ"
+```
 
 ## Быстрый старт
 
@@ -180,6 +199,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/MAIL.md`](docs/MAIL.md) | Gmail OAuth, чтение, поиск, черновики без отправки |
 | [`docs/TELEGRAM.md`](docs/TELEGRAM.md) | Telegram-бот, allowlist, rate limits |
 | [`docs/VOICE-INPUT.md`](docs/VOICE-INPUT.md) | Audio, VAD, faster-whisper, wake-word |
+| [`docs/UI.md`](docs/UI.md) | Kivi UI: запуск, API, возможности |
 | [`docs/VOICE-PIPELINE.md`](docs/VOICE-PIPELINE.md) | VoiceSession, barge-in, подтверждения |
 | [`docs/VOICE-QWEN.md`](docs/VOICE-QWEN.md) | Qwen3-TTS VoiceDesign/Base, CUDA и замеры |
 | [`docs/VOICE-FISH.md`](docs/VOICE-FISH.md) | Fish Audio voice ID, API-ключ и права |
