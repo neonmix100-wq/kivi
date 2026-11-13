@@ -51,6 +51,10 @@ def ui_api(tmp_path: Path):
         ],
         voices_handler=lambda: [{"id": "kivi-warm", "name": "Kivi warm"}],
         settings_handler=lambda: {"voice_provider": "fish", "model": "s2.1-pro-free"},
+        settings_update_handler=lambda payload: {
+            "voice_provider": str(payload.get("voice_provider", "fish")),
+            "model": "s2.1-pro-free",
+        },
         voice_select_handler=lambda voice_id: {"ok": True, "id": voice_id},
     )
     api.start()
@@ -122,6 +126,13 @@ def test_crm_status_and_read(ui_api: LocalApi) -> None:
     assert status.json()["connected"] is False
     assert reading.status_code == 200
     assert reading.json()["ok"] is False
+
+
+def test_settings_update(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        response = client.post("/settings", json={"voice_provider": "qwen"})
+    assert response.status_code == 200
+    assert response.json()["voice_provider"] == "qwen"
 
 
 def test_history_limit_and_voices_settings(ui_api: LocalApi) -> None:

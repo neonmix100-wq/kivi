@@ -2,7 +2,7 @@
 
 Дата среза: **12.11.2026**. Дорожная карта: [ROADMAP](ROADMAP.md).
 Новый план после перепроверки железа: [PLAN-2026-11-12](PLAN-2026-11-12.md).
-Тесты: **1593**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
+Тесты: **1594**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
 
 ## 0. Железо на 12.11.2026
 
@@ -70,9 +70,9 @@
   10 заказов и паритет extension — блокеры.
 - **Этап 12 (M7 Cloud Media) ~50%:** `media.image`, `media.sdxl`,
   `MediaJobQueue`, **медиа-панель в UI**; видео-провайдера без ключа нет.
-- **Этап 13 (M8 Kivi Shell) ~55%:** Kivi UI, app-окно, трей, чат, история,
-  голоса, настройки, аватар, голосовой ввод, медиа, файлы, CRM; запись/удаление
-  файлов и Explorer-замена ещё впереди.
+- **Этап 13 (M8 Kivi Shell) ~60%:** Kivi UI, app-окно, трей, чат, история,
+  голоса, настройки с выбором движка, аватар, голосовой ввод, медиа, файлы, CRM;
+  запись/удаление файлов и Explorer-замена ещё впереди.
 
 ## 2. Этапы
 
@@ -91,7 +91,7 @@
 | 10. M5: Voice & Avatar | 🟡 ~80% | audio/VAD/STT, barge-in, avatar3d, Qwen3-TTS, Fish Audio, voice library, UI mic | wake ONNX, VRM, замеры |
 | 11. M6: Work CRM | 🟡 ~75% | домен, AltCRM CDP, tools, CLI, CRM UI panel | реальный CRM, паритет |
 | 12. M7: Cloud Media | 🟡 ~50% | `media.image`, `media.sdxl`, `MediaJobQueue`, UI media panel | видео, UI очереди, ComfyUI |
-| 13. M8: Kivi Shell | 🟡 ~55% | Kivi UI, app-окно, трей, голос, медиа, файлы, CRM | запись/удаление, Explorer |
+| 13. M8: Kivi Shell | 🟡 ~60% | Kivi UI, app-окно, трей, голос, медиа, файлы, CRM, settings | запись/удаление, Explorer |
 
 ## 3. Что уже сделано
 

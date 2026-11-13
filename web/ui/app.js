@@ -51,6 +51,25 @@ const VIEWS = new Set(["chat", "voices", "media", "files", "crm", "settings"]);
 const CRM_FALLBACK_HINT =
   "Запусти Chrome с --remote-debugging-port=9222 и открой вкладку заказа AltCRM. Kivi читает только открытую страницу.";
 const CRM_ORDER_MAX_CHARS = 120000;
+const VOICE_PROVIDERS = Object.freeze({
+  fish: {
+    label: "Fish Audio (основной)",
+    hint: "Fish Audio — облачный синтез. Серверу нужен ключ FISH_AUDIO_API_KEY; без него синтез вернёт 503.",
+  },
+  qwen: {
+    label: "Qwen3-TTS",
+    hint: "Qwen3-TTS — локальная модель: нужны скачанные веса и свободная видеопамять. Первый синтез может быть медленным.",
+  },
+  silero: {
+    label: "Silero",
+    hint: "Silero — локальный быстрый движок. Модель скачивается в data/models, ключ не нужен.",
+  },
+  piper: {
+    label: "Piper",
+    hint: "Piper — локальный движок на файлах .onnx. Ключ не нужен, тембр зависит от выбранного голоса.",
+  },
+});
+const DEFAULT_PROVIDER_HINT = "Выберите движок и нажмите «Сохранить».";
 
 const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const shortDateFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
@@ -81,6 +100,10 @@ const state = {
   settingsState: "idle",
   settingsError: "",
   settingsLoading: false,
+  settingsDraft: "",
+  settingsSaving: false,
+  settingsSaveState: "idle",
+  settingsSaveMessage: "",
   media: {
     prompt: "",
     width: 1024,
@@ -3047,18 +3070,45 @@ async function submitMedia() {
 /* Settings                                                           */
 /* ------------------------------------------------------------------ */
 
+function voiceProviderInfo(value) {
+  return Object.prototype.hasOwnProperty.call(VOICE_PROVIDERS, value)
+    ? VOICE_PROVIDERS[value]
+    : null;
+}
+
+function voiceProviderLabel(value) {
+  const info = voiceProviderInfo(value);
+  return info ? info.label : value ? String(value) : "—";
+}
+
 function normalizeSettings(raw) {
   const data = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   const rate = Number(data.sample_rate);
   return {
-    provider: firstString(data.voice_provider, data.provider, data.voiceProvider),
+    provider: firstString(
+      data.voice_provider,
+      data.provider,
+      data.voiceProvider,
+    ).toLowerCase(),
     model: firstString(data.model, data.voice_model, data.voiceModel),
+    speaker: firstString(data.speaker, data.voice_speaker, data.voiceSpeaker),
+    fishModel: firstString(data.fish_model, data.fishModel),
     sampleRate: Number.isFinite(rate) && rate > 0 ? rate : 0,
   };
 }
 
+function isSettingsDirty() {
+  if (!state.settings) return Boolean(state.settingsDraft);
+  return Boolean(state.settingsDraft) && state.settingsDraft !== state.settings.provider;
+}
+
+function resetSettingsSaveState() {
+  state.settingsSaveState = "idle";
+  state.settingsSaveMessage = "";
+}
+
 async function loadSettings({ force = false } = {}) {
-  if (state.settingsLoading) return;
+  if (state.settingsLoading || state.settingsSaving) return;
   state.settingsLoading = true;
   state.settingsState = "loading";
   state.settingsError = "";
@@ -3066,10 +3116,14 @@ async function loadSettings({ force = false } = {}) {
   try {
     const data = await apiRequest("/settings", { timeout: 10000 });
     state.settings = normalizeSettings(data);
+    state.settingsDraft = state.settings.provider;
+    resetSettingsSaveState();
     state.settingsState = "ready";
     hideConnectionNotice();
   } catch (error) {
     state.settings = null;
+    state.settingsDraft = "";
+    resetSettingsSaveState();
     if (isUnsupported(error)) {
       state.settingsState = "missing";
       state.settingsError = "GET /settings не подключён на сервере.";
@@ -3084,16 +3138,41 @@ async function loadSettings({ force = false } = {}) {
   }
 }
 
+function syncSettingsProviderOptions() {
+  const select = els.settingProviderSelect;
+  if (!select) return;
+  const extra = select.querySelector('option[data-extra="1"]');
+  const provider = state.settings ? state.settings.provider : "";
+  if (provider && !voiceProviderInfo(provider)) {
+    const option = extra || el("option", { dataset: { extra: "1" } });
+    option.value = provider;
+    option.textContent = `${provider} (неизвестный серверу движок)`;
+    if (!extra) select.append(option);
+  } else if (extra) {
+    extra.remove();
+  }
+}
+
 function renderSettings() {
-  if (!els.settingProvider) return;
+  if (!els.settingProviderSelect || !els.settingModel) return;
+  syncSettingsProviderOptions();
+
   const settings = state.settings;
-  els.settingProvider.textContent = settings && settings.provider ? settings.provider : "—";
+  const draft = state.settingsDraft || "";
+  const draftInfo = voiceProviderInfo(draft);
+  els.settingProviderSelect.value = draft;
+  els.settingProviderSelect.disabled = state.settingsLoading || state.settingsSaving;
+  els.settingProviderHint.textContent = draftInfo ? draftInfo.hint : DEFAULT_PROVIDER_HINT;
+
   els.settingModel.textContent = settings && settings.model ? settings.model : "—";
   els.settingRate.textContent =
     settings && settings.sampleRate ? `${numberFmt.format(settings.sampleRate)} Гц` : "—";
+  els.settingSpeaker.textContent = settings && settings.speaker ? settings.speaker : "—";
+  els.settingFishModel.textContent =
+    settings && settings.fishModel ? settings.fishModel : "—";
 
   if (state.settingsState === "loading") {
-    els.settingsStatus.textContent = "Загрузка…";
+    els.settingsStatus.textContent = "Загрузка настроек с локального сервера…";
   } else if (state.settingsState === "error") {
     els.settingsStatus.textContent = state.settingsError || "Не удалось загрузить настройки.";
   } else if (state.settingsState === "missing") {
@@ -3102,8 +3181,128 @@ function renderSettings() {
   } else if (!settings || (!settings.provider && !settings.model && !settings.sampleRate)) {
     els.settingsStatus.textContent =
       "Сервер вернул пустые настройки: данные о голосе недоступны.";
+  } else if (settings.provider) {
+    els.settingsStatus.textContent = `Текущий движок: ${voiceProviderLabel(
+      settings.provider,
+    )}. Данные получены от локального API.`;
   } else {
-    els.settingsStatus.textContent = "Данные получены от локального API.";
+    els.settingsStatus.textContent = "Сервер вернул настройки без голосового движка.";
+  }
+
+  const dirty = isSettingsDirty();
+  const saving = state.settingsSaving;
+  els.settingsSave.disabled = saving || state.settingsLoading || !dirty;
+  els.settingsSave.textContent = saving ? "Сохраняем…" : "Сохранить";
+  els.settingsSave.classList.toggle("is-busy", saving);
+  els.settingsSave.setAttribute("aria-busy", saving ? "true" : "false");
+  if (!state.settings) {
+    els.settingsSave.title = "Сначала загрузите настройки с сервера.";
+  } else if (saving) {
+    els.settingsSave.title = "Сохранение уже выполняется.";
+  } else if (!dirty) {
+    els.settingsSave.title = "Изменений нет.";
+  } else {
+    els.settingsSave.title = "Сохранить выбранный движок на сервере.";
+  }
+
+  let message = state.settingsSaveMessage;
+  if (!message) {
+    if (saving) message = "Сохраняем на сервере…";
+    else if (dirty) message = "Изменение ещё не сохранено.";
+  }
+  els.settingsSaveStatus.textContent = message;
+  els.settingsSaveStatus.classList.toggle("is-error", state.settingsSaveState === "error");
+  els.settingsSaveStatus.classList.toggle("is-ok", state.settingsSaveState === "saved");
+}
+
+function describeSettingsSaveError(error) {
+  if (!(error instanceof ApiError)) {
+    return `Не удалось сохранить настройку: ${
+      error instanceof Error ? error.message : "неизвестная ошибка"
+    }.`;
+  }
+  if (!error.status) return describeApiError(error, "сохранении настроек");
+  if (error.status === 400) {
+    return "Сервер отклонил выбранный движок (400). Обновите настройки и попробуйте снова.";
+  }
+  if (error.status === 503) {
+    return "Переключение движка недоступно на сервере (503). Проверьте, что kivi serve запущен с флагом --ui.";
+  }
+  if (error.status === 404 || error.status === 405) {
+    return "Сервер не поддерживает сохранение настроек (POST /settings).";
+  }
+  if (error.status >= 500) {
+    return `Сервер не смог сохранить настройку (${error.status}). Подробности — в логе kivi serve.`;
+  }
+  return describeApiError(error, "сохранении настроек");
+}
+
+async function saveVoiceProvider() {
+  if (state.settingsSaving || state.settingsLoading) return;
+  const draft = state.settingsDraft || "";
+  if (!draft || !voiceProviderInfo(draft)) {
+    state.settingsSaveState = "error";
+    state.settingsSaveMessage = "Выберите голосовой движок из списка.";
+    renderSettings();
+    return;
+  }
+  if (state.settings && draft === state.settings.provider) {
+    renderSettings();
+    return;
+  }
+  state.settingsSaving = true;
+  state.settingsSaveState = "saving";
+  state.settingsSaveMessage = "Сохраняем на сервере…";
+  renderSettings();
+  try {
+    const data = await apiRequest("/settings", {
+      method: "POST",
+      body: { voice_provider: draft },
+      timeout: 10000,
+    });
+    const previous = state.settings;
+    const saved = normalizeSettings(data);
+    if (!saved.provider) saved.provider = draft;
+    if (!saved.model && previous) saved.model = previous.model;
+    if (!saved.speaker && previous) saved.speaker = previous.speaker;
+    if (!saved.fishModel && previous) saved.fishModel = previous.fishModel;
+    if (!saved.sampleRate && previous) saved.sampleRate = previous.sampleRate;
+    state.settings = saved;
+    state.settingsDraft = saved.provider;
+    state.settingsState = "ready";
+    state.settingsError = "";
+    state.settingsSaveState = "saved";
+    state.settingsSaveMessage = `Сохранено: ${voiceProviderLabel(saved.provider)}.`;
+    hideConnectionNotice();
+    showToast(`Голосовой движок: ${voiceProviderLabel(saved.provider)}.`, "ok");
+  } catch (error) {
+    state.settingsSaveState = "error";
+    state.settingsSaveMessage = describeSettingsSaveError(error);
+    showToast(state.settingsSaveMessage, "error", 7000);
+    if (error instanceof ApiError && error.code === "network") {
+      state.health = {
+        status: "offline",
+        version: state.health.version,
+        checkedAt: Date.now(),
+        error: state.settingsSaveMessage,
+      };
+      updateStatusUI();
+    }
+  } finally {
+    state.settingsSaving = false;
+    renderSettings();
+    const active = document.activeElement;
+    if (
+      els.settingsSave &&
+      els.settingProviderSelect &&
+      (!active || active === document.body || active === els.settingsSave)
+    ) {
+      try {
+        els.settingProviderSelect.focus({ preventScroll: true });
+      } catch {
+        els.settingProviderSelect.focus();
+      }
+    }
   }
 }
 
@@ -3572,6 +3771,17 @@ function bindEvents() {
     void loadSettings({ force: true });
     void checkHealth();
   });
+  if (els.settingProviderSelect) {
+    els.settingProviderSelect.addEventListener("change", () => {
+      if (state.settingsSaving) return;
+      state.settingsDraft = els.settingProviderSelect.value;
+      resetSettingsSaveState();
+      renderSettings();
+    });
+  }
+  if (els.settingsSave) {
+    els.settingsSave.addEventListener("click", () => void saveVoiceProvider());
+  }
   els.settingsRetry.addEventListener("click", () => {
     void checkHealth();
     void loadSettings({ force: true });
@@ -3686,6 +3896,9 @@ function installDebugHook() {
         serverHistory: state.serverHistory ? state.serverHistory.messages.length : 0,
         voices: state.voices.length,
         settings: state.settings ? { ...state.settings } : null,
+        settingsDraft: state.settingsDraft,
+        settingsSaving: state.settingsSaving,
+        settingsSaveState: state.settingsSaveState,
         media: {
           loading: state.media.loading,
           gallery: state.media.gallery.length,
@@ -3778,9 +3991,14 @@ function cacheDom() {
     voicesStatus: $id("voices-status"),
     voicesList: $id("voices-list"),
     settingsRefresh: $id("settings-refresh"),
-    settingProvider: $id("setting-provider"),
+    settingProviderSelect: $id("settings-provider-select"),
+    settingProviderHint: $id("settings-provider-hint"),
     settingModel: $id("setting-model"),
     settingRate: $id("setting-rate"),
+    settingSpeaker: $id("setting-speaker"),
+    settingFishModel: $id("setting-fish-model"),
+    settingsSave: $id("settings-save"),
+    settingsSaveStatus: $id("settings-save-status"),
     settingsStatus: $id("settings-status"),
     autoSpeakSetting: $id("auto-speak-setting"),
     testTone: $id("test-tone"),

@@ -1443,6 +1443,10 @@ a:hover {
   margin: 0 auto;
 }
 
+.card-wide {
+  grid-column: 1 / -1;
+}
+
 .card {
   padding: 16px 18px;
   border: 1px solid var(--line);
@@ -1527,6 +1531,51 @@ a:hover {
   align-items: center;
   gap: 10px;
   margin-top: 12px;
+}
+
+.voice-provider-editor {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.voice-provider-editor .field {
+  max-width: 460px;
+}
+
+.voice-provider-editor .card-actions {
+  margin-top: 0;
+}
+
+.voice-provider-actions .btn {
+  min-width: 132px;
+}
+
+.provider-hint {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.settings-save-status {
+  color: var(--faint);
+  font-size: 11.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.settings-save-status.is-ok {
+  color: var(--mint);
+}
+
+.settings-save-status.is-error {
+  color: #ffb3c1;
+}
+
+.field select:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .switch {
@@ -3300,6 +3349,14 @@ button.file-row:hover {
 
   .view-head {
     flex-direction: column;
+  }
+
+  .voice-provider-editor .field {
+    max-width: none;
+  }
+
+  .voice-provider-actions .btn {
+    width: 100%;
   }
 
   .files-copy-status {

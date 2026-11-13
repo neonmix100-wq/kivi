@@ -787,24 +787,64 @@
             <div class="view-head">
               <div>
                 <p class="view-lead">
-                  Только локальные параметры интерфейса и данные, которые отдаёт API.
-                  Ключей и секретов здесь нет.
+                  Локальные параметры интерфейса, голосовой движок и данные, которые отдаёт
+                  API. Ключей и секретов здесь нет.
                 </p>
               </div>
               <button type="button" class="btn btn-ghost" id="settings-refresh">Обновить</button>
             </div>
 
             <div class="settings-grid">
-              <section class="card" aria-labelledby="card-voice-title">
+              <section
+                class="card card-wide"
+                id="settings-voice-card"
+                aria-labelledby="card-voice-title"
+              >
                 <div class="card-head">
-                  <h2 id="card-voice-title">Голос сервера</h2>
-                  <span class="badge">GET /settings</span>
+                  <h2 id="card-voice-title">Голосовой движок</h2>
+                  <span class="badge">GET · POST /settings</span>
                 </div>
-                <dl class="kv">
-                  <div>
-                    <dt>Провайдер</dt>
-                    <dd id="setting-provider">—</dd>
+
+                <div class="voice-provider-editor">
+                  <div class="field">
+                    <label class="field-label" for="settings-provider-select">
+                      Голосовой движок
+                    </label>
+                    <select
+                      id="settings-provider-select"
+                      name="voice_provider"
+                      aria-describedby="settings-provider-hint settings-provider-note"
+                    >
+                      <option value="" disabled>— выберите движок —</option>
+                      <option value="fish">Fish Audio (основной)</option>
+                      <option value="qwen">Qwen3-TTS</option>
+                      <option value="silero">Silero</option>
+                      <option value="piper">Piper</option>
+                    </select>
+                    <p
+                      class="provider-hint"
+                      id="settings-provider-hint"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      Загрузка данных с сервера…
+                    </p>
                   </div>
+
+                  <div class="card-actions voice-provider-actions">
+                    <button type="button" class="btn btn-primary" id="settings-save" disabled>
+                      Сохранить
+                    </button>
+                    <span
+                      class="settings-save-status"
+                      id="settings-save-status"
+                      role="status"
+                      aria-live="polite"
+                    ></span>
+                  </div>
+                </div>
+
+                <dl class="kv">
                   <div>
                     <dt>Модель</dt>
                     <dd id="setting-model">—</dd>
@@ -813,7 +853,21 @@
                     <dt>Частота</dt>
                     <dd id="setting-rate">—</dd>
                   </div>
+                  <div>
+                    <dt>Спикер</dt>
+                    <dd id="setting-speaker">—</dd>
+                  </div>
+                  <div>
+                    <dt>Fish-модель</dt>
+                    <dd id="setting-fish-model">—</dd>
+                  </div>
                 </dl>
+
+                <p class="card-note" id="settings-provider-note">
+                  Fish Audio читает ключ <code>FISH_AUDIO_API_KEY</code> из окружения сервера —
+                  в браузер он не попадает. Qwen3-TTS работает локально и требует скачанную
+                  модель и свободную видеопамять. Silero и Piper — локальные движки без ключей.
+                </p>
                 <p class="card-note" id="settings-status" role="status" aria-live="polite">
                   Загрузка…
                 </p>

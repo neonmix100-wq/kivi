@@ -12,6 +12,8 @@
 
 ![Kivi CRM](images/kivi-ui-crm.png)
 
+![Kivi Settings](images/kivi-ui-settings.png)
+
 ## Запуск без терминала
 
 Дважды щёлкни **`Kivi UI.bat`** в корне проекта. Откроется отдельное окно
@@ -48,6 +50,7 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 - **голосовой ввод**: удерживай кнопку микрофона, браузер запишет WAV и
   отправит его в локальный Whisper (`/transcribe`);
 - голоса из локальной библиотеки: `kivi voice add/list/use`;
+- выбор голосового движка (Fish / Qwen / Silero / Piper) с сохранением;
 - текущий провайдер и модель в настройках;
 - аватар Kivi с состояниями idle/listening/thinking/speaking;
 - проверка звука через WebAudio;
@@ -72,6 +75,7 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 | GET | `/voices` | голоса библиотеки |
 | POST | `/voices/active` | `{id}` → активный голос |
 | GET | `/settings` | провайдер, модель, sample rate |
+| POST | `/settings` | `{voice_provider}` → сохранённый движок |
 
 API слушает только loopback и не имеет аутентификации; не выставляй его в
 интернет. Текст для `/tts` уходит в выбранный TTS-движок: Fish Audio — в

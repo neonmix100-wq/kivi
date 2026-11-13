@@ -671,6 +671,30 @@ def _ui_fs_read(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
     return {"path": rel, "content": result.output, "truncated": bool(result.truncated)}
 
 
+def _ui_settings_path(paths: Any) -> Path:
+    return paths.data / "ui-settings.json"
+
+
+def _load_voice_provider(paths: Any, default: str) -> str:
+    try:
+        payload = json.loads(_ui_settings_path(paths).read_text(encoding="utf-8"))
+        value = str(payload.get("voice_provider", default))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return default
+    return value if value in {"fish", "qwen", "silero", "piper"} else default
+
+
+def _save_voice_provider(paths: Any, provider: str) -> None:
+    target = _ui_settings_path(paths)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f".{target.name}.tmp")
+    temporary.write_text(
+        json.dumps({"voice_provider": provider}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    os.replace(temporary, target)
+
+
 def _ui_crm_status() -> dict[str, Any]:
     """Check the local AltCRM CDP endpoint without opening a browser."""
     hint = (
@@ -915,7 +939,36 @@ def cmd_serve(args: argparse.Namespace) -> int:
                 )
                 return result.answer
 
-    ui_speech = _speech_pipeline(config) if getattr(args, "ui", False) else None
+    voice_provider = _load_voice_provider(paths, config.voice.provider)
+
+    def ui_settings() -> dict[str, Any]:
+        return {
+            "voice_provider": voice_provider,
+            "model": config.voice.model,
+            "speaker": config.voice.speaker,
+            "sample_rate": config.voice.sample_rate,
+            "fish_model": config.voice.fish_model,
+        }
+
+    def update_ui_settings(payload: dict[str, Any]) -> dict[str, Any]:
+        nonlocal voice_provider
+        provider = str(payload.get("voice_provider", "")).strip()
+        if provider not in {"fish", "qwen", "silero", "piper"}:
+            raise ValueError("voice_provider must be fish, qwen, silero or piper")
+        voice_provider = provider
+        _save_voice_provider(paths, provider)
+        return ui_settings()
+
+    def ui_tts(text: str) -> bytes:
+        effective = config.model_copy(
+            update={
+                "voice": config.voice.model_copy(update={"provider": voice_provider}),
+            }
+        )
+        return _wav_bytes_from_results(
+            _speech_pipeline(effective).synthesize(text, paths.cache / "ui-tts")
+        )
+
     ui_stt = (
         (lambda data: _transcribe_wav_bytes(
             data,
@@ -931,11 +984,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         static_dir=(paths.root / "web" / "ui") if getattr(args, "ui", False) else None,
         docs_dir=(paths.root / "docs") if getattr(args, "ui", False) else None,
         tts_handler=(
-            (lambda text: _wav_bytes_from_results(
-                ui_speech.synthesize(text, paths.cache / "ui-tts")
-            ))
-            if ui_speech is not None
-            else None
+            ui_tts if getattr(args, "ui", False) else None
         ),
         stt_handler=ui_stt,
         media_handler=(
@@ -959,6 +1008,9 @@ def cmd_serve(args: argparse.Namespace) -> int:
         crm_read_handler=(
             (lambda: _ui_crm_read(paths, config)) if getattr(args, "ui", False) else None
         ),
+        settings_update_handler=(
+            update_ui_settings if getattr(args, "ui", False) else None
+        ),
         history_handler=lambda limit: _serve_history(paths, limit),
         voices_handler=lambda: [
             {
@@ -973,13 +1025,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
             }
             for profile in VoiceLibrary(paths.data / "voices").list()
         ],
-        settings_handler=lambda: {
-            "voice_provider": config.voice.provider,
-            "model": config.voice.model,
-            "speaker": config.voice.speaker,
-            "sample_rate": config.voice.sample_rate,
-            "fish_model": config.voice.fish_model,
-        },
+        settings_handler=ui_settings,
         voice_select_handler=lambda voice_id: {
             "ok": True,
             "id": VoiceLibrary(paths.data / "voices").set_active(voice_id).id,

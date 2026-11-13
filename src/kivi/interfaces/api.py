@@ -45,6 +45,7 @@ FsListHandler = Callable[[str], dict[str, Any]]
 FsReadHandler = Callable[[str], dict[str, Any]]
 CrmStatusHandler = Callable[[], dict[str, Any]]
 CrmReadHandler = Callable[[], dict[str, Any]]
+SettingsUpdateHandler = Callable[[dict[str, Any]], dict[str, Any]]
 HistoryHandler = Callable[[int], list[dict[str, Any]]]
 VoicesHandler = Callable[[], list[dict[str, Any]]]
 SettingsHandler = Callable[[], dict[str, Any]]
@@ -101,6 +102,7 @@ class LocalApi:
         fs_read_handler: FsReadHandler | None = None,
         crm_status_handler: CrmStatusHandler | None = None,
         crm_read_handler: CrmReadHandler | None = None,
+        settings_update_handler: SettingsUpdateHandler | None = None,
         history_handler: HistoryHandler | None = None,
         voices_handler: VoicesHandler | None = None,
         settings_handler: SettingsHandler | None = None,
@@ -128,6 +130,7 @@ class LocalApi:
         self._fs_read_handler = fs_read_handler
         self._crm_status_handler = crm_status_handler
         self._crm_read_handler = crm_read_handler
+        self._settings_update_handler = settings_update_handler
         self._history_handler = history_handler
         self._voices_handler = voices_handler
         self._settings_handler = settings_handler
@@ -312,6 +315,8 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._handle_voice_select()
         elif method == "GET" and path == "/settings":
             self._handle_settings()
+        elif method == "POST" and path == "/settings":
+            self._handle_settings_update()
         else:
             self._send_json(404, {"error": "not found"})
 
@@ -567,6 +572,25 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "settings failed"})
             return
         self._send_json(200, settings)
+
+    def _handle_settings_update(self) -> None:
+        api = self.server.api
+        if api._settings_update_handler is None:
+            self._send_json(503, {"error": "settings update is not configured"})
+            return
+        payload = self._read_json_object()
+        if payload is None:
+            return
+        try:
+            result = api._settings_update_handler(payload)
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+        except Exception:
+            logger.warning("settings update failed")
+            self._send_json(500, {"error": "settings update failed"})
+            return
+        self._send_json(200, result)
 
     def _read_json_object(self) -> dict[str, Any] | None:
         body = self._read_body()
