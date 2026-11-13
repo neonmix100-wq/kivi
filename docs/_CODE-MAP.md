@@ -25,7 +25,7 @@ generated: true
 | --- | ---: | --- |
 | `src.kivi.brain.__init__` | 30 | Brain: request routing, planning, execution and verification. |
 | `src.kivi.brain.coder` | 601 | Coder loop: generated -> tests -> fixed (M2). |
-| `src.kivi.brain.core` | 185 | KiviBrain: fast path first, then plan -> execute -> verify. |
+| `src.kivi.brain.core` | 276 | KiviBrain: fast path first, then plan -> execute -> verify. |
 | `src.kivi.brain.executor` | 359 | Plan executor: run a validated DAG through the ToolExecutor. |
 | `src.kivi.brain.fastpath` | 98 | Fast path: one deterministic tool call for simple, unambiguous commands. |
 | `src.kivi.brain.plan` | 247 | Plan model, JSON parser and structural validator for the deep path. |
@@ -57,7 +57,7 @@ generated: true
 | `src.kivi.interfaces.api` | 320 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
 | `src.kivi.interfaces.avatar3d` | 637 | 3D avatar (VRM) state, viseme lip-sync and a loopback web renderer. |
-| `src.kivi.interfaces.cli` | 3016 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 3071 | Command-line interface (stage 1). |
 
 ## kernel
 

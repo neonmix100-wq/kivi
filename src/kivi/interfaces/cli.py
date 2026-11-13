@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import threading
 import time
@@ -333,7 +334,19 @@ def _speech_pipeline(config: KiviConfig) -> SpeechPipeline:
 
 
 def _play_wav(path: Path) -> None:
-    """Play a WAV file on Windows; used by chat/listen independent of avatar."""
+    """Play a WAV file, preferring an explicit/known output device."""
+    try:
+        import sounddevice as sd
+        import soundfile as sf
+
+        samples, sample_rate = sf.read(str(path), dtype="float32", always_2d=True)
+        device: int | str | None = os.environ.get("KIVI_AUDIO_DEVICE") or None
+        if isinstance(device, str) and device.isdigit():
+            device = int(device)
+        sd.play(samples, sample_rate, device=device, blocking=True)
+        return
+    except Exception:
+        pass
     try:
         import winsound
 
@@ -1306,6 +1319,41 @@ def cmd_voice_library(args: argparse.Namespace) -> int:
         return 1
     console.print(f"[red]unknown voice action: {action}[/red]")
     return 2
+
+
+def cmd_audio(args: argparse.Namespace) -> int:
+    """List output devices or play a short test tone."""
+    try:
+        import numpy as np
+        import sounddevice as sd
+    except ImportError as exc:
+        console.print(f"[red]audio unavailable:[/red] {_plain(str(exc))}")
+        return 1
+    default = sd.default.device[1] if isinstance(sd.default.device, (list, tuple)) else None
+    if args.audio_action == "devices":
+        for index, device in enumerate(sd.query_devices()):
+            if int(device["max_output_channels"]) <= 0:
+                continue
+            marker = " *" if index == default else ""
+            console.print(
+                f"{index:>3}{marker} {device['name']} "
+                f"({device['max_output_channels']} ch, {device['default_samplerate']:.0f} Hz)"
+            )
+        return 0
+    device: int | str | None = args.device
+    if isinstance(device, str) and device.isdigit():
+        device = int(device)
+    try:
+        sample_rate = 48000
+        tone = 0.15 * np.sin(
+            2 * np.pi * 440 * np.arange(sample_rate, dtype=np.float32) / sample_rate
+        )
+        sd.play(tone, sample_rate, device=device, blocking=True)
+    except Exception as exc:  # noqa: BLE001 - audio is best effort
+        console.print(f"[red]audio test failed:[/red] {_plain(str(exc))}")
+        return 1
+    console.print("audio test played (440 Hz, 1 s)")
+    return 0
 
 
 def cmd_media_sdxl(args: argparse.Namespace) -> int:
@@ -2614,6 +2662,13 @@ def build_parser() -> argparse.ArgumentParser:
     voice_remove = voice_sub.add_parser("remove")
     voice_remove.add_argument("name")
     voice_remove.set_defaults(func=cmd_voice_library)
+
+    audio = sub.add_parser("audio", help="list audio outputs or test playback")
+    audio_sub = audio.add_subparsers(dest="audio_action", required=True)
+    audio_sub.add_parser("devices")
+    audio_test = audio_sub.add_parser("test")
+    audio_test.add_argument("--device", default=None)
+    audio.set_defaults(func=cmd_audio)
 
     media = sub.add_parser("media", help="free image generation")
     media_sub = media.add_subparsers(dest="media_action", required=True)

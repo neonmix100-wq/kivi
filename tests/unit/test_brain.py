@@ -646,6 +646,36 @@ def test_core_reports_failure(env: Env) -> None:
     assert len(llm.calls) == 2
 
 
+def test_core_smalltalk_answers_without_planner(env: Env) -> None:
+    llm = FakeLLM(["Привет! Я Киви."])
+    brain = KiviBrain(llm, env.registry, env.executor, env.permissions)
+    result = brain.ask("Привет", task_id="t-core-smalltalk")
+    assert result.ok is True
+    assert result.plan is None
+    assert result.answer == "Привет! Я Киви."
+    assert len(llm.calls) == 1
+    assert "no tools are needed" in llm.prompt
+
+
+def test_core_empty_plan_falls_back_to_direct_answer(env: Env) -> None:
+    llm = FakeLLM([plan_json([]), "Я не нашёл подходящих инструментов."])
+    brain = KiviBrain(llm, env.registry, env.executor, env.permissions)
+    result = brain.ask("summarize docs/note.txt", task_id="t-core-empty-plan")
+    assert result.ok is True
+    assert result.plan is None
+    assert result.answer == "Я не нашёл подходящих инструментов."
+    assert len(llm.calls) == 2
+
+
+def test_core_conversational_question_skips_planner(env: Env) -> None:
+    llm = FakeLLM(["Я умею отвечать голосом и читать файлы."])
+    brain = KiviBrain(llm, env.registry, env.executor, env.permissions)
+    result = brain.ask("Что ты умеешь?", task_id="t-core-direct")
+    assert result.ok is True
+    assert result.answer == "Я умею отвечать голосом и читать файлы."
+    assert len(llm.calls) == 1
+
+
 def test_core_reports_planning_error(env: Env) -> None:
     llm = FakeLLM(["not a plan"])
     brain = KiviBrain(llm, env.registry, env.executor, env.permissions)

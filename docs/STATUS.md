@@ -2,7 +2,7 @@
 
 Дата среза: **12.11.2026**. Дорожная карта: [ROADMAP](ROADMAP.md).
 Новый план после перепроверки железа: [PLAN-2026-11-12](PLAN-2026-11-12.md).
-Тесты: **1573**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
+Тесты: **1576**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
 
 ## 0. Железо на 12.11.2026
 
@@ -62,7 +62,7 @@
   voice pipeline, avatar3d/visemes/states, CLI `listen`, **Qwen3-TTS
   VoiceDesign/Base (3 взрослых тембра)**, **Fish Audio S2.1 Pro Free / Astrea/s
   как основной голос**, библиотека голосов (файл/URL/consent), **`chat --speak`
-  озвучивает ответ без аватара**. Блокеры:
+  озвучивает ответ без аватара**, `audio devices/test` для выбора выхода. Блокеры:
   `assets/wake/kivi.onnx`, `assets/avatar/kivi.vrm`, микрофон и замеры false wake/WER.
 - **Этап 11 (M6 Work CRM) ~70%:** headless-домен из `ai-agent`, AltCRM CDP
   adapter, `crm.read/fill/act/task`, CLI и метрики. Блокеры: реальный AltCRM,

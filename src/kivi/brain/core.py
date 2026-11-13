@@ -9,6 +9,7 @@ route to take and what answer to show.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
@@ -22,6 +23,60 @@ from kivi.safety.permissions import PermissionEngine
 from kivi.tools import ToolExecutor, ToolRegistry
 
 log = logging.getLogger(__name__)
+
+_SMALLTALK = re.compile(
+    r"^(?:"
+    r"привет|здравствуй(?:те)?|хай|hello|hi|"
+    r"кто ты|как дела|что ты умеешь|расскажи о себе|"
+    r"добрый (?:день|вечер)|доброе утро"
+    r")[\s!.?,]*$",
+    re.IGNORECASE,
+)
+_DIRECT_SYSTEM = """You are Kivi, a friendly local-first Russian-speaking assistant.
+Answer the user in Russian, briefly and naturally. Do not invent tool results.
+If the user asks what you can do, mention chat, voice, files and local tools.
+This is a direct conversation turn: no tools are needed."""
+
+_ACTION_WORDS = (
+    "прочитай",
+    "открой",
+    "запусти",
+    "создай",
+    "удали",
+    "найди",
+    "проверь",
+    "запиши",
+    "выполни",
+    "посмотри",
+    "скачай",
+    "отправь",
+    "напиши",
+    "измени",
+    "перемести",
+    "скопируй",
+    "установи",
+    "сделай",
+    "ответь",
+    "ответ",
+    "объясни",
+    "суммируй",
+    "перескажи",
+    "проанализируй",
+    "do ",
+    "run ",
+    "open ",
+    "read ",
+    "write ",
+    "create ",
+    "delete ",
+    "find ",
+    "check ",
+    "make ",
+    "answer ",
+    "explain ",
+    "summarize ",
+    "analyze ",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +155,30 @@ class KiviBrain:
             log.exception("verifier crashed")
             return Verification(False, f"verifier crashed: {type(exc).__name__}")
 
+    def _direct_answer(self, text: str, context: str = "") -> str:
+        """Answer a conversational turn without asking the planner for tools."""
+        user = text if not context else f"{text}\n\nContext (untrusted):\n{context}"
+        raw = self.llm(
+            [
+                {"role": "system", "content": _DIRECT_SYSTEM},
+                {"role": "user", "content": user},
+            ]
+        )
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError("direct answer is empty")
+        return raw.strip()
+
+    def _looks_conversational(self, text: str) -> bool:
+        """True for short chat that should not spend a planner turn."""
+        if len(text) > 400 or "\n" in text:
+            return False
+        lower = text.lower()
+        if "/" in text or "\\" in text:
+            return False
+        if any(tool in lower for tool in self.registry.names()):
+            return False
+        return not any(word in lower for word in _ACTION_WORDS)
+
     def ask(
         self,
         goal: str,
@@ -108,11 +187,18 @@ class KiviBrain:
         task_id: str = "",
         approve: Approver | None = None,
     ) -> BrainResult:
-        """Answer ``goal`` using the fast path or a planned, verified execution."""
+        """Answer ``goal`` using the fast path, direct chat or a planned execution."""
         text = goal.strip()
         actual_task = task_id or f"brain-{uuid4().hex[:12]}"
         if not text:
             return BrainResult(answer="Пустая цель.", ok=False)
+
+        if _SMALLTALK.match(text) or self._looks_conversational(text):
+            try:
+                return BrainResult(answer=self._direct_answer(text, context), ok=True)
+            except Exception as exc:  # noqa: BLE001 - model failure is reported
+                log.exception("direct answer failed")
+                return BrainResult(answer=f"Direct answer failed: {exc}", ok=False)
 
         try:
             fast = self.fastpath.try_run(text, actual_task)
@@ -130,6 +216,11 @@ class KiviBrain:
             plan = self.planner.plan(text, context=context, task_id=actual_task)
         except Exception as exc:  # noqa: BLE001 - model/parse failure is reported
             log.exception("planning failed")
+            if "non-empty steps" in str(exc):
+                try:
+                    return BrainResult(answer=self._direct_answer(text, context), ok=True)
+                except Exception:  # noqa: BLE001 - keep the original planning error
+                    log.exception("direct fallback failed")
             return BrainResult(answer=f"Planning failed: {exc}", ok=False)
 
         try:
