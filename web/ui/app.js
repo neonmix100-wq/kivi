@@ -3057,7 +3057,7 @@ function setView(name, { focus = true } = {}) {
     void loadVoices();
   }
   if (name === "files" && (state.files.state === "idle" || state.files.state === "error")) {
-    void loadFiles(state.files.path, { force: true });
+    void loadFiles(state.files.path);
   }
   if (
     name === "settings" &&
