@@ -205,6 +205,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/VOICE-FISH.md`](docs/VOICE-FISH.md) | Fish Audio voice ID, API-ключ и права |
 | [`docs/VOICE-LIBRARY.md`](docs/VOICE-LIBRARY.md) | Импорт голосов из файлов/URL, consent |
 | [`docs/MEDIA.md`](docs/MEDIA.md) | M7: бесплатная генерация изображений |
+| [`docs/MEDIA-JOBS.md`](docs/MEDIA-JOBS.md) | M7: очередь медиа-заданий |
 | [`docs/SDXL.md`](docs/SDXL.md) | Локальный SDXL через SD WebUI API |
 | [`docs/SKILLS-PLUGINS.md`](docs/SKILLS-PLUGINS.md) | Аудит скиллов и плагинов |
 | [`docs/AVATAR3D.md`](docs/AVATAR3D.md) | 3D-VRM слой, виземы, состояния, fallback |

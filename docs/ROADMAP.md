@@ -446,7 +446,7 @@ AltCRM adapter через CDP умеет читать/заполнять/доб�
 - [x] Image-провайдеры: бесплатный Pollinations (`media.image`, flux/turbo) + локальный SDXL (чекпойнт установлен, ComfyUI не подключён).
 - [ ] Video-провайдеры: бесплатные credits/watermark; официальные API.
 - [ ] Cloud Tool Scout: поиск, оценка, карточка провайдера, ручное подтверждение.
-- [ ] Асинхронные job'ы: отправил → poll → скачал → артефакт.
+- [x] Асинхронные job'ы: `MediaJobQueue` (submit → poll → artifact), JSON persistence, tests.
 - [ ] Fallback на локальный SDXL/480p.
 - [ ] Запрет авто-регистрации, обхода CAPTCHA и нарушения ToS.
 

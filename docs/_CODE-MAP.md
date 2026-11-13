@@ -68,6 +68,13 @@ generated: true
 | `src.kivi.kernel.events` | 75 | In-process event bus. |
 | `src.kivi.kernel.logs` | 43 | Append-only JSONL logs. |
 
+## media
+
+| Модуль | Строк | Ответственность |
+| --- | ---: | --- |
+| `src.kivi.media.__init__` | 17 | Media generation services (job queue, provider helpers). |
+| `src.kivi.media.jobs` | 252 | Persistent local media job queue. |
+
 ## memory
 
 | Модуль | Строк | Ответственность |
@@ -164,7 +171,7 @@ generated: true
 
 ## Тесты
 
-Всего файлов: **67**.
+Всего файлов: **68**.
 
 - `tests/scenarios/test_m1_scenarios.py`
 - `tests/scenarios/test_m3_browser.py`
@@ -206,6 +213,7 @@ generated: true
 - `tests/unit/test_lifecycle.py`
 - `tests/unit/test_mail_tools.py`
 - `tests/unit/test_media.py`
+- `tests/unit/test_media_jobs.py`
 - `tests/unit/test_memory.py`
 - `tests/unit/test_ollama.py`
 - `tests/unit/test_patch_tool.py`
