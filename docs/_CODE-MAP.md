@@ -60,7 +60,7 @@ generated: true
 | `src.kivi.interfaces.api` | 946 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
 | `src.kivi.interfaces.avatar3d` | 637 | 3D avatar (VRM) state, viseme lip-sync and a loopback web renderer. |
-| `src.kivi.interfaces.cli` | 4066 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 4079 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -175,7 +175,7 @@ generated: true
 
 ## Тесты
 
-Всего файлов: **70**.
+Всего файлов: **71**.
 
 - `tests/scenarios/test_m1_scenarios.py`
 - `tests/scenarios/test_m3_browser.py`
@@ -242,6 +242,7 @@ generated: true
 - `tests/unit/test_voice.py`
 - `tests/unit/test_voice_library.py`
 - `tests/unit/test_vram.py`
+- `tests/unit/test_wake_training.py`
 - `tests/unit/test_watchdog.py`
 - `tests/unit/test_windows.py`
 - `tests/unit/test_work_crm_domain.py`

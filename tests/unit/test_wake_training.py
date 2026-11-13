@@ -72,6 +72,14 @@ def test_augment_and_place_phrase_are_bounded() -> None:
     assert np.max(np.abs(augmented)) <= 1.0
 
 
+def test_quality_report_flags_silence_and_clipping() -> None:
+    from scripts.record_wake_samples import quality_report
+
+    assert "ok" in quality_report(np.full(100, 1000, dtype=np.int16))
+    assert "тихо" in quality_report(np.zeros(100, dtype=np.int16))
+    assert "клиппинг" in quality_report(np.full(100, 32767, dtype=np.int16))
+
+
 def test_small_wake_net_accepts_feature_windows() -> None:
     model = SmallWakeNet()
     output = WakeOutput(model)(torch.zeros(2, 16, 96))

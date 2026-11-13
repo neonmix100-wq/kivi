@@ -2256,6 +2256,7 @@ def cmd_wake(args: argparse.Namespace) -> int:
     """Show which local wake-word mode is available."""
     from kivi.senses.audio import default_wake_model_path
 
+    paths = get_paths()
     model = default_wake_model_path()
     console.print("Текстовый wake: [green]доступен[/green] (Whisper + фраза «Kivi»)")
     if model.is_file():
@@ -2263,6 +2264,18 @@ def cmd_wake(args: argparse.Namespace) -> int:
     else:
         console.print(f"ONNX wake: [yellow]нет модели[/yellow] ({model})")
         console.print("Для ONNX нужен assets/wake/kivi.onnx или data/models/wake/kivi.onnx.")
+    samples = paths.data / "wake-samples"
+    positive = len(list((samples / "positive").glob("*.wav")))
+    negative = len(list((samples / "negative").glob("*.wav")))
+    console.print(
+        f"Сэмплы для обучения: positive={positive}, negative={negative} "
+        f"({samples})"
+    )
+    if positive < 10 or negative < 10:
+        console.print(
+            "[yellow]Нужно минимум 10+10; лучше 20+20.[/yellow] "
+            "Запись: scripts/record_wake_samples.py."
+        )
     return 0
 
 

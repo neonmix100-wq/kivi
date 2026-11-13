@@ -53,6 +53,21 @@ def save_wav(path: Path, samples: np.ndarray, rate: int) -> None:
         handle.writeframes(samples.astype("<i2").tobytes())
 
 
+def quality_report(samples: np.ndarray) -> str:
+    """Return a short warning for silent or clipped recordings."""
+    if samples.size == 0:
+        return "пустая запись"
+    peak = int(np.max(np.abs(samples)))
+    rms = float(np.sqrt(np.mean(samples.astype(np.float64) ** 2)))
+    clipped = int(np.sum(np.abs(samples) >= 32767))
+    warnings: list[str] = []
+    if peak < 300 or rms < 40:
+        warnings.append("слишком тихо")
+    if clipped > samples.size * 0.01:
+        warnings.append("клиппинг")
+    return f"peak={peak}, rms={rms:.0f}" + (f" — {', '.join(warnings)}" if warnings else " — ok")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Record Kivi wake samples")
     parser.add_argument("--label", choices=("positive", "negative"), required=True)
@@ -75,7 +90,7 @@ def main() -> int:
         samples = record_clip(args.seconds, args.rate)
         path = out / f"{args.label}-{existing + index:03d}.wav"
         save_wav(path, samples, args.rate)
-        print(f"  сохранено: {path.name}")
+        print(f"  сохранено: {path.name}; {quality_report(samples)}")
         time.sleep(0.15)
     print(f"Готово: {out}")
     print("Теперь обучи модель:")
