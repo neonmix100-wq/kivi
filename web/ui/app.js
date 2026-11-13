@@ -2004,8 +2004,26 @@ async function probeWake() {
       state.wake.commandTimer = window.setInterval(() => void probeWakeCommand(), 120);
     }
   } catch (error) {
+    if (error instanceof ApiError && error.status === 404 && location.port !== "8766") {
+      // The browser is showing a page served by an older Kivi process. Wake
+      // is available on the current instance; move the whole window there.
+      try {
+        await fetch("http://127.0.0.1:8766/health", {
+          mode: "no-cors",
+          cache: "no-store",
+        });
+        window.location.replace("http://127.0.0.1:8766/?wake=1");
+        return;
+      } catch {
+        /* current instance is not running; keep the clear error below */
+      }
+    }
     if (state.wake.enabled) {
-      setMicStatus(`Фоновый wake: ${describeApiError(error, "проверке имени")}`, "error");
+      const hint =
+        error instanceof ApiError && error.status === 404
+          ? "Сервер не поддерживает /wake. Запусти KiviRestart.bat и открой актуальное окно."
+          : describeApiError(error, "проверке имени");
+      setMicStatus(`Фоновый wake: ${hint}`, "error");
     }
   } finally {
     state.wake.probing = false;
@@ -2272,7 +2290,12 @@ async function startMic({ background = false } = {}) {
     }
     if (els.avatarPanel) els.avatarPanel.classList.add("is-mic");
     setAvatar("listening");
-    setMicStatus("Слушаю… Отпусти кнопку, чтобы отправить речь.", "ok");
+    setMicStatus(
+      background
+        ? "Слушаю «Киви» в фоне…"
+        : "Слушаю… Отпусти кнопку, чтобы отправить речь.",
+      "ok",
+    );
     startMicMeter(stream);
   } catch (error) {
     state.mic.active = false;
@@ -8739,6 +8762,12 @@ function init() {
   window.setInterval(() => {
     if (!document.hidden) void checkHealth({ silent: true });
   }, 30000);
+
+  if (new URLSearchParams(location.search).get("wake") === "1") {
+    window.setTimeout(() => {
+      if (!state.wake.auto) toggleWakeMode();
+    }, 700);
+  }
 }
 
 if (document.readyState === "loading") {
