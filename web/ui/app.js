@@ -202,6 +202,8 @@ const state = {
     menuKeyboard: false,
     // Entry the rename/trash/transfer forms act on; null means "use preview".
     target: null,
+    // Active drag-and-drop transfer; null when no file row is being dragged.
+    drag: null,
   },
   crm: {
     statusState: "idle",
@@ -2867,8 +2869,12 @@ function renderFilesCrumbs() {
     const button = el("button", {
       type: "button",
       class: `files-crumb${last ? " is-current" : ""}`,
-      title: crumb.path === "." ? "Рабочая папка" : `Открыть ${crumb.path}`,
+      title:
+        crumb.path === "."
+          ? "Рабочая папка: сюда можно перетащить файл"
+          : `Открыть ${crumb.path}; сюда можно перетащить файл`,
       "aria-current": last ? "location" : null,
+      dataset: { fsCrumbPath: crumb.path },
       disabled: !last && state.files.busy ? true : null,
       on: {
         click: () => {
@@ -2957,6 +2963,8 @@ function renderFilesWriteForm() {
 
 function renderFilesList() {
   if (!els.filesList || !els.filesStatus) return;
+  // A rebuild replaces the drag source row, so any in-flight drag state is stale.
+  if (state.files.drag) clearFilesDrag();
   // Rows are rebuilt below: an open menu would point at a detached anchor.
   if (state.files.menuOpen) closeFilesMenu({ returnFocus: false });
   const fs = state.files;
@@ -3100,6 +3108,8 @@ function renderFilesSearchRow(match) {
         type: "button",
         class: `file-row is-search${previewing ? " is-active" : ""}`,
         dataset: { fsPath: path, fsType: match.type },
+        // Only files are transfer sources; folders stay click-only drop targets.
+        draggable: match.type === "file" ? "true" : null,
         "aria-label":
           match.type === "dir"
             ? `Открыть папку ${match.name}, путь ${path}`
@@ -3152,6 +3162,8 @@ function renderFileRow(entry) {
         type: "button",
         class: `file-row${previewing ? " is-active" : ""}`,
         dataset: { fsPath: path, fsType: entry.type },
+        // Only files are transfer sources; folders stay click-only drop targets.
+        draggable: entry.type === "file" ? "true" : null,
         "aria-label":
           entry.type === "dir"
             ? `Открыть папку ${entry.name}`
@@ -3929,6 +3941,309 @@ async function submitFilesTransfer(event) {
       } else {
         focusFilesList();
       }
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Files drag-and-drop transfer (POST /fs/move, POST /fs/copy)        */
+/*                                                                    */
+/* Files are the only drag sources; directory rows and breadcrumbs    */
+/* are drop targets, and empty browser space drops into the open      */
+/* folder. A plain drop moves, Ctrl/Alt copies. The server is the     */
+/* authority on collisions: the UI never pre-checks overwrite. The    */
+/* row context menu stays the keyboard fallback.                      */
+/* ------------------------------------------------------------------ */
+
+function filesDragCopyMode(event) {
+  return event && (event.ctrlKey || event.altKey || event.metaKey) ? "copy" : "move";
+}
+
+function filesDragDestination(drag, targetDir) {
+  return fsJoin(targetDir, drag.name);
+}
+
+function filesDropTargetFor(node) {
+  if (!(node instanceof Element)) return null;
+  const row = node.closest("button.file-row");
+  if (row) {
+    if (!els.filesList || !els.filesList.contains(row)) return null;
+    // File rows are not drop targets: dropping onto one does nothing.
+    if (row.dataset.fsType !== "dir") return null;
+    const raw = row.dataset.fsPath || "";
+    if (!raw) return null;
+    return { path: normalizeFsPath(raw), element: row, kind: "dir" };
+  }
+  const crumb = node.closest("button.files-crumb");
+  if (crumb) {
+    if (!els.filesBreadcrumbs || !els.filesBreadcrumbs.contains(crumb)) return null;
+    const raw = crumb.dataset.fsCrumbPath || "";
+    if (!raw) return null;
+    return { path: normalizeFsPath(raw), element: crumb, kind: "crumb" };
+  }
+  // Empty space inside the browser means the folder that is currently open.
+  if (els.filesBrowser && els.filesBrowser.contains(node)) {
+    return {
+      path: normalizeFsPath(state.files.path),
+      element: els.filesBrowser,
+      kind: "current",
+    };
+  }
+  return null;
+}
+
+function clearFilesDropHighlight() {
+  const drag = state.files.drag;
+  if (!drag) return;
+  if (drag.over && drag.over.isConnected) {
+    drag.over.classList.remove("is-drop-target", "is-drop-copy");
+  }
+  drag.over = null;
+  drag.targetDir = "";
+  drag.target = "";
+  drag.sameFolder = false;
+}
+
+function renderFilesDragIndicator() {
+  const node = els.filesDragIndicator;
+  if (!node) return;
+  const drag = state.files.drag;
+  if (!drag) {
+    node.hidden = true;
+    node.textContent = "";
+    node.classList.remove("is-copy", "is-noop");
+    return;
+  }
+  const copy = drag.mode === "copy";
+  node.hidden = false;
+  node.classList.toggle("is-copy", copy);
+  node.classList.toggle("is-noop", !drag.target && drag.sameFolder === true);
+  let text;
+  if (drag.target) {
+    text =
+      `${copy ? "Копирование" : "Перемещение"}: ${drag.source} → ${drag.target}. ` +
+      "Ctrl или Alt — копирование.";
+  } else if (drag.sameFolder) {
+    text = `Файл «${drag.name}» уже находится в этой папке. Выберите другую папку.`;
+  } else {
+    text =
+      `${copy ? "Копирование" : "Перемещение"}: «${drag.name}». ` +
+      "Наведите на папку или на путь выше; Ctrl или Alt — копирование.";
+  }
+  if (node.textContent !== text) node.textContent = text;
+}
+
+function setFilesDropTarget(target, mode) {
+  const drag = state.files.drag;
+  if (!drag) return;
+  const copy = mode === "copy";
+  if (drag.over !== target.element) {
+    if (drag.over && drag.over.isConnected) {
+      drag.over.classList.remove("is-drop-target", "is-drop-copy");
+    }
+    drag.over = target.element;
+    target.element.classList.add("is-drop-target");
+  }
+  target.element.classList.toggle("is-drop-copy", copy);
+  drag.targetDir = target.path;
+  drag.target = filesDragDestination(drag, target.path);
+  drag.sameFolder = false;
+  renderFilesDragIndicator();
+}
+
+function clearFilesDrag() {
+  const drag = state.files.drag;
+  if (!drag) return;
+  if (drag.over && drag.over.isConnected) {
+    drag.over.classList.remove("is-drop-target", "is-drop-copy");
+  }
+  state.files.drag = null;
+  if (els.filesList) {
+    for (const row of els.filesList.querySelectorAll(".file-row.is-dragging")) {
+      row.classList.remove("is-dragging");
+    }
+  }
+  renderFilesDragIndicator();
+}
+
+function onFilesDragStart(event) {
+  const row = event.target instanceof Element ? event.target.closest("button.file-row") : null;
+  if (!row || row.dataset.fsType !== "file") {
+    event.preventDefault();
+    return;
+  }
+  if (state.files.busy) {
+    event.preventDefault();
+    return;
+  }
+  const raw = row.dataset.fsPath || "";
+  const source = raw ? normalizeFsPath(raw) : "";
+  if (!source) {
+    event.preventDefault();
+    return;
+  }
+  if (state.files.menuOpen) closeFilesMenu({ returnFocus: false });
+  state.files.drag = {
+    source,
+    name: fsName(source),
+    mode: filesDragCopyMode(event),
+    target: "",
+    targetDir: "",
+    sameFolder: false,
+    over: null,
+  };
+  row.classList.add("is-dragging");
+  if (event.dataTransfer) {
+    try {
+      event.dataTransfer.effectAllowed = "copyMove";
+    } catch {
+      /* older browsers may reject the assignment */
+    }
+    try {
+      // The path is only a fallback; state.files.drag remains authoritative.
+      event.dataTransfer.setData("text/plain", source);
+    } catch {
+      /* ignore */
+    }
+  }
+  renderFilesDragIndicator();
+}
+
+function onFilesDragOver(event) {
+  const drag = state.files.drag;
+  if (!drag) return;
+  drag.mode = filesDragCopyMode(event);
+  const target = filesDropTargetFor(event.target);
+  if (!target) {
+    clearFilesDropHighlight();
+    renderFilesDragIndicator();
+    return;
+  }
+  const destination = filesDragDestination(drag, target.path);
+  if (destination === normalizeFsPath(drag.source)) {
+    clearFilesDropHighlight();
+    drag.sameFolder = true;
+    renderFilesDragIndicator();
+    return;
+  }
+  // Only a valid target accepts the drop; every other spot keeps the native
+  // "no drop" cursor instead of promising an action the server would refuse.
+  event.preventDefault();
+  if (event.dataTransfer) {
+    try {
+      event.dataTransfer.dropEffect = drag.mode === "copy" ? "copy" : "move";
+    } catch {
+      /* dropEffect is a hint only */
+    }
+  }
+  setFilesDropTarget(target, drag.mode);
+}
+
+function onFilesDragOverDocument(event) {
+  if (!state.files.drag) return;
+  const node = event.target;
+  if (!(node instanceof Node)) return;
+  const inside =
+    (els.filesBrowser && els.filesBrowser.contains(node)) ||
+    (els.filesBreadcrumbs && els.filesBreadcrumbs.contains(node));
+  if (inside) return;
+  // The pointer left both drop zones: hide the highlight but keep dragging.
+  if (state.files.drag.target || state.files.drag.over || state.files.drag.sameFolder) {
+    clearFilesDropHighlight();
+    renderFilesDragIndicator();
+  }
+}
+
+function onFilesDragEnd() {
+  clearFilesDrag();
+}
+
+function onFilesDropOutside(event) {
+  if (!state.files.drag) return;
+  // A drop-zone handler clears the drag itself; anything left here is an
+  // outside drop, so suppress the browser default and hide the highlight.
+  event.preventDefault();
+  clearFilesDrag();
+}
+
+function onFilesDrop(event) {
+  const drag = state.files.drag;
+  if (!drag) return;
+  // Stop the browser from treating the drop as navigation even when the spot
+  // is not a drop zone.
+  event.preventDefault();
+  const target = filesDropTargetFor(event.target);
+  const mode = filesDragCopyMode(event);
+  const source = drag.source;
+  const name = drag.name;
+  const destination = target ? filesDragDestination(drag, target.path) : "";
+  const sameFolder = Boolean(target) && destination === normalizeFsPath(source);
+  // Clear before confirm() so the highlight never outlives the dialog.
+  clearFilesDrag();
+  if (!target) return;
+  if (sameFolder) {
+    showToast(`Файл «${name}» уже находится в этой папке.`, "info", 6000);
+    return;
+  }
+  if (state.files.busy) return;
+  const copy = mode === "copy";
+  const confirmed = window.confirm(
+    `${copy ? "Копировать файл?" : "Переместить файл?"}\n\n` +
+      `Источник: ${source}\n` +
+      `Назначение: ${destination}\n` +
+      `Действие: ${copy ? "копирование" : "перемещение"}\n\n` +
+      "Существующие элементы не перезаписываются. Продолжить?",
+  );
+  if (!confirmed) return;
+  void runFilesDropTransfer({ source, destination, name, mode });
+}
+
+async function runFilesDropTransfer({ source, destination, name, mode }) {
+  if (state.files.busy) return;
+  const copy = mode === "copy";
+  const endpoint = copy ? "/fs/copy" : "/fs/move";
+  state.files.busy = "transfer";
+  state.files.transferError = "";
+  renderFilesChrome();
+  let transferred = false;
+  let resolved = destination;
+  let focusHandled = false;
+  try {
+    const data = await apiRequest(endpoint, {
+      method: "POST",
+      body: { source, destination },
+      timeout: 30000,
+    });
+    resolved =
+      data && typeof data.destination === "string"
+        ? normalizeFsPath(data.destination)
+        : destination;
+    transferred = true;
+    showToast(
+      copy ? `Скопировано: ${name} → ${resolved}` : `Перемещено: ${name} → ${resolved}`,
+      "ok",
+    );
+    await loadFiles(state.files.path, { force: true });
+    // Keep active search results accurate after the transfer.
+    if (filesSearchActive()) await runFilesSearch(state.files.searchQuery);
+    if (!copy && state.files.preview && state.files.preview.path === source) {
+      // Follow the moved file so the preview does not point at a missing path.
+      await loadFilesPreview(resolved, fileRow(resolved));
+      focusHandled = true;
+    } else if (state.files.preview) {
+      focusFilesPreview();
+      focusHandled = true;
+    }
+  } catch (error) {
+    showToast(describeFilesTransferError(error, mode), "error", 9000);
+  } finally {
+    state.files.busy = "";
+    syncFilesTarget();
+    renderFilesChrome();
+    if (transferred && !focusHandled) {
+      // The list was rebuilt, so keep the result keyboard-reachable.
+      const focused = copy ? focusFileRow(source) : focusFileRow(resolved);
+      if (!focused) focusFilesList();
     }
   }
 }
@@ -6493,6 +6808,11 @@ function onComposerKeydown(event) {
 
 function onGlobalKeydown(event) {
   if (event.key !== "Escape") return;
+  // Escape also drops a drag highlight; the browser cancels the native drag.
+  if (state.files.drag) {
+    clearFilesDrag();
+    return;
+  }
   if (state.files.menuOpen) {
     event.preventDefault();
     closeFilesMenu({ returnFocus: true });
@@ -6693,6 +7013,16 @@ function bindEvents() {
     });
     els.filesList.addEventListener("keydown", onFilesListKeydown);
     els.filesList.addEventListener("contextmenu", onFilesListContextMenu);
+    els.filesList.addEventListener("dragstart", onFilesDragStart);
+    if (els.filesBrowser) {
+      els.filesBrowser.addEventListener("dragover", onFilesDragOver);
+      els.filesBrowser.addEventListener("drop", onFilesDrop);
+    }
+    els.filesBreadcrumbs.addEventListener("dragover", onFilesDragOver);
+    els.filesBreadcrumbs.addEventListener("drop", onFilesDrop);
+    document.addEventListener("dragend", onFilesDragEnd);
+    document.addEventListener("dragover", onFilesDragOverDocument);
+    document.addEventListener("drop", onFilesDropOutside);
     if (els.filesMenu) {
       els.filesMenu.addEventListener("click", onFilesMenuItemClick);
       els.filesMenu.addEventListener("keydown", onFilesMenuKeydown);
@@ -7034,6 +7364,8 @@ function cacheDom() {
     filesBreadcrumbs: $id("files-breadcrumbs"),
     filesUp: $id("files-up"),
     filesLayout: $id("files-layout"),
+    filesBrowser: $id("files-browser"),
+    filesDragIndicator: $id("files-drag-indicator"),
     filesListTitle: $id("files-list-title"),
     filesStatus: $id("files-status"),
     filesList: $id("files-list"),

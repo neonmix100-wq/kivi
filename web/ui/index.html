@@ -640,6 +640,8 @@
                   <code>POST /fs/copy</code>, <code>POST /fs/move</code> и
                   <code>POST /fs/trash</code>. Поиск по имени идёт через
                   <code>GET /fs/search</code> и охватывает всю рабочую папку.
+                  Файл можно перетащить на папку или на путь выше: по умолчанию это
+                  перемещение, с Ctrl или Alt — копирование.
                   Безвозвратного удаления нет: элементы перемещаются в Корзину Windows.
                 </p>
               </div>
@@ -768,7 +770,11 @@
             </form>
 
             <div class="files-layout" id="files-layout">
-              <section class="card files-browser" aria-labelledby="files-list-title">
+              <section
+                class="card files-browser"
+                id="files-browser"
+                aria-labelledby="files-list-title"
+              >
                 <div class="card-head">
                   <h2 id="files-list-title" tabindex="-1">Содержимое</h2>
                   <span class="badge" id="files-count">—</span>
@@ -776,7 +782,19 @@
                 <p class="files-status" id="files-status" role="status" aria-live="polite">
                   Откройте раздел «Файлы», чтобы загрузить список.
                 </p>
+                <p
+                  class="files-drag-indicator"
+                  id="files-drag-indicator"
+                  role="status"
+                  aria-live="polite"
+                  hidden
+                ></p>
                 <ul class="files-list" id="files-list" aria-labelledby="files-list-title"></ul>
+                <p class="files-drag-hint" id="files-drag-hint">
+                  Перетащите файл на строку папки или на путь выше, чтобы переместить его.
+                  Удерживайте Ctrl или Alt — копирование. Клавиатурный вариант — меню
+                  строки (Shift+F10).
+                </p>
                 <p class="files-empty" id="files-empty" hidden>
                   В этой папке нет файлов и подпапок.
                 </p>
