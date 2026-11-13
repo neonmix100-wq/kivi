@@ -7,6 +7,8 @@ or an empty capability set is a programming error, not a runtime surprise.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from typing import Any
 
 from kivi.safety.permissions import RISKS
 from kivi.tools.base import Tool, ToolSpec, describe
@@ -55,6 +57,7 @@ class ToolRegistry:
 def build_registry(
     *,
     blocked_hosts: tuple[str, ...] | list[str] = (),
+    crm_factory: Callable[[], Any] | None = None,
 ) -> ToolRegistry:
     """Create the default registry with the stage-4 tools."""
     from kivi.modules.work_crm.tools import build_crm_tools
@@ -165,7 +168,7 @@ def build_registry(
         BrowserCloseTool(browser_session),
         *build_mail_tools(),
         *build_telegram_tools(),
-        *build_crm_tools(),
+        *build_crm_tools(crm_factory),
         MediaImageTool(),
         SdxlTool(),
     ):

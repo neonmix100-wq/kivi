@@ -2,7 +2,7 @@
 
 Дата среза: **12.11.2026**. Дорожная карта: [ROADMAP](ROADMAP.md).
 Новый план после перепроверки железа: [PLAN-2026-11-12](PLAN-2026-11-12.md).
-Тесты: **1603**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
+Тесты: **1606**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
 
 ## 0. Железо на 12.11.2026
 
@@ -64,9 +64,10 @@
   как основной голос**, библиотека голосов, **`chat --speak`**, `audio devices/test`,
   голосовой ввод в UI, **VRM-аватар, `kivi avatar`, 3D lip-sync через `chat --avatar`**.
   Осталось: animation mixer и кастомный wake ONNX.
-- **Этап 11 (M6 Work CRM) ~75%:** headless-домен, AltCRM CDP adapter,
-  `crm.read/fill/act/task`, **read-only CRM-панель в UI**; реальный AltCRM,
-  10 заказов и паритет extension — блокеры.
+- **Этап 11 (M6 Work CRM) ~95%:** headless-домен, AltCRM CDP adapter,
+  `crm.read/fill/act/task`, **расширение AltCRM через WebSocket-мост**,
+  read-only CRM-панель в UI; реальные 10 заказов и паритет extension ещё
+  проверяются.
 - **Этап 12 (M7 Cloud Media) ~50%:** `media.image`, `media.sdxl`,
   `MediaJobQueue`, **медиа-панель в UI**; видео-провайдера без ключа нет.
 - **Этап 13 (M8 Kivi Shell) ~80%:** Kivi UI, app-окно, трей, чат, история,
@@ -88,7 +89,7 @@
 | 8. M3: Operator | ✅ готово | окна/приложения, UI, system, browser, 20 сценариев | — |
 | 9. M4: Communicator | ✅ готово | Gmail drafts, Telegram bot, CLI, 15 сценариев | — |
 | 10. M5: Voice & Avatar | 🟡 ~92% | audio/VAD/STT, Qwen3-TTS, Fish, voice library, UI mic, VRM + `kivi avatar`, lip-sync | animation mixer, wake ONNX |
-| 11. M6: Work CRM | 🟡 ~75% | домен, AltCRM CDP, tools, CLI, CRM UI panel | реальный CRM, паритет |
+| 11. M6: Work CRM | 🟡 ~95% | домен, AltCRM CDP, **extension bridge**, tools, CLI, CRM UI | 10 заказов, паритет |
 | 12. M7: Cloud Media | 🟡 ~50% | `media.image`, `media.sdxl`, `MediaJobQueue`, UI media panel | видео, UI очереди, ComfyUI |
 | 13. M8: Kivi Shell | 🟡 ~80% | Kivi UI, app-окно, трей, голос, медиа, файлы (search/mkdir/rename/trash), CRM, settings | Explorer |
 
@@ -129,7 +130,7 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 
 - этапы 0–9 закрыты;
 - M5 ~80% (текстовый wake через STT работает; нет кастомного ONNX и VRM);
-- M6 ~75% (read-only CRM-панель есть; нужен реальный AltCRM и паритет);
+- M6 ~95% (расширение AltCRM подключено, чтение работает; нужны 10 заказов и паритет);
 - 16 ГБ VRAM снимают прежнее ограничение: 8B Q4, 7B coder @16k, Whisper
   и 3D-аватар помещаются; Qwen3-TTS 1.7B добавляет ~4,1 ГБ.
 - следующий приоритет — **M7 видео / M8 файловые операции**: SDXL реалистичен локально;

@@ -153,6 +153,17 @@ class TelegramSettings(BaseModel):
     allow_groups: bool = False
 
 
+class CrmSettings(BaseModel):
+    """AltCRM transport: the installed browser extension or Chrome CDP."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    backend: Literal["extension", "cdp"] = "extension"
+    bridge_port: int = Field(default=8799, ge=1, le=65535)
+    bridge_token_file: Path = Path("D:/ai-agent/data/bridge_token.txt")
+    selectors: Path = Path("config/crm-selectors.toml")
+
+
 class SecuritySettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -193,6 +204,7 @@ class KiviConfig(BaseModel):
     shell: ShellSettings = Field(default_factory=ShellSettings)
     mail: MailSettings = Field(default_factory=MailSettings)
     telegram: TelegramSettings = Field(default_factory=TelegramSettings)
+    crm: CrmSettings = Field(default_factory=CrmSettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
 
     @model_validator(mode="after")

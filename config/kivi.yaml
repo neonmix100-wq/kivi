@@ -86,6 +86,11 @@ mail:
 telegram:
   mode: bot
   allow_groups: false
+crm:
+  backend: extension
+  bridge_port: 8799
+  bridge_token_file: D:/ai-agent/data/bridge_token.txt
+  selectors: config/crm-selectors.toml
 
 security:
   protected_zones_signed: true

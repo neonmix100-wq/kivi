@@ -1,6 +1,6 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–9 закрыты, M5 ~92%, M6 ~75%, M7 ~50%, M8 ~80% (v0.19). Железо
+> **Статус:** этапы 0–9 закрыты, M5 ~92%, M6 ~95%, M7 ~50%, M8 ~80% (v0.19). Железо
 > перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q4/14B/SDXL/Whisper
 > стали реалистичны. Работают `kivi doctor`, `kivi models`, `kivi ask`,
 > `kivi chat`, `kivi serve`, `kivi say`, `kivi voice design`, `kivi coder`,
@@ -14,7 +14,7 @@
 > и Qwen3-TTS VoiceDesign/Base голос Kivi; **Fish Audio S2.1 Pro Free + Astrea/s
 > сейчас основной голос**. Есть импорт голосов из файлов/URL и `media.image`.
 > Новый план: [`docs/PLAN-2026-11-12.md`](docs/PLAN-2026-11-12.md).
-> Осталось: M7 видео, M6 реальный AltCRM/паритет, M5 wake/VRM,
+> Осталось: M7 видео, M6 10 заказов/паритет, M5 animation mixer/wake,
 > M8 Explorer-замена, OCR/PDF.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
 
@@ -214,6 +214,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/VOICE-QWEN.md`](docs/VOICE-QWEN.md) | Qwen3-TTS VoiceDesign/Base, CUDA и замеры |
 | [`docs/VOICE-FISH.md`](docs/VOICE-FISH.md) | Fish Audio voice ID, API-ключ и права |
 | [`docs/VOICE-LIBRARY.md`](docs/VOICE-LIBRARY.md) | Импорт голосов из файлов/URL, consent |
+| [`docs/CRM-EXTENSION.md`](docs/CRM-EXTENSION.md) | AltCRM через расширение Яндекс.Браузера |
 | [`docs/MEDIA.md`](docs/MEDIA.md) | M7: бесплатная генерация изображений |
 | [`docs/MEDIA-JOBS.md`](docs/MEDIA-JOBS.md) | M7: очередь медиа-заданий |
 | [`docs/SDXL.md`](docs/SDXL.md) | Локальный SDXL через SD WebUI API |

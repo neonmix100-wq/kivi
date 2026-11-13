@@ -310,6 +310,22 @@ def cmd_models(args: argparse.Namespace) -> int:
     return 0
 
 
+def _registry_for(config: KiviConfig) -> Any:
+    factory = None
+    if config.crm.backend == "extension":
+        from kivi.integrations.extension_crm import ExtensionCrmClient
+
+        factory = lambda: ExtensionCrmClient(  # noqa: E731 - small factory
+            token_file=config.crm.bridge_token_file,
+            selectors_path=config.crm.selectors,
+            port=config.crm.bridge_port,
+        )
+    return build_registry(
+        blocked_hosts=config.security.blocked_hosts,
+        crm_factory=factory,
+    )
+
+
 def _speech_pipeline(config: KiviConfig) -> SpeechPipeline:
     if config.voice.provider == "fish":
         return SpeechPipeline(
@@ -457,7 +473,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
         console.print(f"[red]model error:[/red] {exc}")
         return 2
 
-    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
+    registry = _registry_for(config)
     task_id = f"tsk_{uuid.uuid4().hex[:12]}"
     avatar: AvatarController | None = None
     renderer: Any = None
@@ -806,8 +822,37 @@ def _ui_fs_trash(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
     return {"ok": True, "path": rel, "output": result.output}
 
 
-def _ui_crm_status() -> dict[str, Any]:
-    """Check the local AltCRM CDP endpoint without opening a browser."""
+def _ui_crm_status(config: KiviConfig) -> dict[str, Any]:
+    """Check the extension bridge or the local AltCRM CDP endpoint."""
+    if config.crm.backend == "extension":
+        try:
+            from kivi.integrations.extension_crm import ExtensionCrmClient
+
+            client = ExtensionCrmClient(
+                token_file=config.crm.bridge_token_file,
+                selectors_path=config.crm.selectors,
+                port=config.crm.bridge_port,
+            )
+            client._ensure()
+            client.close()
+            return {
+                "connected": True,
+                "hint": "",
+                "url": "extension://AltCRM",
+                "error": "",
+                "mode": "extension",
+            }
+        except Exception as exc:  # noqa: BLE001 - status is best effort
+            return {
+                "connected": False,
+                "hint": (
+                    "Включи расширение AltCRM в Яндекс.Браузере и открой карточку заказа. "
+                    "На значке расширения должно быть ON."
+                ),
+                "url": "",
+                "error": type(exc).__name__,
+                "mode": "extension",
+            }
     hint = (
         "Запусти Chrome с --remote-debugging-port=9222 и открой вкладку заказа "
         "AltCRM. Kivi читает только открытую страницу."
@@ -823,12 +868,14 @@ def _ui_crm_status() -> dict[str, Any]:
                 "hint": "",
                 "url": str(data.get("webSocketDebuggerUrl", "")),
                 "error": "",
+                "mode": "cdp",
             }
         return {
             "connected": False,
             "hint": hint,
             "url": "",
             "error": f"CDP HTTP {response.status_code}",
+            "mode": "cdp",
         }
     except Exception as exc:  # noqa: BLE001 - status is best effort
         return {
@@ -836,6 +883,7 @@ def _ui_crm_status() -> dict[str, Any]:
             "hint": hint,
             "url": "",
             "error": type(exc).__name__,
+            "mode": "cdp",
         }
 
 
@@ -1015,7 +1063,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     except RegistryError as exc:
         console.print(f"[red]model error:[/red] {exc}")
         return 2
-    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
+    registry = _registry_for(config)
 
     def answer(message: str) -> str:
         with _state(paths) as (db, bus):
@@ -1163,7 +1211,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
             else None
         ),
         crm_status_handler=(
-            _ui_crm_status if getattr(args, "ui", False) else None
+            (lambda: _ui_crm_status(config)) if getattr(args, "ui", False) else None
         ),
         crm_read_handler=(
             (lambda: _ui_crm_read(paths, config)) if getattr(args, "ui", False) else None
@@ -1340,7 +1388,7 @@ def cmd_coder(args: argparse.Namespace) -> int:
     except RegistryError as exc:
         console.print(f"[red]model error:[/red] {exc}")
         return 2
-    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
+    registry = _registry_for(config)
 
     task_id = f"tsk_{uuid.uuid4().hex[:12]}"
     project = paths.data / "projects" / task_id
@@ -1428,7 +1476,7 @@ def cmd_coder(args: argparse.Namespace) -> int:
 def cmd_browse(args: argparse.Namespace) -> int:
     paths = get_paths()
     config = _config(paths)
-    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
+    registry = _registry_for(config)
     task_id = f"tsk_{uuid.uuid4().hex[:12]}"
     with _state(paths) as (db, bus):
         try:
@@ -1487,7 +1535,7 @@ def _run_direct_tool(
     approved: bool = False,
 ) -> ToolResult:
     """Run one tool through the normal executor without a planner."""
-    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
+    registry = _registry_for(config)
     task_id = f"tsk_{uuid.uuid4().hex[:12]}"
     with _state(paths) as (db, bus):
         try:
@@ -1660,7 +1708,7 @@ def cmd_listen(args: argparse.Namespace) -> int:
     except RegistryError as exc:
         console.print(f"[red]model error:[/red] {exc}")
         return 2
-    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
+    registry = _registry_for(config)
     task_id = f"voice-{uuid.uuid4().hex[:12]}"
     with _state(paths) as (db, bus):
         try:
@@ -2434,7 +2482,7 @@ def cmd_tools(args: argparse.Namespace) -> int:
 def cmd_tool_run(args: argparse.Namespace) -> int:
     paths = get_paths()
     config = _config(paths)
-    registry = build_registry(blocked_hosts=config.security.blocked_hosts)
+    registry = _registry_for(config)
     tool = registry.get(args.name)
     if tool is None:
         console.print(f"[red]unknown tool:[/red] {args.name}")

@@ -49,7 +49,8 @@ const AVATAR_CAPTIONS = {
 };
 const VIEWS = new Set(["chat", "voices", "media", "files", "crm", "settings"]);
 const CRM_FALLBACK_HINT =
-  "Запусти Chrome с --remote-debugging-port=9222 и открой вкладку заказа AltCRM. Kivi читает только открытую страницу.";
+  "Включи расширение AltCRM в Яндекс.Браузере и открой карточку заказа. " +
+  "Альтернатива: Chrome с --remote-debugging-port=9222.";
 const CRM_ORDER_MAX_CHARS = 120000;
 const VOICE_PROVIDERS = Object.freeze({
   fish: {
@@ -144,6 +145,7 @@ const state = {
   crm: {
     statusState: "idle",
     connected: false,
+    mode: "extension",
     hint: "",
     url: "",
     statusError: "",
@@ -3298,6 +3300,7 @@ function normalizeCrmStatus(raw) {
   const data = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   return {
     connected: data.connected === true,
+    mode: data.mode === "cdp" ? "cdp" : "extension",
     hint: typeof data.hint === "string" ? data.hint.trim().slice(0, 800) : "",
     url: typeof data.url === "string" ? data.url.trim().slice(0, 500) : "",
     error: typeof data.error === "string" ? data.error.trim().slice(0, 300) : "",
@@ -3335,6 +3338,7 @@ async function loadCrmStatus({ force = false } = {}) {
     if (epoch !== state.crm.statusEpoch) return;
     const status = normalizeCrmStatus(data);
     state.crm.connected = status.connected;
+    state.crm.mode = status.mode;
     state.crm.hint = status.hint || (status.connected ? "" : CRM_FALLBACK_HINT);
     state.crm.url = status.url;
     state.crm.statusDetail = status.error;
@@ -3457,16 +3461,23 @@ function renderCrm() {
   els.crmStatusBadge.classList.add(badge.cls);
   if (els.crmStatusBadgeText) els.crmStatusBadgeText.textContent = badge.label;
 
-  let statusText = "Откройте раздел «CRM», чтобы проверить подключение к Chrome.";
+  const extensionMode = crm.mode === "extension";
+  let statusText = extensionMode
+    ? "Откройте раздел «CRM», чтобы проверить расширение AltCRM."
+    : "Откройте раздел «CRM», чтобы проверить подключение к Chrome.";
   let statusIsError = false;
   if (crm.statusState === "checking") {
-    statusText = "Проверяю подключение к Chrome по CDP…";
+    statusText = extensionMode
+      ? "Проверяю подключение расширения AltCRM…"
+      : "Проверяю подключение к Chrome по CDP…";
   } else if (crm.statusState === "ready") {
-    statusText =
-      "Chrome на связи. Откройте карточку заказа и нажмите «Прочитать заказ».";
+    statusText = extensionMode
+      ? "Расширение AltCRM на связи. Откройте карточку заказа и нажмите «Прочитать заказ»."
+      : "Chrome на связи. Откройте карточку заказа и нажмите «Прочитать заказ».";
   } else if (crm.statusState === "offline") {
-    statusText =
-      "Chrome с CDP не найден. Выполните инструкцию ниже, затем нажмите «Проверить».";
+    statusText = extensionMode
+      ? "Расширение AltCRM не подключено. Включите его в Яндекс.Браузере и нажмите «Проверить»."
+      : "Chrome с CDP не найден. Выполните инструкцию ниже, затем нажмите «Проверить».";
   } else if (crm.statusState === "error" || crm.statusState === "unavailable") {
     statusText = crm.statusError || "Не удалось проверить подключение к CRM.";
     statusIsError = true;
@@ -3513,14 +3524,17 @@ function renderCrm() {
     let emptyText = "";
     if (!loading && !hasOrder && readState !== "error") {
       if (readState === "empty") {
-        emptyText = "Сервер вернул пустой текст заказа. Откройте карточку во вкладке Chrome.";
+        emptyText = extensionMode
+          ? "Сервер вернул пустой текст заказа. Откройте карточку в Яндекс.Браузере."
+          : "Сервер вернул пустой текст заказа. Откройте карточку во вкладке Chrome.";
       } else if (readState === "blocked") {
         emptyText = crm.readHint || "AltCRM недоступен: откройте вкладку заказа.";
       } else if (crm.connected) {
         emptyText = "Карточка ещё не прочитана. Нажмите «Прочитать заказ».";
       } else {
-        emptyText =
-          "Сначала подключитесь к Chrome, затем нажмите «Прочитать заказ». Интерфейс ничего не заполняет и не отправляет.";
+        emptyText = extensionMode
+          ? "Включите расширение AltCRM и откройте карточку заказа. Интерфейс ничего не заполняет и не отправляет."
+          : "Сначала подключитесь к Chrome, затем нажмите «Прочитать заказ». Интерфейс ничего не заполняет и не отправляет.";
       }
     }
     els.crmOrderEmpty.hidden = !emptyText;
