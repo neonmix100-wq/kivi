@@ -620,6 +620,57 @@ def _serve_history(paths: Any, limit: int) -> list[dict[str, Any]]:
     ]
 
 
+def _ui_fs_list(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
+    result = _run_direct_tool(
+        paths,
+        config,
+        "fs.list",
+        {"path": rel, "limit": 500},
+        ["fs.read"],
+    )
+    if not result.ok:
+        raise RuntimeError(result.error or "cannot list directory")
+    entries: list[dict[str, Any]] = []
+    truncated = False
+    for line in result.output.splitlines():
+        if line.startswith("…"):
+            truncated = True
+            continue
+        if len(line) < 3 or line[1] != " ":
+            continue
+        kind = line[0]
+        rest = line[2:].strip()
+        if kind == "f" and "  " in rest:
+            name, size_text = rest.rsplit("  ", 1)
+            try:
+                size = int(size_text.removesuffix(" B"))
+            except ValueError:
+                size = 0
+        else:
+            name, size = rest, 0
+        entries.append(
+            {
+                "name": name,
+                "type": "dir" if kind == "d" else "file" if kind == "f" else "other",
+                "size": size,
+            }
+        )
+    return {"path": rel, "entries": entries, "truncated": truncated}
+
+
+def _ui_fs_read(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
+    result = _run_direct_tool(
+        paths,
+        config,
+        "fs.read",
+        {"path": rel, "max_bytes": 262_144},
+        ["fs.read"],
+    )
+    if not result.ok:
+        raise RuntimeError(result.error or "cannot read file")
+    return {"path": rel, "content": result.output, "truncated": bool(result.truncated)}
+
+
 def _ui_media(paths: Any, config: KiviConfig, payload: dict[str, Any]) -> dict[str, Any]:
     """Generate one image for the UI and return it as a data URL."""
     allowed = ("prompt", "width", "height", "model", "seed", "negative_prompt")
@@ -842,6 +893,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
         stt_handler=ui_stt,
         media_handler=(
             (lambda payload: _ui_media(paths, config, payload))
+            if getattr(args, "ui", False)
+            else None
+        ),
+        fs_list_handler=(
+            (lambda rel: _ui_fs_list(paths, config, rel))
+            if getattr(args, "ui", False)
+            else None
+        ),
+        fs_read_handler=(
+            (lambda rel: _ui_fs_read(paths, config, rel))
             if getattr(args, "ui", False)
             else None
         ),

@@ -89,6 +89,12 @@
             </svg>
             <span>Медиа</span>
           </button>
+          <button type="button" class="nav-btn" data-panel="files">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2.2 2.5H18a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 18 19.5H6A2.5 2.5 0 0 1 3.5 17Z" />
+            </svg>
+            <span>Файлы</span>
+          </button>
           <button type="button" class="nav-btn" data-panel="settings">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <circle cx="12" cy="12" r="3.2" />
@@ -489,6 +495,141 @@
               Изображения генерирует модель, а не человек: детали, текст на картинке и
               сходство с реальными людьми могут быть неточными. Проверяйте результат
               перед использованием.
+            </p>
+          </div>
+        </section>
+
+        <section
+          class="view view-files"
+          id="view-files"
+          data-view="files"
+          aria-labelledby="files-title"
+          hidden
+        >
+          <div class="view-scroll">
+            <div class="view-head">
+              <div>
+                <h2 class="media-heading" id="files-title">Файлы</h2>
+                <p class="view-lead">
+                  Рабочая папка Kivi — только чтение. Список и предпросмотр приходят
+                  с локального API: <code>GET /fs/list</code> и <code>GET /fs/read</code>.
+                </p>
+              </div>
+              <button type="button" class="btn btn-ghost" id="files-refresh">Обновить</button>
+            </div>
+
+            <div class="files-toolbar">
+              <div class="files-path-row">
+                <span class="files-path-label">Папка:</span>
+                <nav
+                  class="files-breadcrumbs"
+                  id="files-breadcrumbs"
+                  aria-label="Текущий путь в рабочей папке"
+                ></nav>
+                <span class="files-readonly">только чтение</span>
+              </div>
+              <div class="files-nav-actions">
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-small"
+                  id="files-up"
+                  aria-label="Перейти в родительскую папку"
+                >
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M12 19V5M6 11l6-6 6 6" />
+                  </svg>
+                  <span>Вверх</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="files-layout" id="files-layout">
+              <section class="card files-browser" aria-labelledby="files-list-title">
+                <div class="card-head">
+                  <h2 id="files-list-title" tabindex="-1">Содержимое</h2>
+                  <span class="badge" id="files-count">—</span>
+                </div>
+                <p class="files-status" id="files-status" role="status" aria-live="polite">
+                  Откройте раздел «Файлы», чтобы загрузить список.
+                </p>
+                <ul class="files-list" id="files-list" aria-labelledby="files-list-title"></ul>
+                <p class="files-empty" id="files-empty" hidden>
+                  В этой папке нет файлов и подпапок.
+                </p>
+                <p class="files-note" id="files-note" hidden></p>
+              </section>
+
+              <section
+                class="card files-preview"
+                id="files-preview-card"
+                aria-labelledby="files-preview-title"
+                hidden
+              >
+                <div class="card-head files-preview-head">
+                  <div class="files-preview-heading">
+                    <h2 id="files-preview-title" tabindex="-1">Файл</h2>
+                    <p class="files-preview-path" id="files-preview-path"></p>
+                  </div>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    id="files-preview-close"
+                    aria-label="Закрыть предпросмотр файла"
+                    title="Закрыть"
+                  >
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M6 6l12 12M18 6 6 18" />
+                    </svg>
+                  </button>
+                </div>
+
+                <p class="files-status" id="files-preview-status" role="status" aria-live="polite"></p>
+                <p class="files-preview-error" id="files-preview-error" role="alert" hidden></p>
+                <div class="files-preview-loading" id="files-preview-loading" hidden>
+                  <span class="media-spinner" aria-hidden="true"></span>
+                  <span>Читаю файл…</span>
+                </div>
+                <pre
+                  class="files-preview-body"
+                  id="files-preview-body"
+                  tabindex="0"
+                  aria-label="Содержимое файла"
+                  hidden
+                ></pre>
+                <p class="files-truncated" id="files-preview-truncated" hidden>
+                  Показана только часть файла: сервер ограничил размер ответа.
+                </p>
+
+                <div class="files-preview-actions">
+                  <button type="button" class="btn btn-ghost btn-small" id="files-copy" disabled>
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <rect x="8" y="8" width="11" height="12" rx="2" />
+                      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" />
+                    </svg>
+                    <span>Копировать</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-small"
+                    id="files-preview-refresh"
+                    disabled
+                  >
+                    Обновить
+                  </button>
+                  <span
+                    class="files-copy-status"
+                    id="files-copy-status"
+                    role="status"
+                    aria-live="polite"
+                  ></span>
+                </div>
+              </section>
+            </div>
+
+            <p class="view-footnote">
+              Интерфейс только читает файлы: запись, удаление и переименование недоступны.
+              Предпросмотр показывает текстовые файлы UTF-8; бинарные файлы могут
+              отображаться некорректно.
             </p>
           </div>
         </section>

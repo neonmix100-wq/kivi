@@ -47,7 +47,7 @@ const AVATAR_CAPTIONS = {
   speaking: "Озвучиваю ответ.",
   error: "Не удалось связаться с сервером.",
 };
-const VIEWS = new Set(["chat", "voices", "media", "settings"]);
+const VIEWS = new Set(["chat", "voices", "media", "files", "settings"]);
 
 const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const shortDateFmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
@@ -89,6 +89,18 @@ const state = {
     // Data URLs are large: keep the last generations in memory only.
     gallery: [],
     seq: 0,
+  },
+  files: {
+    path: ".",
+    entries: [],
+    truncated: false,
+    state: "idle",
+    error: "",
+    epoch: 0,
+    preview: null,
+    previewEpoch: 0,
+    previewTrigger: null,
+    copyStatus: "",
   },
   sending: false,
   pendingConversationId: null,
@@ -1902,6 +1914,546 @@ async function selectVoice(voice) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Files (GET /fs/list, GET /fs/read)                                 */
+/* ------------------------------------------------------------------ */
+
+function normalizeFsPath(raw) {
+  const text = typeof raw === "string" ? raw.trim().replace(/\\/g, "/") : ".";
+  if (!text) return ".";
+  const parts = [];
+  for (const segment of text.split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      parts.pop();
+      continue;
+    }
+    parts.push(segment);
+  }
+  return parts.length ? parts.join("/") : ".";
+}
+
+function fsJoin(dir, name) {
+  const base = normalizeFsPath(dir);
+  return base === "." ? name : `${base}/${name}`;
+}
+
+function fsParent(path) {
+  const normalized = normalizeFsPath(path);
+  if (normalized === ".") return null;
+  const index = normalized.lastIndexOf("/");
+  return index === -1 ? "." : normalized.slice(0, index);
+}
+
+function fsName(path) {
+  const normalized = normalizeFsPath(path);
+  if (normalized === ".") return ".";
+  const index = normalized.lastIndexOf("/");
+  return index === -1 ? normalized : normalized.slice(index + 1);
+}
+
+function fsCrumbs(path) {
+  const normalized = normalizeFsPath(path);
+  const crumbs = [{ label: ".", path: "." }];
+  if (normalized === ".") return crumbs;
+  let current = "";
+  for (const segment of normalized.split("/")) {
+    current = current ? `${current}/${segment}` : segment;
+    crumbs.push({ label: segment, path: current });
+  }
+  return crumbs;
+}
+
+function formatFileSize(bytes) {
+  if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes < 0) return "";
+  if (bytes < 1024) return `${bytes} Б`;
+  const units = ["КБ", "МБ", "ГБ", "ТБ"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const rounded = value >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
+  return `${numberFmt.format(rounded)} ${units[unit]}`;
+}
+
+function normalizeFsEntries(raw) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set();
+  const entries = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const name = typeof item.name === "string" ? item.name.trim() : "";
+    // Names are single path segments; reject anything that could escape the dir.
+    if (!name || name === "." || name === ".." || /[\\/]/.test(name)) continue;
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const type = item.type === "dir" || item.type === "file" ? item.type : "other";
+    const size = Number(item.size);
+    entries.push({
+      name,
+      type,
+      size: Number.isFinite(size) && size >= 0 ? size : null,
+    });
+  }
+  const order = { dir: 0, file: 1, other: 2 };
+  entries.sort((a, b) => {
+    if (order[a.type] !== order[b.type]) return order[a.type] - order[b.type];
+    return a.name.localeCompare(b.name, "ru", { numeric: true, sensitivity: "base" });
+  });
+  return entries;
+}
+
+function describeFilesError(error, context) {
+  if (error instanceof ApiError) {
+    const detail = error.code ? `: ${error.code}` : "";
+    if (error.status === 403) return `Доступ к этому пути запрещён (403${detail}).`;
+    if (error.status === 404) return "Путь не найден (404).";
+    if (error.status === 413) return `Файл слишком большой для предпросмотра (413${detail}).`;
+    if (error.status === 400) return `Сервер отклонил путь (400${detail}).`;
+  }
+  return describeApiError(error, context);
+}
+
+function fileIcon(kind) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  const paths =
+    kind === "dir"
+      ? [
+          "M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2.2 2.5H18a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 18 19.5H6A2.5 2.5 0 0 1 3.5 17Z",
+        ]
+      : ["M7 3.5h6.6L18 8v12.5H7Z", "M13.5 3.5V8H18"];
+  for (const d of paths) {
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", d);
+    svg.append(path);
+  }
+  return svg;
+}
+
+async function loadFiles(rawPath = state.files.path, { force = false, focus = false } = {}) {
+  const path = normalizeFsPath(rawPath);
+  if (!force && path === state.files.path && state.files.state === "loading") return;
+  const changed = path !== state.files.path;
+  state.files.path = path;
+  if (changed) {
+    if (state.files.preview) closeFilesPreview({ returnFocus: false });
+    state.files.entries = [];
+    state.files.truncated = false;
+  }
+  state.files.state = "loading";
+  state.files.error = "";
+  const epoch = ++state.files.epoch;
+  renderFiles();
+  updateViewHeader();
+
+  try {
+    const data = await apiRequest(`/fs/list?path=${encodeURIComponent(path)}`, {
+      timeout: 15000,
+    });
+    if (epoch !== state.files.epoch) return;
+    const entries = normalizeFsEntries(data && data.entries);
+    state.files.path =
+      data && typeof data.path === "string" ? normalizeFsPath(data.path) : path;
+    state.files.entries = entries;
+    state.files.truncated = Boolean(data && data.truncated === true);
+    state.files.state = entries.length ? "ready" : "empty";
+  } catch (error) {
+    if (epoch !== state.files.epoch) return;
+    state.files.entries = [];
+    state.files.truncated = false;
+    state.files.state = "error";
+    state.files.error = describeFilesError(error, "получении списка файлов");
+    if (force) showToast(`Не удалось открыть папку: ${state.files.error}`, "error");
+  } finally {
+    if (epoch !== state.files.epoch) return;
+    renderFiles();
+    updateViewHeader();
+    if (focus) focusFilesList();
+  }
+}
+
+async function loadFilesPreview(rawPath, trigger = null) {
+  const path = normalizeFsPath(rawPath);
+  const name = fsName(path);
+  const epoch = ++state.files.previewEpoch;
+  state.files.previewTrigger = trigger;
+  state.files.copyStatus = "";
+  state.files.preview = {
+    path,
+    name,
+    content: null,
+    truncated: false,
+    loading: true,
+    error: "",
+  };
+  renderFiles();
+
+  try {
+    const data = await apiRequest(`/fs/read?path=${encodeURIComponent(path)}`, {
+      timeout: 20000,
+    });
+    if (epoch !== state.files.previewEpoch) return;
+    const content = data && typeof data.content === "string" ? data.content : "";
+    const resolvedPath =
+      data && typeof data.path === "string" ? normalizeFsPath(data.path) : path;
+    state.files.preview = {
+      path: resolvedPath,
+      name: fsName(resolvedPath),
+      content,
+      truncated: Boolean(data && data.truncated === true),
+      loading: false,
+      error: "",
+    };
+  } catch (error) {
+    if (epoch !== state.files.previewEpoch) return;
+    state.files.preview = {
+      path,
+      name,
+      content: null,
+      truncated: false,
+      loading: false,
+      error: describeFilesError(error, "чтении файла"),
+    };
+  } finally {
+    if (epoch !== state.files.previewEpoch) return;
+    renderFiles();
+    focusFilesPreview();
+    // On narrow screens the preview sits below the list; reveal it.
+    if (
+      window.matchMedia("(max-width: 899px)").matches &&
+      els.filesPreviewCard &&
+      !els.filesPreviewCard.hidden
+    ) {
+      try {
+        els.filesPreviewCard.scrollIntoView({ block: "start" });
+      } catch {
+        /* scrolling is optional */
+      }
+    }
+  }
+}
+
+function closeFilesPreview({ returnFocus = true } = {}) {
+  const trigger = state.files.previewTrigger;
+  if (!state.files.preview && !trigger) return;
+  state.files.previewEpoch += 1;
+  state.files.preview = null;
+  state.files.previewTrigger = null;
+  state.files.copyStatus = "";
+  renderFilesList();
+  renderFilesPreview();
+  if (returnFocus && trigger && trigger.isConnected) {
+    try {
+      trigger.focus();
+    } catch {
+      /* focus is best effort */
+    }
+  }
+}
+
+function focusFilesList() {
+  const first =
+    els.filesList && els.filesList.querySelector("button.file-row:not(.is-static)");
+  const target = first || els.filesListTitle;
+  if (!target) return;
+  try {
+    target.focus({ preventScroll: true });
+  } catch {
+    target.focus();
+  }
+}
+
+function focusFilesPreview() {
+  if (!els.filesPreviewTitle) return;
+  try {
+    els.filesPreviewTitle.focus({ preventScroll: true });
+  } catch {
+    els.filesPreviewTitle.focus();
+  }
+}
+
+function renderFiles() {
+  renderFilesCrumbs();
+  renderFilesToolbar();
+  renderFilesList();
+  renderFilesPreview();
+}
+
+function renderFilesCrumbs() {
+  if (!els.filesBreadcrumbs) return;
+  els.filesBreadcrumbs.replaceChildren();
+  const crumbs = fsCrumbs(state.files.path);
+  crumbs.forEach((crumb, index) => {
+    if (index > 0) {
+      els.filesBreadcrumbs.append(
+        el("span", { class: "files-crumb-sep", "aria-hidden": "true", text: "/" }),
+      );
+    }
+    const last = index === crumbs.length - 1;
+    const button = el("button", {
+      type: "button",
+      class: `files-crumb${last ? " is-current" : ""}`,
+      title: crumb.path === "." ? "Рабочая папка" : `Открыть ${crumb.path}`,
+      "aria-current": last ? "location" : null,
+      on: {
+        click: () => {
+          if (!last) void loadFiles(crumb.path, { focus: true });
+        },
+      },
+    });
+    button.append(el("span", { text: crumb.label }));
+    els.filesBreadcrumbs.append(button);
+  });
+}
+
+function renderFilesToolbar() {
+  const fs = state.files;
+  const loading = fs.state === "loading";
+  if (els.filesUp) els.filesUp.disabled = fs.path === "." || loading;
+  if (els.filesRefresh) els.filesRefresh.disabled = loading;
+  if (els.filesCount) {
+    const value = loading
+      ? "…"
+      : fs.state === "ready"
+        ? String(fs.entries.length)
+        : fs.state === "empty"
+          ? "0"
+          : "—";
+    els.filesCount.textContent = value;
+  }
+  if (els.filesNote) {
+    const note = fs.truncated
+      ? "Сервер вернул неполный список: показаны не все элементы папки."
+      : "";
+    els.filesNote.textContent = note;
+    els.filesNote.hidden = !note;
+  }
+}
+
+function renderFilesList() {
+  if (!els.filesList || !els.filesStatus) return;
+  const fs = state.files;
+  els.filesList.replaceChildren();
+  els.filesStatus.replaceChildren();
+  els.filesStatus.classList.toggle("is-error", fs.state === "error");
+  if (els.filesEmpty) els.filesEmpty.hidden = fs.state !== "empty";
+
+  if (fs.state === "loading") {
+    els.filesStatus.append(el("span", { text: "Загружаю список файлов…" }));
+    for (let index = 0; index < 4; index += 1) {
+      els.filesList.append(el("li", { class: "files-item", "aria-hidden": "true" },
+        el("div", { class: "skeleton files-skeleton" }),
+      ));
+    }
+    return;
+  }
+  if (fs.state === "error") {
+    els.filesStatus.append(
+      el("span", { text: fs.error || "Не удалось загрузить список файлов." }),
+    );
+    els.filesStatus.append(
+      el("button", {
+        type: "button",
+        class: "btn btn-ghost btn-small",
+        text: "Повторить",
+        on: { click: () => void loadFiles(fs.path, { force: true }) },
+      }),
+    );
+    return;
+  }
+  if (fs.state === "empty") {
+    els.filesStatus.append(el("span", { text: "Папка пуста." }));
+    return;
+  }
+  if (fs.state !== "ready") {
+    els.filesStatus.append(
+      el("span", { text: "Откройте раздел «Файлы», чтобы загрузить список." }),
+    );
+    return;
+  }
+
+  const dirs = fs.entries.filter((entry) => entry.type === "dir").length;
+  const files = fs.entries.filter((entry) => entry.type === "file").length;
+  const parts = [];
+  if (dirs) parts.push(`${dirs} ${plural(dirs, ["папка", "папки", "папок"])}`);
+  if (files) parts.push(`${files} ${plural(files, ["файл", "файла", "файлов"])}`);
+  const others = fs.entries.length - dirs - files;
+  if (others) parts.push(`${others} другое`);
+  els.filesStatus.append(el("span", { text: parts.join(" · ") || "Нет элементов." }));
+
+  for (const entry of fs.entries) els.filesList.append(renderFileRow(entry));
+}
+
+function renderFileRow(entry) {
+  const path = fsJoin(state.files.path, entry.name);
+  const previewing = Boolean(state.files.preview && state.files.preview.path === path);
+  const interactive = entry.type === "dir" || entry.type === "file";
+  const meta =
+    entry.type === "dir"
+      ? "папка"
+      : entry.type === "file"
+        ? formatFileSize(entry.size) || "файл"
+        : "другое";
+  const node = interactive
+    ? el("button", {
+        type: "button",
+        class: `file-row${previewing ? " is-active" : ""}`,
+        dataset: { fsPath: path, fsType: entry.type },
+        "aria-label":
+          entry.type === "dir"
+            ? `Открыть папку ${entry.name}`
+            : `Открыть файл ${entry.name}${entry.size !== null ? `, ${formatFileSize(entry.size)}` : ""}`,
+      })
+    : el("div", { class: "file-row is-static" });
+
+  const icon = el("span", {
+    class: `file-icon is-${entry.type}`,
+    "aria-hidden": "true",
+  });
+  icon.append(fileIcon(entry.type));
+  node.append(icon);
+  node.append(el("span", { class: "file-name", text: entry.name }));
+  node.append(el("span", { class: "file-meta", text: meta }));
+
+  if (entry.type === "dir") {
+    node.addEventListener("click", () => void loadFiles(path, { focus: true }));
+  } else if (entry.type === "file") {
+    node.addEventListener("click", () => void loadFilesPreview(path, node));
+  } else {
+    node.setAttribute("aria-disabled", "true");
+  }
+  return el("li", { class: "files-item" }, node);
+}
+
+function renderFilesPreview() {
+  if (!els.filesPreviewCard) return;
+  const preview = state.files.preview;
+  const open = Boolean(preview);
+  els.filesPreviewCard.hidden = !open;
+  if (els.filesLayout) els.filesLayout.classList.toggle("has-preview", open);
+  if (!open) {
+    if (els.filesPreviewBody) els.filesPreviewBody.textContent = "";
+    if (els.filesPreviewStatus) els.filesPreviewStatus.textContent = "";
+    if (els.filesPreviewError) {
+      els.filesPreviewError.hidden = true;
+      els.filesPreviewError.textContent = "";
+    }
+    return;
+  }
+
+  const loading = preview.loading === true;
+  const error = preview.error || "";
+  const content = preview.content;
+  const hasContent = typeof content === "string";
+  els.filesPreviewTitle.textContent = preview.name || fsName(preview.path);
+  els.filesPreviewPath.textContent = preview.path;
+  els.filesPreviewLoading.hidden = !loading;
+  els.filesPreviewError.hidden = !error;
+  els.filesPreviewError.textContent = error;
+  els.filesPreviewStatus.classList.toggle("is-error", Boolean(error));
+  els.filesPreviewStatus.textContent = loading
+    ? "Загрузка файла…"
+    : error
+      ? ""
+      : !hasContent || content === ""
+        ? "Файл пуст."
+        : `${formatFileSize(new TextEncoder().encode(content).length)} · UTF-8${
+            preview.truncated ? " · фрагмент" : ""
+          }`;
+  els.filesPreviewBody.hidden = !hasContent || loading || Boolean(error);
+  if (hasContent && els.filesPreviewBody.textContent !== content) {
+    els.filesPreviewBody.textContent = content;
+  }
+  if (!hasContent && els.filesPreviewBody.textContent) {
+    els.filesPreviewBody.textContent = "";
+  }
+  if (els.filesPreviewTruncated) {
+    els.filesPreviewTruncated.hidden = !preview.truncated || loading || Boolean(error);
+  }
+  if (els.filesCopy) els.filesCopy.disabled = !hasContent || loading || Boolean(error);
+  if (els.filesPreviewRefresh) els.filesPreviewRefresh.disabled = loading;
+  if (els.filesCopyStatus) els.filesCopyStatus.textContent = state.files.copyStatus;
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      /* fall back to execCommand below */
+    }
+  }
+  const area = document.createElement("textarea");
+  area.className = "files-copy-fallback";
+  area.value = text;
+  area.setAttribute("readonly", "readonly");
+  area.setAttribute("aria-hidden", "true");
+  area.tabIndex = -1;
+  document.body.append(area);
+  const selection = document.getSelection();
+  const previous =
+    selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
+  area.select();
+  area.setSelectionRange(0, text.length);
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  area.remove();
+  if (previous && selection) {
+    selection.removeAllRanges();
+    selection.addRange(previous);
+  }
+  if (!ok) throw new Error("clipboard unavailable");
+  return true;
+}
+
+async function copyFilesPreview() {
+  const preview = state.files.preview;
+  if (!preview || typeof preview.content !== "string") return;
+  if (els.filesCopy) els.filesCopy.disabled = true;
+  try {
+    await copyTextToClipboard(preview.content);
+    state.files.copyStatus = "Скопировано в буфер обмена.";
+  } catch {
+    state.files.copyStatus = "Не удалось скопировать. Выделите текст и нажмите Ctrl+C.";
+    showToast("Буфер обмена недоступен в этом браузере.", "error");
+  } finally {
+    renderFilesPreview();
+  }
+}
+
+function onFilesListKeydown(event) {
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+  if (!els.filesList) return;
+  const rows = Array.from(els.filesList.querySelectorAll("button.file-row"));
+  if (!rows.length) return;
+  const current = rows.indexOf(document.activeElement);
+  if (current === -1) return;
+  let next = current;
+  if (event.key === "ArrowDown") next = Math.min(rows.length - 1, current + 1);
+  else if (event.key === "ArrowUp") next = Math.max(0, current - 1);
+  else if (event.key === "Home") next = 0;
+  else if (event.key === "End") next = rows.length - 1;
+  if (next === current) return;
+  event.preventDefault();
+  try {
+    rows[next].focus({ preventScroll: false });
+  } catch {
+    rows[next].focus();
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Media (POST /media/image)                                          */
 /* ------------------------------------------------------------------ */
 
@@ -2469,6 +3021,18 @@ function updateViewHeader() {
           "изображений",
         ])} в этой сессии`
       : "Генерация изображений · локальный API";
+  } else if (state.view === "files") {
+    const fs = state.files;
+    els.viewTitle.textContent = "Файлы";
+    if (fs.state === "loading") {
+      els.viewSubtitle.textContent = "Читаю папку…";
+    } else if (fs.state === "error") {
+      els.viewSubtitle.textContent = "Не удалось открыть папку";
+    } else if (fs.path === ".") {
+      els.viewSubtitle.textContent = "Рабочая папка · только чтение";
+    } else {
+      els.viewSubtitle.textContent = `${fs.path} · только чтение`;
+    }
   } else {
     els.viewTitle.textContent = "Настройки";
     els.viewSubtitle.textContent = "Локальные параметры и данные API";
@@ -2491,6 +3055,9 @@ function setView(name, { focus = true } = {}) {
   closeSidebar();
   if (name === "voices" && (state.voicesState === "idle" || state.voicesState === "error")) {
     void loadVoices();
+  }
+  if (name === "files" && (state.files.state === "idle" || state.files.state === "error")) {
+    void loadFiles(state.files.path, { force: true });
   }
   if (
     name === "settings" &&
@@ -2592,6 +3159,7 @@ function onGlobalKeydown(event) {
   if (els.app && els.app.classList.contains("nav-open")) {
     closeSidebar({ returnFocus: true });
   }
+  if (state.files.preview) closeFilesPreview();
   resetClearHistory();
   if (state.mic.active) stopMic();
 }
@@ -2713,6 +3281,22 @@ function bindEvents() {
     });
     els.mediaClear.addEventListener("click", clearMediaGallery);
   }
+  if (els.filesRefresh) {
+    els.filesRefresh.addEventListener("click", () =>
+      void loadFiles(state.files.path, { force: true }),
+    );
+    els.filesUp.addEventListener("click", () => {
+      const parent = fsParent(state.files.path);
+      if (parent) void loadFiles(parent, { focus: true });
+    });
+    els.filesList.addEventListener("keydown", onFilesListKeydown);
+    els.filesPreviewClose.addEventListener("click", () => closeFilesPreview());
+    els.filesPreviewRefresh.addEventListener("click", () => {
+      const preview = state.files.preview;
+      if (preview) void loadFilesPreview(preview.path, state.files.previewTrigger);
+    });
+    els.filesCopy.addEventListener("click", () => void copyFilesPreview());
+  }
   els.messageList.addEventListener("click", onMessageAction);
   document.querySelectorAll("[data-prompt]").forEach((chip) => {
     chip.addEventListener("click", () => {
@@ -2793,6 +3377,13 @@ function installDebugHook() {
           model: state.media.model,
           error: state.media.error,
         },
+        files: {
+          path: state.files.path,
+          state: state.files.state,
+          entries: state.files.entries.length,
+          preview: state.files.preview ? state.files.preview.path : null,
+          previewLoading: Boolean(state.files.preview && state.files.preview.loading),
+        },
         autoSpeak: state.prefs.autoSpeak,
         avatar: avatarController.getState(),
         sending: state.sending,
@@ -2805,6 +3396,7 @@ function installDebugHook() {
       health: () => checkHealth(),
       history: () => loadServerHistory({ force: true }),
       voices: () => loadVoices({ force: true }),
+      files: () => loadFiles(state.files.path, { force: true }),
       settings: () => loadSettings({ force: true }),
     },
     setApiBase(value) {
@@ -2899,6 +3491,28 @@ function cacheDom() {
     mediaGalleryPanel: $id("media-gallery-panel"),
     mediaGalleryList: $id("media-gallery"),
     mediaClear: $id("media-clear"),
+    filesRefresh: $id("files-refresh"),
+    filesBreadcrumbs: $id("files-breadcrumbs"),
+    filesUp: $id("files-up"),
+    filesLayout: $id("files-layout"),
+    filesListTitle: $id("files-list-title"),
+    filesStatus: $id("files-status"),
+    filesList: $id("files-list"),
+    filesEmpty: $id("files-empty"),
+    filesNote: $id("files-note"),
+    filesCount: $id("files-count"),
+    filesPreviewCard: $id("files-preview-card"),
+    filesPreviewTitle: $id("files-preview-title"),
+    filesPreviewPath: $id("files-preview-path"),
+    filesPreviewClose: $id("files-preview-close"),
+    filesPreviewStatus: $id("files-preview-status"),
+    filesPreviewError: $id("files-preview-error"),
+    filesPreviewLoading: $id("files-preview-loading"),
+    filesPreviewBody: $id("files-preview-body"),
+    filesPreviewTruncated: $id("files-preview-truncated"),
+    filesPreviewRefresh: $id("files-preview-refresh"),
+    filesCopy: $id("files-copy"),
+    filesCopyStatus: $id("files-copy-status"),
     avatarPanel: $id("avatar-panel"),
     avatar: $id("avatar"),
     avatarStateLabel: $id("avatar-state-label"),
@@ -2935,6 +3549,7 @@ function init() {
   renderVoices();
   renderMedia();
   renderMediaPromptCount();
+  renderFiles();
   updateViewHeader();
   setView("chat", { focus: false });
   resizeComposer();

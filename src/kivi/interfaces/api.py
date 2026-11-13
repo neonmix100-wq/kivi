@@ -41,6 +41,8 @@ Handler = Callable[[str], str]
 TtsHandler = Callable[[str], bytes]
 SttHandler = Callable[[bytes], str]
 MediaHandler = Callable[[dict[str, Any]], dict[str, Any]]
+FsListHandler = Callable[[str], dict[str, Any]]
+FsReadHandler = Callable[[str], dict[str, Any]]
 HistoryHandler = Callable[[int], list[dict[str, Any]]]
 VoicesHandler = Callable[[], list[dict[str, Any]]]
 SettingsHandler = Callable[[], dict[str, Any]]
@@ -93,6 +95,8 @@ class LocalApi:
         tts_handler: TtsHandler | None = None,
         stt_handler: SttHandler | None = None,
         media_handler: MediaHandler | None = None,
+        fs_list_handler: FsListHandler | None = None,
+        fs_read_handler: FsReadHandler | None = None,
         history_handler: HistoryHandler | None = None,
         voices_handler: VoicesHandler | None = None,
         settings_handler: SettingsHandler | None = None,
@@ -116,6 +120,8 @@ class LocalApi:
         self._tts_handler = tts_handler
         self._stt_handler = stt_handler
         self._media_handler = media_handler
+        self._fs_list_handler = fs_list_handler
+        self._fs_read_handler = fs_read_handler
         self._history_handler = history_handler
         self._voices_handler = voices_handler
         self._settings_handler = settings_handler
@@ -284,6 +290,10 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._handle_transcribe()
         elif method == "POST" and path == "/media/image":
             self._handle_media()
+        elif method == "GET" and path == "/fs/list":
+            self._handle_fs_list(split.query)
+        elif method == "GET" and path == "/fs/read":
+            self._handle_fs_read(split.query)
         elif method == "GET" and path == "/history":
             self._handle_history(split.query)
         elif method == "GET" and path == "/voices":
@@ -420,6 +430,40 @@ class _ApiHandler(BaseHTTPRequestHandler):
             return
         if not isinstance(result, dict) or not isinstance(result.get("image"), str):
             self._send_json(500, {"error": "media generation returned no image"})
+            return
+        self._send_json(200, result)
+
+    def _handle_fs_list(self, query: str) -> None:
+        api = self.server.api
+        if api._fs_list_handler is None:
+            self._send_json(503, {"error": "files are not configured"})
+            return
+        raw = parse_qs(query).get("path", ["."])[0]
+        if not isinstance(raw, str) or not raw.strip():
+            self._send_json(400, {"error": "path must be a non-empty string"})
+            return
+        try:
+            result = api._fs_list_handler(raw.strip())
+        except Exception:
+            logger.warning("fs list failed")
+            self._send_json(400, {"error": "cannot list path"})
+            return
+        self._send_json(200, result)
+
+    def _handle_fs_read(self, query: str) -> None:
+        api = self.server.api
+        if api._fs_read_handler is None:
+            self._send_json(503, {"error": "files are not configured"})
+            return
+        raw = parse_qs(query).get("path", [""])[0]
+        if not isinstance(raw, str) or not raw.strip():
+            self._send_json(400, {"error": "path must be a non-empty string"})
+            return
+        try:
+            result = api._fs_read_handler(raw.strip())
+        except Exception:
+            logger.warning("fs read failed")
+            self._send_json(400, {"error": "cannot read path"})
             return
         self._send_json(200, result)
 

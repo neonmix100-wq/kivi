@@ -29,6 +29,16 @@ def ui_api(tmp_path: Path):
         tts_handler=lambda text: b"RIFF" + text.encode("utf-8"),
         stt_handler=lambda data: "распознано" if data.startswith(b"RIFF") else "",
         media_handler=lambda payload: {"image": "data:image/png;base64,AAAA"},
+        fs_list_handler=lambda path: {
+            "path": path,
+            "entries": [{"name": "docs", "type": "dir", "size": 0}],
+            "truncated": False,
+        },
+        fs_read_handler=lambda path: {
+            "path": path,
+            "content": "# hello",
+            "truncated": False,
+        },
         history_handler=lambda limit: [
             {"role": "user", "content": f"limit={limit}"},
         ],
@@ -85,6 +95,16 @@ def test_media_image_endpoint(ui_api: LocalApi) -> None:
         response = client.post("/media/image", json={"prompt": "kivi"})
     assert response.status_code == 200
     assert response.json()["image"].startswith("data:image/")
+
+
+def test_fs_list_and_read(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        listing = client.get("/fs/list?path=docs")
+        reading = client.get("/fs/read?path=docs/API.md")
+    assert listing.status_code == 200
+    assert listing.json()["entries"][0]["name"] == "docs"
+    assert reading.status_code == 200
+    assert reading.json()["content"] == "# hello"
 
 
 def test_history_limit_and_voices_settings(ui_api: LocalApi) -> None:
