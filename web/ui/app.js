@@ -2094,9 +2094,15 @@ function describeFsWriteError(error, context) {
   if (error instanceof ApiError) {
     const code = String(error.code || "").toLowerCase();
     if (error.status === 503) {
-      return "Создание и переименование временно недоступны: файловые операции не настроены на сервере (503).";
+      return (
+        "Создание и переименование временно недоступны: " +
+        "файловые операции не настроены на сервере (503)."
+      );
     }
     if (error.status === 403) return "Сервер запретил изменять этот путь (403).";
+    if (error.status === 404 || error.status === 405) {
+      return `Сервер не поддерживает ${error.path || "эту операцию"} (${error.status}). Обновите Kivi.`;
+    }
     if (error.status === 400) {
       if (code.includes("already exists")) {
         return "Элемент с таким именем уже существует. Файлы и папки не перезаписываются.";
@@ -2260,6 +2266,7 @@ async function loadFilesPreview(rawPath, trigger = null) {
 
 function closeFilesPreview({ returnFocus = true } = {}) {
   const trigger = state.files.previewTrigger;
+  const path = state.files.preview ? state.files.preview.path : "";
   if (!state.files.preview && !trigger) return;
   state.files.previewEpoch += 1;
   state.files.preview = null;
@@ -2269,9 +2276,12 @@ function closeFilesPreview({ returnFocus = true } = {}) {
   state.files.renameError = "";
   renderFilesList();
   renderFilesPreview();
-  if (returnFocus && trigger && trigger.isConnected) {
+  if (!returnFocus) return;
+  // The trigger row is often replaced by a re-render; re-find it by path.
+  const target = trigger && trigger.isConnected ? trigger : path ? fileRow(path) : null;
+  if (target) {
     try {
-      trigger.focus();
+      target.focus();
     } catch {
       /* focus is best effort */
     }
@@ -2300,10 +2310,14 @@ function focusFilesPreview() {
 }
 
 function renderFiles() {
+  renderFilesChrome();
+  renderFilesList();
+}
+
+function renderFilesChrome() {
   renderFilesCrumbs();
   renderFilesToolbar();
   renderFilesWriteForm();
-  renderFilesList();
   renderFilesPreview();
 }
 
@@ -2368,7 +2382,10 @@ function renderFilesWriteForm() {
   const fs = state.files;
   const open = fs.mkdirOpen;
   const busy = fs.busy === "mkdir";
-  if (els.filesMkdirForm) els.filesMkdirForm.hidden = !open;
+  if (els.filesMkdirForm) {
+    els.filesMkdirForm.hidden = !open;
+    els.filesMkdirForm.setAttribute("aria-busy", busy ? "true" : "false");
+  }
   if (els.filesMkdirError) {
     els.filesMkdirError.textContent = open ? fs.mkdirError : "";
     els.filesMkdirError.hidden = !open || !fs.mkdirError;
@@ -2529,7 +2546,10 @@ function renderFilesPreview() {
     els.filesPreviewTruncated.hidden = !preview.truncated || loading || Boolean(error);
   }
   const renameOpen = state.files.renameOpen;
-  if (els.filesRenameForm) els.filesRenameForm.hidden = !renameOpen;
+  if (els.filesRenameForm) {
+    els.filesRenameForm.hidden = !renameOpen;
+    els.filesRenameForm.setAttribute("aria-busy", renaming ? "true" : "false");
+  }
   if (els.filesRenameError) {
     els.filesRenameError.textContent = renameOpen ? state.files.renameError : "";
     els.filesRenameError.hidden = !renameOpen || !state.files.renameError;
@@ -2635,7 +2655,7 @@ function openFilesMkdirForm() {
   state.files.renameOpen = false;
   state.files.renameError = "";
   if (els.filesMkdirInput) els.filesMkdirInput.value = "";
-  renderFiles();
+  renderFilesChrome();
   focusFilesInput(els.filesMkdirInput);
 }
 
@@ -2669,7 +2689,7 @@ function openFilesRenameForm() {
   if (els.filesRenameInput) {
     els.filesRenameInput.value = preview.name || fsName(preview.path);
   }
-  renderFiles();
+  renderFilesChrome();
   focusFilesInput(els.filesRenameInput);
 }
 
@@ -2709,7 +2729,7 @@ async function submitFilesMkdir(event) {
   const target = fsJoin(state.files.path, check.name);
   state.files.busy = "mkdir";
   state.files.mkdirError = "";
-  renderFiles();
+  renderFilesChrome();
   let created = "";
   try {
     const data = await apiRequest("/fs/mkdir", {
@@ -2726,7 +2746,7 @@ async function submitFilesMkdir(event) {
     state.files.mkdirError = describeFsWriteError(error, "создание папки");
   } finally {
     state.files.busy = "";
-    renderFiles();
+    renderFilesChrome();
     if (created) {
       if (!focusFileRow(created)) focusFilesList();
     } else if (state.files.mkdirOpen) {
@@ -2764,7 +2784,7 @@ async function submitFilesRename(event) {
   const destination = fsJoin(fsParent(source) || ".", check.name);
   state.files.busy = "rename";
   state.files.renameError = "";
-  renderFilesPreview();
+  renderFilesChrome();
   let renamed = false;
   try {
     const data = await apiRequest("/fs/rename", {
@@ -2787,7 +2807,7 @@ async function submitFilesRename(event) {
     state.files.renameError = describeFsWriteError(error, "переименование файла");
   } finally {
     state.files.busy = "";
-    renderFiles();
+    renderFilesChrome();
     if (!renamed && state.files.renameOpen) {
       focusFilesInput(els.filesRenameInput);
     }
