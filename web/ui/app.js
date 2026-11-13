@@ -3146,6 +3146,8 @@ async function submitFilesTrash(event) {
     closeFilesPreview({ returnFocus: false });
     showToast(`Перемещено в Корзину: ${name}`, "ok");
     if (filesSearchActive()) {
+      // Refresh the hidden directory list too, so clearing search shows the removal.
+      await loadFiles(state.files.path, { force: true });
       await runFilesSearch(state.files.searchQuery);
       focusFilesList();
     } else {
