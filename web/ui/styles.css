@@ -2145,6 +2145,48 @@ a:hover {
   background: rgba(12, 31, 36, 0.5);
 }
 
+.files-history-row {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.files-history {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.files-history-btn {
+  padding: 6px 8px;
+}
+
+.files-history-btn .icon {
+  width: 17px;
+  height: 17px;
+}
+
+.files-path-form {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.files-input.files-path-input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.files-path-error,
+.files-path-hint {
+  flex: 1 1 100%;
+}
+
 .files-path-row {
   display: flex;
   flex: 1 1 320px;
@@ -4189,6 +4231,10 @@ button.file-row.is-menu-open {
     flex-direction: column;
   }
 
+  .files-history-row {
+    flex: 0 0 auto;
+  }
+
   .files-path-row {
     flex: 0 0 auto;
   }
@@ -4271,6 +4317,10 @@ button.file-row.is-menu-open {
   }
 
   .files-input {
+    flex-basis: 100%;
+  }
+
+  .files-path-form {
     flex-basis: 100%;
   }
 

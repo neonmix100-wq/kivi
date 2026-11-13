@@ -169,6 +169,14 @@ const state = {
   },
   files: {
     path: ".",
+    // Browser-like history: only directory loads push entries. The index is
+    // moved before the request starts so back/forward states update instantly.
+    history: [],
+    historyIndex: -1,
+    // True while the path input holds an unsubmitted edit; a render must not
+    // overwrite what the user is typing.
+    pathDirty: false,
+    pathError: "",
     entries: [],
     truncated: false,
     state: "idle",
@@ -2205,6 +2213,170 @@ function fsCrumbs(path) {
   return crumbs;
 }
 
+// Directory history is capped so a long session stays bounded; the oldest
+// entries fall off and the cursor always points at the last entry.
+const FS_HISTORY_LIMIT = 100;
+const FS_PATH_LIMIT = 512;
+// Colons are checked separately as a drive prefix, so they are excluded here
+// together with the other characters Windows rejects in a path segment.
+const FS_PATH_FORBIDDEN = /[:*?"<>|\u0000-\u001f]/;
+
+// The address-bar parser is stricter than normalizeFsPath: the latter silently
+// resolves "..", while typed input must be rejected instead of escaping.
+function validateFilesPathInput(raw) {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text) {
+    return { ok: false, path: "", error: "Введите путь к папке внутри рабочей папки." };
+  }
+  if (text.length > FS_PATH_LIMIT) {
+    return { ok: false, path: "", error: `Путь длиннее ${FS_PATH_LIMIT} символов.` };
+  }
+  if (/^[\\/]/.test(text)) {
+    return {
+      ok: false,
+      path: "",
+      error:
+        "Абсолютный путь запрещён: путь должен быть внутри рабочей папки, " +
+        "например docs/reports.",
+    };
+  }
+  if (/^[A-Za-z]:/.test(text)) {
+    return {
+      ok: false,
+      path: "",
+      error: "Путь с диском запрещён: уберите «C:» и оставьте путь внутри рабочей папки.",
+    };
+  }
+  const normalized = text.replace(/\\/g, "/");
+  for (const segment of normalized.split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      return {
+        ok: false,
+        path: "",
+        error: "Переход вверх через «..» запрещён: откройте папку внутри рабочей папки.",
+      };
+    }
+    if (FS_PATH_FORBIDDEN.test(segment)) {
+      return {
+        ok: false,
+        path: "",
+        error: 'В пути недопустимы символы : * ? " < > | и служебные символы.',
+      };
+    }
+  }
+  return { ok: true, path: normalizeFsPath(normalized), error: "" };
+}
+
+function recordFilesHistory(path) {
+  const fs = state.files;
+  const next = normalizeFsPath(path);
+  // Same folder twice in a row is a reload, not a navigation: keep the stack.
+  if (fs.historyIndex >= 0 && fs.history[fs.historyIndex] === next) return;
+  fs.history = fs.history.slice(0, fs.historyIndex + 1);
+  fs.history.push(next);
+  if (fs.history.length > FS_HISTORY_LIMIT) {
+    fs.history = fs.history.slice(fs.history.length - FS_HISTORY_LIMIT);
+  }
+  fs.historyIndex = fs.history.length - 1;
+}
+
+// /fs/list may normalize the requested path (for example "." for the root).
+// Keep the history entry in sync with what was actually opened.
+function updateFilesHistoryPath(requested, resolved) {
+  const fs = state.files;
+  const index = fs.historyIndex;
+  if (index < 0 || index >= fs.history.length) return;
+  if (fs.history[index] !== requested) return;
+  fs.history[index] = resolved;
+}
+
+function stepFilesHistory(delta) {
+  const fs = state.files;
+  const nextIndex = fs.historyIndex + delta;
+  if (nextIndex < 0 || nextIndex >= fs.history.length) return false;
+  const path = fs.history[nextIndex];
+  // Move the cursor first: the toolbar disables states before the request ends.
+  fs.historyIndex = nextIndex;
+  fs.pathDirty = false;
+  fs.pathError = "";
+  clearFilesSearch({ render: false });
+  void loadFiles(path, { focus: true, recordHistory: false });
+  return true;
+}
+
+function syncFilesPathInput() {
+  if (!els.filesPathInput) return;
+  const focused = document.activeElement === els.filesPathInput;
+  // While the user edits the field, a render must not overwrite the draft.
+  if (state.files.pathDirty && focused) return;
+  // The field lost focus before submit (for example a preview click): drop the
+  // abandoned draft together with its validation message.
+  if (state.files.pathDirty) {
+    state.files.pathDirty = false;
+    state.files.pathError = "";
+  }
+  const value = state.files.path;
+  if (els.filesPathInput.value !== value) els.filesPathInput.value = value;
+}
+
+function renderFilesPathError() {
+  if (els.filesPathError) {
+    els.filesPathError.textContent = state.files.pathError;
+    els.filesPathError.hidden = !state.files.pathError;
+  }
+  if (!els.filesPathInput) return;
+  if (state.files.pathError) els.filesPathInput.setAttribute("aria-invalid", "true");
+  else els.filesPathInput.removeAttribute("aria-invalid");
+}
+
+function onSubmitFilesPath(event) {
+  if (event) event.preventDefault();
+  const result = validateFilesPathInput(
+    els.filesPathInput ? els.filesPathInput.value : "",
+  );
+  if (!result.ok) {
+    state.files.pathError = result.error;
+    state.files.pathDirty = true;
+    renderFilesPathError();
+    if (els.filesPathInput) {
+      try {
+        els.filesPathInput.focus({ preventScroll: true });
+      } catch {
+        els.filesPathInput.focus();
+      }
+    }
+    return;
+  }
+  state.files.pathDirty = false;
+  state.files.pathError = "";
+  clearFilesSearch({ render: false });
+  if (result.path === state.files.path) {
+    // Enter on the current folder behaves like Refresh without moving focus
+    // through the address bar again.
+    void loadFiles(result.path, { force: true, focus: true });
+    return;
+  }
+  void loadFiles(result.path, { focus: true });
+}
+
+function onFilesPathInput() {
+  state.files.pathDirty = true;
+  if (!state.files.pathError) return;
+  state.files.pathError = "";
+  renderFilesPathError();
+}
+
+function onFilesPathKeydown(event) {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  event.stopPropagation();
+  state.files.pathDirty = false;
+  state.files.pathError = "";
+  if (els.filesPathInput) els.filesPathInput.value = state.files.path;
+  renderFilesPathError();
+}
+
 function formatFileSize(bytes) {
   if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes < 0) return "";
   if (bytes < 1024) return `${bytes} Б`;
@@ -2599,13 +2771,24 @@ function resetFilesWriteForms() {
   if (els.filesTransferInput) els.filesTransferInput.value = "";
 }
 
-async function loadFiles(rawPath = state.files.path, { force = false, focus = false } = {}) {
+async function loadFiles(
+  rawPath = state.files.path,
+  { force = false, focus = false, recordHistory = true } = {},
+) {
   const path = normalizeFsPath(rawPath);
   if (!force && path === state.files.path && state.files.state === "loading") return;
   const changed = path !== state.files.path;
+  // Every directory load is a navigation except back/forward replays, which
+  // moved the cursor themselves.
+  if (recordHistory) recordFilesHistory(path);
   state.files.path = path;
+  state.files.pathDirty = false;
+  state.files.pathError = "";
   if (changed) {
     if (state.files.preview) closeFilesPreview({ returnFocus: false });
+    // A directory change always leaves search mode: results belong to the
+    // previous folder and would otherwise keep replacing the new list.
+    if (filesSearchActive()) clearFilesSearch({ render: false });
     resetFilesWriteForms();
     state.files.entries = [];
     state.files.truncated = false;
@@ -2622,8 +2805,10 @@ async function loadFiles(rawPath = state.files.path, { force = false, focus = fa
     });
     if (epoch !== state.files.epoch) return;
     const entries = normalizeFsEntries(data && data.entries);
-    state.files.path =
+    const resolved =
       data && typeof data.path === "string" ? normalizeFsPath(data.path) : path;
+    updateFilesHistoryPath(path, resolved);
+    state.files.path = resolved;
     state.files.entries = entries;
     state.files.truncated = Boolean(data && data.truncated === true);
     state.files.state = entries.length ? "ready" : "empty";
@@ -2909,6 +3094,8 @@ function renderFilesChrome() {
   renderFilesToolbar();
   renderFilesWriteForm();
   renderFilesPreview();
+  syncFilesPathInput();
+  renderFilesPathError();
 }
 
 function renderFilesCrumbs() {
@@ -2951,6 +3138,15 @@ function renderFilesToolbar() {
   const loading = fs.state === "loading";
   const searchLoading = searching && fs.searchState === "loading";
   const busy = Boolean(fs.busy);
+  if (els.filesBack) {
+    els.filesBack.disabled = fs.historyIndex <= 0 || busy;
+  }
+  if (els.filesForward) {
+    els.filesForward.disabled =
+      fs.historyIndex < 0 || fs.historyIndex >= fs.history.length - 1 || busy;
+  }
+  if (els.filesPathInput) els.filesPathInput.disabled = busy;
+  if (els.filesPathSubmit) els.filesPathSubmit.disabled = busy;
   if (els.filesUp) els.filesUp.disabled = fs.path === "." || loading || busy;
   if (els.filesRefresh) els.filesRefresh.disabled = loading || searchLoading || busy;
   if (els.filesMkdir) {
@@ -6917,6 +7113,19 @@ function onComposerKeydown(event) {
 }
 
 function onGlobalKeydown(event) {
+  // Browser-style folder history while the Files panel is open. Text inputs
+  // keep normal editing because Alt+arrows are not used for caret motion.
+  if (
+    state.view === "files" &&
+    event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    (event.key === "ArrowLeft" || event.key === "ArrowRight")
+  ) {
+    event.preventDefault();
+    stepFilesHistory(event.key === "ArrowLeft" ? -1 : 1);
+    return;
+  }
   if (event.key !== "Escape") return;
   // Escape also drops a drag highlight; the browser cancels the native drag.
   if (state.files.drag) {
@@ -7102,6 +7311,11 @@ function bindEvents() {
   }
   if (els.filesRefresh) {
     els.filesRefresh.addEventListener("click", refreshFilesView);
+    els.filesBack.addEventListener("click", () => stepFilesHistory(-1));
+    els.filesForward.addEventListener("click", () => stepFilesHistory(1));
+    els.filesPathForm.addEventListener("submit", onSubmitFilesPath);
+    els.filesPathInput.addEventListener("input", onFilesPathInput);
+    els.filesPathInput.addEventListener("keydown", onFilesPathKeydown);
     els.filesSearchForm.addEventListener("submit", onSubmitFilesSearch);
     els.filesSearchClear.addEventListener("click", () =>
       clearFilesSearch({ focusInput: true }),
@@ -7308,6 +7522,11 @@ function installDebugHook() {
           entries: state.files.entries.length,
           sortKey: state.files.sortKey,
           sortDir: state.files.sortDir,
+          // Directory history is exposed so the browser-like navigation can be
+          // asserted from the UI without reaching into module scope.
+          history: state.files.history.slice(),
+          historyIndex: state.files.historyIndex,
+          pathError: state.files.pathError,
           preview: state.files.preview ? state.files.preview.path : null,
           previewLoading: Boolean(state.files.preview && state.files.preview.loading),
           busy: state.files.busy,
@@ -7469,6 +7688,12 @@ function cacheDom() {
     mediaGalleryList: $id("media-gallery"),
     mediaClear: $id("media-clear"),
     filesRefresh: $id("files-refresh"),
+    filesBack: $id("files-back"),
+    filesForward: $id("files-forward"),
+    filesPathForm: $id("files-path-form"),
+    filesPathInput: $id("files-path-input"),
+    filesPathSubmit: $id("files-path-submit"),
+    filesPathError: $id("files-path-error"),
     filesSortKey: $id("files-sort-key"),
     filesSortDir: $id("files-sort-dir"),
     filesSortDirLabel: $id("files-sort-dir-label"),

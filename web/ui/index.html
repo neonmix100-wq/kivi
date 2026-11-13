@@ -649,6 +649,66 @@
             </div>
 
             <div class="files-toolbar">
+              <div class="files-history-row">
+                <div class="files-history" role="group" aria-label="История папок">
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-small files-history-btn"
+                    id="files-back"
+                    aria-label="Назад: открыть предыдущую папку"
+                    aria-keyshortcuts="Alt+ArrowLeft"
+                    title="Назад (Alt+←)"
+                    disabled
+                  >
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M19 12H5M11 6l-6 6 6 6" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-small files-history-btn"
+                    id="files-forward"
+                    aria-label="Вперёд: открыть следующую папку"
+                    aria-keyshortcuts="Alt+ArrowRight"
+                    title="Вперёд (Alt+→)"
+                    disabled
+                  >
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
+                  </button>
+                </div>
+                <form class="files-path-form" id="files-path-form" novalidate>
+                  <label class="sr-only" for="files-path-input">
+                    Путь к папке относительно рабочей папки
+                  </label>
+                  <input
+                    class="files-input files-path-input"
+                    id="files-path-input"
+                    name="path"
+                    type="text"
+                    maxlength="512"
+                    enterkeyhint="go"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="например, docs/reports"
+                    aria-describedby="files-path-hint files-path-error"
+                  />
+                  <button type="submit" class="btn btn-ghost btn-small" id="files-path-submit">
+                    Перейти
+                  </button>
+                </form>
+                <p
+                  class="files-form-error files-path-error"
+                  id="files-path-error"
+                  role="alert"
+                  hidden
+                ></p>
+                <p class="files-form-hint files-path-hint" id="files-path-hint">
+                  Enter — открыть папку, Escape — вернуть текущий путь. Только внутри рабочей
+                  папки: без диска, ведущего «/» и «..».
+                </p>
+              </div>
               <div class="files-path-row">
                 <span class="files-path-label">Папка:</span>
                 <nav
