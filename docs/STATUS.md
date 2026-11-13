@@ -64,13 +64,14 @@
   как основной голос**, библиотека голосов, **`chat --speak`**, `audio devices/test`,
   голосовой ввод в UI, **VRM-аватар, `kivi avatar`, 3D lip-sync через `chat --avatar`**.
   Осталось: animation mixer и кастомный wake ONNX.
-- **Этап 11 (M6 Work CRM) ~98%:** headless-домен, AltCRM CDP adapter,
+- **Этап 11 (M6 Work CRM) ~99%:** headless-домен, AltCRM CDP adapter,
   `crm.read/fill/act/task`, расширение AltCRM через WebSocket-мост,
-  read-only карточка, формы и счётчик `N / 10`; **принято 13 уникальных
-  реальных заказов** в журнале. Остались live fill/act/task и паритет.
-- **Этап 12 (M7 Cloud Media) ~70%:** `media.image`, `media.sdxl`,
-  `media.video` (локальный MP4 из кадра), `MediaJobQueue`, медиа-панель
-  с изображением и видео; настоящий text-to-video провайдер всё ещё требует ключа.
+  read-only карточка, формы и счётчик; **13 уникальных чтений**;
+  live fill 5/5, акт 1/1, задача 3/3 без сохранения/создания. Остались
+  паритет и rollback-проверка.
+- **Этап 12 (M7 Cloud Media) ~80%:** `media.image`, `media.sdxl`,
+  `media.video` (локальный MP4 из кадра), `MediaJobQueue`, медиа-панель;
+  локальный видео-fallback **принят**; настоящий text-to-video — после релиза.
 - **Этап 13 (M8 Kivi Shell) ~95%:** Kivi UI, app-окно, трей, чат, история,
   голоса, настройки, аватар, голосовой ввод, медиа, файлы (вкладки, поиск,
   сортировка, back/forward, path input, copy/move, mkdir, rename, корзина,
@@ -91,8 +92,8 @@
 | 8. M3: Operator | ✅ готово | окна/приложения, UI, system, browser, 20 сценариев | — |
 | 9. M4: Communicator | ✅ готово | Gmail drafts, Telegram bot, CLI, 15 сценариев | — |
 | 10. M5: Voice & Avatar | 🟡 ~92% | audio/VAD/STT, Qwen3-TTS, Fish, voice library, UI mic, VRM + `kivi avatar`, lip-sync | animation mixer, wake ONNX |
-| 11. M6: Work CRM | 🟡 ~98% | домен, AltCRM CDP, extension bridge, tools, CLI, CRM read/fill/act/task UI, **13 real read** | live fill/act/task, паритет |
-| 12. M7: Cloud Media | 🟡 ~70% | `media.image`, `media.sdxl`, `media.video`, `MediaJobQueue`, UI image/video | AI text-to-video, UI очереди |
+| 11. M6: Work CRM | 🟡 ~99% | домен, AltCRM CDP, extension bridge, tools, CLI, CRM read/fill/act/task UI, live 5/5+1/1+3/3 | паритет, rollback |
+| 12. M7: Cloud Media | 🟡 ~80% | `media.image`, `media.sdxl`, `media.video`, `MediaJobQueue`, UI image/video; fallback принят | real text-to-video после релиза |
 | 13. M8: Kivi Shell | 🟡 ~95% | Kivi UI, app-окно, трей, голос, медиа, файлы (tabs/search/sort/back-forward/path/copy/move/mkdir/rename/trash/image preview/context menu/drag-drop), CRM, settings | Explorer |
 
 ## 3. Что уже сделано

@@ -30,7 +30,9 @@ ffmpeg, VRM и локальный three.js. Сеть и файлы не изме
 | 3D VRM | ✅ | `Kivi Avatar.bat`, `kivi avatar` |
 | Липсинк | ✅ | `kivi chat "..." --avatar --speak` |
 | AltCRM чтение | ✅ 13 реальных заказов | `kivi crm stats`, UI → CRM |
-| AltCRM fill/act/task | ⚠️ live не проверено | UI → CRM → формы, без сохранения |
+| AltCRM fill | ✅ live 5/5, не сохранено | UI → CRM → Заполнить |
+| AltCRM акт | ✅ live 1/1, не сохранено | UI → CRM → Акт |
+| AltCRM задача | ✅ live 3/3, диалог не создан | UI → CRM → Задача |
 | Медиа-изображение | ✅ | `kivi media image`, UI → Медиа |
 | Видео | ✅ локальный fallback | UI → Медиа → Видео, `kivi media video` |
 | Файлы | ✅ | UI → Файлы: поиск, sort, copy/move, rename, trash, image preview, menu, DnD |
