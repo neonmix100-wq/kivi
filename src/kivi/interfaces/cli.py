@@ -2233,6 +2233,20 @@ def cmd_audio(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_wake(args: argparse.Namespace) -> int:
+    """Show which local wake-word mode is available."""
+    from kivi.senses.audio import default_wake_model_path
+
+    model = default_wake_model_path()
+    console.print("Текстовый wake: [green]доступен[/green] (Whisper + фраза «Kivi»)")
+    if model.is_file():
+        console.print(f"ONNX wake: [green]доступен[/green] ({model})")
+    else:
+        console.print(f"ONNX wake: [yellow]нет модели[/yellow] ({model})")
+        console.print("Для ONNX нужен assets/wake/kivi.onnx или data/models/wake/kivi.onnx.")
+    return 0
+
+
 def cmd_media_video(args: argparse.Namespace) -> int:
     paths = get_paths()
     config = _config(paths)
@@ -3708,6 +3722,11 @@ def build_parser() -> argparse.ArgumentParser:
     telegram_send.add_argument("text")
     telegram_send.add_argument("--approve", action="store_true")
     telegram_send.set_defaults(func=cmd_telegram)
+
+    wake = sub.add_parser("wake", help="show wake-word availability")
+    wake_sub = wake.add_subparsers(dest="wake_action", required=True)
+    wake_status = wake_sub.add_parser("status")
+    wake_status.set_defaults(func=cmd_wake)
 
     listen = sub.add_parser("listen", help="voice input with VAD, STT and wake word")
     listen.add_argument("-m", "--model", default=None)

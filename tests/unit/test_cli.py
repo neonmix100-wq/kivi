@@ -428,6 +428,13 @@ def test_crm_read_log_appends_identifiers_only(tmp_path: Path) -> None:
     assert "SECRET" not in payload
 
 
+def test_wake_status_reports_text_and_onnx(capsys) -> None:
+    assert main(["wake", "status"]) == 0
+    out = capsys.readouterr().out
+    assert "Текстовый wake" in out
+    assert "ONNX wake" in out
+
+
 def test_kivi_health_detects_existing_api(monkeypatch) -> None:
     class Response:
         status = 200

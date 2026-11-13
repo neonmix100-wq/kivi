@@ -56,6 +56,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe mail status
 .venv\Scripts\kivi.exe telegram status
 .venv\Scripts\kivi.exe listen --mic --push-to-talk
+.venv\Scripts\kivi.exe wake status
 .venv\Scripts\kivi.exe crm read
 .venv\Scripts\kivi.exe crm stats
 .venv\Scripts\kivi.exe tools run window.list --args '{"limit":10}'
