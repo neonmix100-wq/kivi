@@ -1084,6 +1084,20 @@ def cmd_ui(args: argparse.Namespace) -> int:
     return cmd_serve(args)
 
 
+def _kivi_health(url: str) -> bool:
+    """Return True when the port already serves this Kivi API."""
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(f"{url}/health", timeout=1.5) as response:
+            if response.status != 200:
+                return False
+            payload = json.loads(response.read(4096).decode("utf-8"))
+            return payload.get("status") == "ok"
+    except (OSError, ValueError):
+        return False
+
+
 def _app_browser() -> Path | None:
     """Find Edge/Chrome for a chromeless ``--app`` window."""
     for name in ("msedge", "chrome"):
@@ -1406,9 +1420,27 @@ def cmd_serve(args: argparse.Namespace) -> int:
             "id": VoiceLibrary(paths.data / "voices").set_active(voice_id).id,
         },
     )
+    probe_host = f"[{args.host}]" if ":" in str(args.host) else str(args.host)
+    probe_url = f"http://{probe_host}:{args.port}"
+    if _kivi_health(probe_url) and not getattr(args, "new_instance", False):
+        console.print("Kivi уже запущен; открываю существующее окно.")
+        if getattr(args, "open_browser", False):
+            if getattr(args, "app", False):
+                _open_app_window(probe_url)
+            else:
+                webbrowser.open(probe_url)
+        return 0
     try:
         api.start()
     except OSError as exc:
+        if _kivi_health(api.url):
+            console.print("Kivi уже запущен; открываю существующее окно.")
+            if getattr(args, "open_browser", False):
+                if getattr(args, "app", False):
+                    _open_app_window(api.url)
+                else:
+                    webbrowser.open(api.url)
+            return 0
         console.print(f"[red]api error:[/red] {_plain(str(exc))}")
         return 1
     if getattr(args, "open_browser", False):
@@ -3440,6 +3472,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--app", action="store_true", help="open a standalone app window")
     serve.add_argument("--tray", action="store_true", help="run a system tray icon")
     serve.add_argument(
+        "--new-instance",
+        action="store_true",
+        help="start even if another Kivi already answers on this port",
+    )
+    serve.add_argument(
         "--whisper-model",
         default="data/models/faster-whisper-large-v3-turbo",
     )
@@ -3460,6 +3497,11 @@ def build_parser() -> argparse.ArgumentParser:
     ui.add_argument("--no-browser", action="store_true")
     ui.add_argument("--app", action="store_true", help="standalone app window")
     ui.add_argument("--tray", action="store_true", help="run a system tray icon")
+    ui.add_argument(
+        "--new-instance",
+        action="store_true",
+        help="start even if another Kivi already answers on this port",
+    )
     ui.add_argument(
         "--whisper-model",
         default="data/models/faster-whisper-large-v3-turbo",

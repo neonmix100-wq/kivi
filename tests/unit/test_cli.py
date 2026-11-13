@@ -376,6 +376,28 @@ def test_open_app_window_uses_edge(monkeypatch) -> None:
     ]
 
 
+def test_kivi_health_detects_existing_api(monkeypatch) -> None:
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self, limit):
+            return b'{"status":"ok"}'
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda *a, **k: Response())
+    assert cli_module._kivi_health("http://127.0.0.1:8765") is True
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(OSError("offline")),
+    )
+    assert cli_module._kivi_health("http://127.0.0.1:8765") is False
+
+
 def test_ui_crm_fill_maps_checklist_keys(monkeypatch) -> None:
     seen: dict = {}
 
