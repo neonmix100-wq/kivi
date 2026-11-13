@@ -59,6 +59,13 @@ cd D:\AI-assistent
 
 Kivi поднимет мост на 8799, дождётся расширения и прочитает карточку.
 
+Каждое успешное чтение пишется в `data/crm-reads.jsonl` (только URL, код
+заказа и device_id, без текста страницы). Сводка:
+
+```powershell
+kivi crm stats
+```
+
 В UI:
 
 1. `kivi ui --app --tray`

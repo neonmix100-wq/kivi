@@ -21,6 +21,7 @@ import wave
 import webbrowser
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -978,6 +979,47 @@ def _ui_crm_status(config: KiviConfig) -> dict[str, Any]:
         }
 
 
+def _append_crm_read(paths: Any, meta: dict[str, Any]) -> None:
+    """Record only order identifiers, never page text or credentials."""
+    entry = {
+        "at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "url": str(meta.get("url", ""))[:500],
+        "order_code": str(meta.get("order_code", ""))[:120],
+        "device_id": str(meta.get("device_id", ""))[:120],
+    }
+    if not (entry["order_code"] or entry["device_id"]):
+        return
+    target = paths.data / "crm-reads.jsonl"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def _crm_read_stats(path: Path) -> dict[str, Any]:
+    """Summarise the local CRM read log for acceptance."""
+    entries: list[dict[str, Any]] = []
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                item = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(item, dict):
+                entries.append(item)
+    except OSError:
+        pass
+    keys = {
+        str(item.get("device_id") or item.get("order_code") or item.get("url") or "")
+        for item in entries
+    }
+    keys.discard("")
+    return {
+        "total": len(entries),
+        "unique": len(keys),
+        "last": entries[-1] if entries else None,
+    }
+
+
 def _ui_crm_read(paths: Any, config: KiviConfig) -> dict[str, Any]:
     try:
         result = _run_direct_tool(paths, config, "crm.read", {}, ["crm.read"])
@@ -989,6 +1031,7 @@ def _ui_crm_read(paths: Any, config: KiviConfig) -> dict[str, Any]:
             "order": "",
             "hint": result.error or "AltCRM недоступен; открой вкладку заказа.",
         }
+    _append_crm_read(paths, result.meta)
     return {"ok": True, "order": result.output, "hint": ""}
 
 
@@ -2010,6 +2053,18 @@ def cmd_crm(args: argparse.Namespace) -> int:
             "Скопируйте его в config.js расширения (поле token) и перезагрузите расширение. "
             f"Длина: {len(token)} символов."
         )
+        return 0
+    if action == "stats":
+        stats = _crm_read_stats(paths.data / "crm-reads.jsonl")
+        console.print(
+            f"Прочитано карточек: {stats['total']}, уникальных: {stats['unique']}"
+        )
+        last = stats["last"]
+        if isinstance(last, dict):
+            console.print(
+                f"Последняя: заказ {last.get('order_code') or '—'}, "
+                f"устройство {last.get('device_id') or '—'}, {last.get('at', '')}"
+            )
         return 0
     if action == "read":
         name, payload, caps = "crm.read", {}, ["crm.read"]
@@ -3663,6 +3718,8 @@ def build_parser() -> argparse.ArgumentParser:
     crm_read.set_defaults(func=cmd_crm)
     crm_token = crm_sub.add_parser("token", help="create/show the extension token file")
     crm_token.set_defaults(func=cmd_crm)
+    crm_stats = crm_sub.add_parser("stats", help="show local CRM read-log stats")
+    crm_stats.set_defaults(func=cmd_crm)
     crm_fill = crm_sub.add_parser("fill")
     crm_fill.add_argument("--comment", default="")
     crm_fill.add_argument("--field", action="append", default=[])

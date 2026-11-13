@@ -376,6 +376,41 @@ def test_open_app_window_uses_edge(monkeypatch) -> None:
     ]
 
 
+def test_crm_read_log_counts_unique_orders(tmp_path: Path) -> None:
+    log = tmp_path / "crm-reads.jsonl"
+    log.write_text(
+        "\n".join(
+            [
+                '{"at":"2026-01-01T00:00:00+00:00","order_code":"A-1","device_id":"1"}',
+                '{"at":"2026-01-01T00:01:00+00:00","order_code":"A-1","device_id":"1"}',
+                '{"at":"2026-01-01T00:02:00+00:00","order_code":"A-2","device_id":"2"}',
+                "not-json",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    stats = cli_module._crm_read_stats(log)
+    assert stats["total"] == 3
+    assert stats["unique"] == 2
+    assert stats["last"]["order_code"] == "A-2"
+
+
+def test_crm_read_log_appends_identifiers_only(tmp_path: Path) -> None:
+    paths = SimpleNamespace(data=tmp_path)
+    cli_module._append_crm_read(
+        paths,
+        {
+            "order_code": "A-1",
+            "device_id": "7",
+            "url": "https://example.test/order/1",
+            "text": "SECRET page text",
+        },
+    )
+    payload = (tmp_path / "crm-reads.jsonl").read_text(encoding="utf-8")
+    assert "A-1" in payload
+    assert "SECRET" not in payload
+
+
 def test_kivi_health_detects_existing_api(monkeypatch) -> None:
     class Response:
         status = 200
