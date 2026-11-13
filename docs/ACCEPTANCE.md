@@ -29,7 +29,7 @@ ffmpeg, VRM и локальный three.js. Сеть и файлы не изме
 | Микрофон/STT | ✅ | UI → микрофон, `kivi listen --mic` |
 | 3D VRM | ✅ | `Kivi Avatar.bat`, `kivi avatar` |
 | Липсинк | ✅ | `kivi chat "..." --avatar --speak` |
-| AltCRM чтение | ✅ | `kivi crm read`, UI → CRM |
+| AltCRM чтение | ✅ 13 реальных заказов | `kivi crm stats`, UI → CRM |
 | AltCRM fill/act/task | ⚠️ live не проверено | UI → CRM → формы, без сохранения |
 | Медиа-изображение | ✅ | `kivi media image`, UI → Медиа |
 | Видео | ✅ локальный fallback | UI → Медиа → Видео, `kivi media video` |
@@ -43,7 +43,7 @@ ffmpeg, VRM и локальный three.js. Сеть и файлы не изме
 1. Запустить **Kivi** с рабочего стола.
 2. Чат: «Привет» → ответ.
 3. Голоса: выбрать Fish Astrea, сказать фразу.
-4. CRM: «Проверить» → «Прочитать заказ».
+4. CRM: «Проверить» → «Прочитать заказ» (13 уникальных уже в журнале).
 5. Медиа: изображение 512, затем видео 2 с.
 6. Файлы: открыть `docs/images/kivi-vrm.png`, правый клик, drag файла в папку.
 
