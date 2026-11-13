@@ -51,6 +51,7 @@ FsTrashHandler = Callable[[str], dict[str, Any]]
 FsSearchHandler = Callable[[str], dict[str, Any]]
 FsRawHandler = Callable[[str], dict[str, Any]]
 CrmStatusHandler = Callable[[], dict[str, Any]]
+CrmStatsHandler = Callable[[], dict[str, Any]]
 CrmReadHandler = Callable[[], dict[str, Any]]
 CrmWriteHandler = Callable[[dict[str, Any]], dict[str, Any]]
 SettingsUpdateHandler = Callable[[dict[str, Any]], dict[str, Any]]
@@ -134,6 +135,7 @@ class LocalApi:
         fs_search_handler: FsSearchHandler | None = None,
         fs_raw_handler: FsRawHandler | None = None,
         crm_status_handler: CrmStatusHandler | None = None,
+        crm_stats_handler: CrmStatsHandler | None = None,
         crm_read_handler: CrmReadHandler | None = None,
         crm_fill_handler: CrmWriteHandler | None = None,
         crm_act_handler: CrmWriteHandler | None = None,
@@ -174,6 +176,7 @@ class LocalApi:
         self._fs_search_handler = fs_search_handler
         self._fs_raw_handler = fs_raw_handler
         self._crm_status_handler = crm_status_handler
+        self._crm_stats_handler = crm_stats_handler
         self._crm_read_handler = crm_read_handler
         self._crm_fill_handler = crm_fill_handler
         self._crm_act_handler = crm_act_handler
@@ -373,6 +376,8 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._handle_crm_status()
         elif method == "GET" and path == "/crm/read":
             self._handle_crm_read()
+        elif method == "GET" and path == "/crm/stats":
+            self._handle_crm_stats()
         elif method == "POST" and path == "/crm/fill":
             self._handle_crm_write("/crm/fill")
         elif method == "POST" and path == "/crm/act":
@@ -765,6 +770,16 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": "crm status failed"})
             return
         self._send_json(200, result)
+
+    def _handle_crm_stats(self) -> None:
+        api = self.server.api
+        if api._crm_stats_handler is None:
+            self._send_json(503, {"error": "crm stats are not configured"})
+            return
+        try:
+            self._send_json(200, api._crm_stats_handler())
+        except Exception:  # noqa: BLE001 - no internals to the client
+            self._send_json(500, {"error": "crm stats failed"})
 
     def _handle_crm_read(self) -> None:
         api = self.server.api

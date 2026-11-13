@@ -1020,6 +1020,10 @@ def _crm_read_stats(path: Path) -> dict[str, Any]:
     }
 
 
+def _ui_crm_stats(paths: Any) -> dict[str, Any]:
+    return _crm_read_stats(paths.data / "crm-reads.jsonl")
+
+
 def _ui_crm_read(paths: Any, config: KiviConfig) -> dict[str, Any]:
     try:
         result = _run_direct_tool(paths, config, "crm.read", {}, ["crm.read"])
@@ -1424,6 +1428,9 @@ def cmd_serve(args: argparse.Namespace) -> int:
         ),
         crm_read_handler=(
             (lambda: _ui_crm_read(paths, config)) if getattr(args, "ui", False) else None
+        ),
+        crm_stats_handler=(
+            (lambda: _ui_crm_stats(paths)) if getattr(args, "ui", False) else None
         ),
         crm_fill_handler=(
             (lambda payload: _ui_crm_write(paths, config, "crm.fill", payload))

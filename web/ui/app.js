@@ -237,6 +237,7 @@ const state = {
     copyStatus: "",
     statusEpoch: 0,
     readEpoch: 0,
+    stats: { total: 0, unique: 0 },
     tab: "fill",
     fill: {
       comment: "",
@@ -5400,6 +5401,20 @@ function describeCrmError(error, context) {
   return describeApiError(error, context);
 }
 
+async function loadCrmStats() {
+  try {
+    const data = await apiRequest("/crm/stats", { timeout: 3000 });
+    if (!data || typeof data !== "object") return;
+    state.crm.stats = {
+      total: Number.isFinite(data.total) ? data.total : 0,
+      unique: Number.isFinite(data.unique) ? data.unique : 0,
+    };
+    renderCrm();
+  } catch {
+    // Optional endpoint: older servers simply have no read log.
+  }
+}
+
 async function loadCrmStatus({ force = false } = {}) {
   if (state.crm.statusState === "checking") return;
   const epoch = ++state.crm.statusEpoch;
@@ -5458,6 +5473,7 @@ async function loadCrmStatus({ force = false } = {}) {
     renderCrm();
     updateViewHeader();
   }
+  void loadCrmStats();
 }
 
 async function readCrmOrder() {
@@ -5500,6 +5516,7 @@ async function readCrmOrder() {
     renderCrm();
     updateViewHeader();
   }
+  void loadCrmStats();
 }
 
 async function copyCrmOrder() {
@@ -5562,6 +5579,13 @@ function renderCrm() {
   }
   els.crmStatus.textContent = statusText;
   els.crmStatus.classList.toggle("is-error", statusIsError);
+  const statsEl = document.getElementById("crm-stats");
+  if (statsEl) {
+    const stats = crm.stats || { total: 0, unique: 0 };
+    statsEl.textContent = stats.unique
+      ? `Прочитано: ${stats.total} · уникальных заказов: ${stats.unique} / 10`
+      : "Локальный журнал чтений пуст.";
+  }
 
   if (els.crmHint) els.crmHint.hidden = crm.statusState !== "offline";
   if (els.crmHintText) els.crmHintText.textContent = crm.hint || CRM_FALLBACK_HINT;

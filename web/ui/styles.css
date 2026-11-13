@@ -3111,6 +3111,12 @@ button.file-row.is-menu-open {
   color: #ffb3c1;
 }
 
+.crm-stats {
+  margin: -4px 0 12px;
+  color: var(--mint);
+  font-size: 12px;
+}
+
 .crm-endpoint {
   display: flex;
   align-items: baseline;

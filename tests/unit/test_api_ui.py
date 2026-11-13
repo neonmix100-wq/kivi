@@ -67,6 +67,7 @@ def ui_api(tmp_path: Path):
             "url": "",
             "error": "",
         },
+        crm_stats_handler=lambda: {"total": 3, "unique": 2, "last": None},
         crm_read_handler=lambda: {"ok": False, "order": "", "hint": "not connected"},
         crm_fill_handler=lambda payload: {"ok": True, "results": [], "saved": False},
         crm_act_handler=lambda payload: {"ok": True, "results": [], "saved": False},
@@ -237,6 +238,13 @@ def test_fs_trash_requires_matching_confirmation(ui_api: LocalApi) -> None:
         )
     assert good.status_code == 200
     assert bad.status_code == 400
+
+
+def test_crm_stats(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        response = client.get("/crm/stats")
+    assert response.status_code == 200
+    assert response.json()["unique"] == 2
 
 
 def test_crm_write_endpoints(ui_api: LocalApi) -> None:
