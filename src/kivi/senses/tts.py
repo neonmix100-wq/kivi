@@ -231,13 +231,17 @@ PiperRunner = Callable[[list[str], str], None]
 
 
 def _default_piper_runner(argv: list[str], text: str) -> None:
-    """Run Piper as a subprocess, feeding UTF-8 text on stdin."""
-    completed = subprocess.run(
-        argv,
-        input=text.encode("utf-8"),
-        capture_output=True,
-        check=False,
-    )
+    """Run Piper with a UTF-8 input file (its stdin path is unreliable)."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="kivi-piper-") as directory:
+        input_path = Path(directory) / "input.txt"
+        input_path.write_text(text, encoding="utf-8")
+        completed = subprocess.run(
+            [*argv, "-i", str(input_path)],
+            capture_output=True,
+            check=False,
+        )
     if completed.returncode != 0:
         stderr = completed.stderr.decode("utf-8", errors="replace").strip()
         raise TtsError(f"Piper exited with {completed.returncode}: {stderr}")

@@ -2069,9 +2069,19 @@ async function loadVoices({ force = false } = {}) {
     state.voicesState = state.voices.length ? "ready" : "empty";
     hideConnectionNotice();
     const serverActive = state.voices.find((voice) => voice.active);
-    if (serverActive && !state.prefs.selectedVoiceId) {
+    if (serverActive) {
+      // The server is authoritative; this also repairs a stale localStorage id
+      // left over from a removed or renamed voice.
       state.prefs.selectedVoiceId = serverActive.id;
       savePrefs();
+    } else if (state.prefs.selectedVoiceId) {
+      const selectedKnown = state.voices.some(
+        (voice) => voice.id === state.prefs.selectedVoiceId,
+      );
+      if (!selectedKnown) {
+        state.prefs.selectedVoiceId = null;
+        savePrefs();
+      }
     }
   } catch (error) {
     state.voices = [];

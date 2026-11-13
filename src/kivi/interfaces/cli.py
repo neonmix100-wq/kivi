@@ -1314,6 +1314,78 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     voice_provider = _load_voice_provider(paths, config.voice.provider)
 
+    def ui_voices() -> list[dict[str, Any]]:
+        """Return provider voices plus imported voice-library profiles."""
+        library = VoiceLibrary(paths.data / "voices")
+        try:
+            profiles = library.list()
+            active_profile = library.active()
+        except VoiceLibraryError:
+            profiles, active_profile = [], None
+        voices: list[dict[str, Any]] = [
+            {
+                "id": "fish:astrea",
+                "name": "Fish Astrea",
+                "engine": "fish",
+                "active": voice_provider == "fish",
+            },
+            {
+                "id": "qwen:kivi-warm",
+                "name": "Qwen kivi-warm",
+                "engine": "qwen",
+                "active": voice_provider == "qwen" and active_profile is None,
+            },
+            {
+                "id": "silero:baya",
+                "name": "Silero Baya",
+                "engine": "silero",
+                "active": voice_provider == "silero",
+            },
+            {
+                "id": "piper:irina",
+                "name": "Piper Irina",
+                "engine": "piper",
+                "active": voice_provider == "piper",
+            },
+        ]
+        for profile in profiles:
+            voices.append(
+                {
+                    "id": profile.id,
+                    "name": profile.name,
+                    "engine": profile.engine,
+                    "active": (
+                        voice_provider == profile.engine
+                        and active_profile is not None
+                        and active_profile.id == profile.id
+                    ),
+                }
+            )
+        return voices
+
+    def ui_select_voice(voice_id: str) -> dict[str, Any]:
+        nonlocal voice_provider
+        providers = {
+            "fish:astrea": "fish",
+            "qwen:kivi-warm": "qwen",
+            "silero:baya": "silero",
+            "piper:irina": "piper",
+        }
+        if voice_id in providers:
+            voice_provider = providers[voice_id]
+            _save_voice_provider(paths, voice_provider)
+            if voice_id == "qwen:kivi-warm":
+                profiles = VoiceLibrary(paths.data / "voices").list()
+                if profiles:
+                    VoiceLibrary(paths.data / "voices").set_active(profiles[0].id)
+            return {"ok": True, "id": voice_id, "provider": voice_provider}
+        library = VoiceLibrary(paths.data / "voices")
+        profile = library.set_active(voice_id)
+        if profile.engine in {"qwen", "fish", "silero"}:
+            voice_provider = profile.engine
+            _save_voice_provider(paths, voice_provider)
+        return {"ok": True, "id": profile.id, "provider": voice_provider}
+
     def ui_settings() -> dict[str, Any]:
         return {
             "voice_provider": voice_provider,
@@ -1453,24 +1525,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
             update_ui_settings if getattr(args, "ui", False) else None
         ),
         history_handler=lambda limit: _serve_history(paths, limit),
-        voices_handler=lambda: [
-            {
-                "id": profile.id,
-                "name": profile.name,
-                "engine": profile.engine,
-                "transcript": profile.transcript,
-                "active": bool(
-                    VoiceLibrary(paths.data / "voices").active()
-                    and VoiceLibrary(paths.data / "voices").active().id == profile.id
-                ),
-            }
-            for profile in VoiceLibrary(paths.data / "voices").list()
-        ],
+        voices_handler=(ui_voices if getattr(args, "ui", False) else None),
         settings_handler=ui_settings,
-        voice_select_handler=lambda voice_id: {
-            "ok": True,
-            "id": VoiceLibrary(paths.data / "voices").set_active(voice_id).id,
-        },
+        voice_select_handler=(
+            ui_select_voice if getattr(args, "ui", False) else None
+        ),
     )
     probe_host = f"[{args.host}]" if ":" in str(args.host) else str(args.host)
     probe_url = f"http://{probe_host}:{args.port}"
