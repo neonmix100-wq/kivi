@@ -20,6 +20,7 @@ generated: true
 
 | Документ | Размер | Разделов | О чём |
 | --- | ---: | ---: | --- |
+| [[ACCEPTANCE]] | 2.7 KB | 4 | Проверка офлайн: конфиг, UI-ассеты, pythonw, реестр инструментов, CRM-токен, ffmpeg, VRM и локальный three.js. Сеть и файлы не изменяются. |
 | [[API]] | 10.5 KB | 9 | Небольшой HTTP-слой над M1-чатом. Только стандартная библиотека Python (ThreadingHTTPServer), без FastAPI и внешних зависимостей. API локальный по умолчанию: слушает loopback и не имеет аутентификации, поэтому loopback —… |
 | [[ARCHITECTURE]] | 60.2 KB | 18 | Версия: 0.2 (проектирование). Целевая платформа: Windows 11, один пользователь, один ПК. Персона: Kivi, женский голос, 3D-аватар. Долгосрочно — псевдо-ОС поверх Windows, позже Linux. |
 | [[ASSET-LICENSE]] | 1.7 KB | 2 | Разрешено: |
@@ -70,6 +71,15 @@ generated: true
 | [[VOICE-LIBRARY]] | 16.3 KB | 11 | Статус: модуль готов, CLI не изменён (интеграция — за родительским агентом). Модуль: src/kivi/senses/voicelibrary.py. Тесты: tests/unit/testvoicelibrary.py (41 тест, без сети и без реальных кодеков). |
 | [[VOICE-PIPELINE]] | 20.9 KB | 8 | Статус: черновик M5, 11.11.2026. Модуль: src/kivi/senses/voice.py. Тесты: tests/unit/testvoice.py. |
 | [[VOICE-QWEN]] | 7.4 KB | 8 | Модуль kivi.senses.qwentts добавляет Qwen3-TTS 1.7B как полноценный TtsEngine. Он состоит из двух стадий: |
+
+## [[ACCEPTANCE|Приёмка Kivi]]
+
+> Проверка офлайн: конфиг, UI-ассеты, pythonw, реестр инструментов, CRM-токен, ffmpeg, VRM и локальный three.js. Сеть и файлы не изменяются.
+
+- [[ACCEPTANCE#Одной командой|Одной командой]]
+- [[ACCEPTANCE#Матрица прототипа|Матрица прототипа]]
+- [[ACCEPTANCE#Ручной smoke|Ручной smoke]]
+- [[ACCEPTANCE#Известные ограничения|Известные ограничения]]
 
 ## [[API|Local HTTP API]]
 
