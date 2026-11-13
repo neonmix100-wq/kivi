@@ -167,6 +167,9 @@ const state = {
     renameError: "",
     trashOpen: false,
     trashError: "",
+    transferOpen: false,
+    transferMode: "",
+    transferError: "",
     searchQuery: "",
     searchState: "idle",
     searchError: "",
@@ -2270,6 +2273,99 @@ function describeFsWriteError(error, context) {
   return describeFilesError(error, context);
 }
 
+const FS_DEST_LIMIT = 512;
+
+function validateFsDestination(raw, source) {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text) return { ok: false, path: "", error: "Введите путь назначения." };
+  if (text.length > FS_DEST_LIMIT) {
+    return { ok: false, path: "", error: `Путь длиннее ${FS_DEST_LIMIT} символов.` };
+  }
+  const normalizedText = text.replace(/\\/g, "/");
+  if (normalizedText.startsWith("/") || /^[a-zA-Z]:/.test(normalizedText)) {
+    return {
+      ok: false,
+      path: "",
+      error: "Путь должен быть относительным: например, архив/файл.md.",
+    };
+  }
+  const segments = [];
+  for (const rawSegment of normalizedText.split("/")) {
+    if (!rawSegment || rawSegment === ".") continue;
+    if (rawSegment === "..") {
+      return {
+        ok: false,
+        path: "",
+        error: "Путь не должен выходить за пределы рабочей папки.",
+      };
+    }
+    const check = validateFsName(rawSegment, "имя в пути");
+    if (!check.ok) return { ok: false, path: "", error: check.error };
+    segments.push(check.name);
+  }
+  if (!segments.length) {
+    return { ok: false, path: "", error: "Укажите файл или папку назначения." };
+  }
+  const destination = segments.join("/");
+  if (destination === normalizeFsPath(source)) {
+    return {
+      ok: false,
+      path: "",
+      error: "Путь совпадает с исходным. Укажите другой путь.",
+    };
+  }
+  if (fsDestinationKnown(destination)) {
+    return {
+      ok: false,
+      path: "",
+      error:
+        "Элемент с таким путём уже существует. Перезапись запрещена: " +
+        "выберите другое имя или папку.",
+    };
+  }
+  return { ok: true, path: destination, error: "" };
+}
+
+function fsDestinationKnown(destination) {
+  // The server is the final authority; this only catches obvious local collisions.
+  if (fsParent(destination) === normalizeFsPath(state.files.path)) {
+    const name = fsName(destination);
+    if (state.files.entries.some((entry) => entry.name === name)) return true;
+  }
+  return state.files.searchMatches.some((match) => match.path === destination);
+}
+
+function describeFilesTransferError(error, mode) {
+  const action = mode === "move" ? "перемещение файла" : "копирование файла";
+  if (error instanceof ApiError && error.status === 400) {
+    const code = String(error.code || "").toLowerCase();
+    if (code.includes("already exists")) {
+      return (
+        "Элемент с таким путём уже существует. Перезапись запрещена: " +
+        "выберите другое имя или папку."
+      );
+    }
+    if (code.includes("source") && code.includes("does not exist")) {
+      return "Исходный файл не найден: возможно, его уже переместили. Обновите список.";
+    }
+    if (code.includes("parent") && code.includes("does not exist")) {
+      return "Папка назначения не найдена. Проверьте путь и создайте папку заранее.";
+    }
+    if (code.includes("into itself")) {
+      return "Нельзя скопировать или переместить папку внутрь самой себя.";
+    }
+    if (code.includes("symlink")) {
+      return "Символические ссылки не поддерживаются для файловых операций.";
+    }
+    // The API reports a generic 400 for rejected transfers.
+    return (
+      `Сервер отклонил ${action}. Проверьте путь назначения: возможно, он занят ` +
+      "или папки назначения нет. Перезапись запрещена."
+    );
+  }
+  return describeFsWriteError(error, action);
+}
+
 function fileRow(path) {
   if (!els.filesList) return null;
   const rows = els.filesList.querySelectorAll("button.file-row");
@@ -2307,9 +2403,13 @@ function resetFilesWriteForms() {
   state.files.renameError = "";
   state.files.trashOpen = false;
   state.files.trashError = "";
+  state.files.transferOpen = false;
+  state.files.transferMode = "";
+  state.files.transferError = "";
   if (els.filesMkdirInput) els.filesMkdirInput.value = "";
   if (els.filesRenameInput) els.filesRenameInput.value = "";
   if (els.filesTrashInput) els.filesTrashInput.value = "";
+  if (els.filesTransferInput) els.filesTransferInput.value = "";
 }
 
 async function loadFiles(rawPath = state.files.path, { force = false, focus = false } = {}) {
@@ -2522,7 +2622,11 @@ function closeFilesPreview({ returnFocus = true } = {}) {
   state.files.renameError = "";
   state.files.trashOpen = false;
   state.files.trashError = "";
+  state.files.transferOpen = false;
+  state.files.transferMode = "";
+  state.files.transferError = "";
   if (els.filesTrashInput) els.filesTrashInput.value = "";
+  if (els.filesTransferInput) els.filesTransferInput.value = "";
   renderFilesList();
   renderFilesPreview();
   if (!returnFocus) return;
@@ -2916,6 +3020,15 @@ function renderFilesPreview() {
       els.filesPreviewTrash.disabled = true;
       els.filesPreviewTrash.setAttribute("aria-expanded", "false");
     }
+    if (els.filesTransferForm) els.filesTransferForm.hidden = true;
+    if (els.filesTransferCopy) {
+      els.filesTransferCopy.disabled = true;
+      els.filesTransferCopy.setAttribute("aria-expanded", "false");
+    }
+    if (els.filesTransferMove) {
+      els.filesTransferMove.disabled = true;
+      els.filesTransferMove.setAttribute("aria-expanded", "false");
+    }
     return;
   }
 
@@ -2981,9 +3094,58 @@ function renderFilesPreview() {
     els.filesTrashSubmit.textContent = trashing ? "Перемещаю…" : "В корзину";
   }
   if (els.filesTrashCancel) els.filesTrashCancel.disabled = trashing;
+  const transferOpen = state.files.transferOpen;
+  const transferMode = state.files.transferMode === "move" ? "move" : "copy";
+  const transferring = state.files.busy === "transfer";
+  if (els.filesTransferForm) {
+    els.filesTransferForm.hidden = !transferOpen;
+    els.filesTransferForm.setAttribute("aria-busy", transferring ? "true" : "false");
+  }
+  if (els.filesTransferTitle) {
+    els.filesTransferTitle.textContent =
+      transferMode === "move" ? "Переместить файл" : "Копировать файл";
+  }
+  if (els.filesTransferHint) {
+    els.filesTransferHint.textContent =
+      transferMode === "move"
+        ? "Укажите полный путь вместе с новым именем. Файл переедет из текущей папки; " +
+          "существующие элементы не перезаписываются."
+        : "Укажите полный путь вместе с новым именем. Файл останется на месте; " +
+          "существующие элементы не перезаписываются.";
+  }
+  if (els.filesTransferError) {
+    els.filesTransferError.textContent = transferOpen ? state.files.transferError : "";
+    els.filesTransferError.hidden = !transferOpen || !state.files.transferError;
+  }
+  if (els.filesTransferInput) els.filesTransferInput.disabled = transferring;
+  if (els.filesTransferSubmit) {
+    els.filesTransferSubmit.disabled = transferring;
+    els.filesTransferSubmit.textContent = transferring
+      ? transferMode === "move"
+        ? "Перемещаю…"
+        : "Копирую…"
+      : transferMode === "move"
+        ? "Переместить"
+        : "Копировать";
+  }
+  if (els.filesTransferCancel) els.filesTransferCancel.disabled = transferring;
   if (els.filesPreviewRename) {
     els.filesPreviewRename.disabled = loading || busy;
     els.filesPreviewRename.setAttribute("aria-expanded", renameOpen ? "true" : "false");
+  }
+  if (els.filesTransferCopy) {
+    els.filesTransferCopy.disabled = loading || busy;
+    els.filesTransferCopy.setAttribute(
+      "aria-expanded",
+      transferOpen && transferMode === "copy" ? "true" : "false",
+    );
+  }
+  if (els.filesTransferMove) {
+    els.filesTransferMove.disabled = loading || busy;
+    els.filesTransferMove.setAttribute(
+      "aria-expanded",
+      transferOpen && transferMode === "move" ? "true" : "false",
+    );
   }
   if (els.filesPreviewTrash) {
     els.filesPreviewTrash.disabled = loading || busy;
@@ -3083,7 +3245,11 @@ function openFilesMkdirForm() {
   state.files.renameError = "";
   state.files.trashOpen = false;
   state.files.trashError = "";
+  state.files.transferOpen = false;
+  state.files.transferMode = "";
+  state.files.transferError = "";
   if (els.filesTrashInput) els.filesTrashInput.value = "";
+  if (els.filesTransferInput) els.filesTransferInput.value = "";
   if (els.filesMkdirInput) els.filesMkdirInput.value = "";
   renderFilesChrome();
   focusFilesInput(els.filesMkdirInput);
@@ -3118,7 +3284,11 @@ function openFilesRenameForm() {
   state.files.mkdirError = "";
   state.files.trashOpen = false;
   state.files.trashError = "";
+  state.files.transferOpen = false;
+  state.files.transferMode = "";
+  state.files.transferError = "";
   if (els.filesTrashInput) els.filesTrashInput.value = "";
+  if (els.filesTransferInput) els.filesTransferInput.value = "";
   if (els.filesRenameInput) {
     els.filesRenameInput.value = preview.name || fsName(preview.path);
   }
@@ -3155,6 +3325,10 @@ function openFilesTrashForm() {
   state.files.renameError = "";
   state.files.mkdirOpen = false;
   state.files.mkdirError = "";
+  state.files.transferOpen = false;
+  state.files.transferMode = "";
+  state.files.transferError = "";
+  if (els.filesTransferInput) els.filesTransferInput.value = "";
   if (els.filesTrashInput) els.filesTrashInput.value = "";
   renderFilesChrome();
   focusFilesInput(els.filesTrashInput);
@@ -3338,6 +3512,122 @@ async function submitFilesRename(event) {
     renderFilesChrome();
     if (!renamed && state.files.renameOpen) {
       focusFilesInput(els.filesRenameInput);
+    }
+  }
+}
+
+function openFilesTransferForm(mode) {
+  const preview = state.files.preview;
+  if (!preview || preview.loading || state.files.busy) return;
+  const transferMode = mode === "move" ? "move" : "copy";
+  const previousValue =
+    state.files.transferOpen && els.filesTransferInput ? els.filesTransferInput.value : "";
+  state.files.transferOpen = true;
+  state.files.transferMode = transferMode;
+  state.files.transferError = "";
+  state.files.renameOpen = false;
+  state.files.renameError = "";
+  state.files.trashOpen = false;
+  state.files.trashError = "";
+  if (els.filesTrashInput) els.filesTrashInput.value = "";
+  if (els.filesTransferInput) {
+    els.filesTransferInput.value = previousValue || preview.path || "";
+  }
+  renderFilesChrome();
+  focusFilesInput(els.filesTransferInput);
+}
+
+function closeFilesTransferForm({ returnFocus = true } = {}) {
+  if (!state.files.transferOpen || state.files.busy === "transfer") return;
+  const mode = state.files.transferMode;
+  state.files.transferOpen = false;
+  state.files.transferMode = "";
+  state.files.transferError = "";
+  if (els.filesTransferInput) els.filesTransferInput.value = "";
+  renderFilesPreview();
+  if (!returnFocus) return;
+  const target = mode === "move" ? els.filesTransferMove : els.filesTransferCopy;
+  if (!target) return;
+  try {
+    target.focus({ preventScroll: true });
+  } catch {
+    target.focus();
+  }
+}
+
+function toggleFilesTransferForm(mode) {
+  if (state.files.transferOpen && state.files.transferMode === mode) {
+    closeFilesTransferForm();
+    return;
+  }
+  openFilesTransferForm(mode);
+}
+
+async function submitFilesTransfer(event) {
+  if (event) event.preventDefault();
+  if (state.files.busy) return;
+  const preview = state.files.preview;
+  if (!preview) {
+    closeFilesTransferForm({ returnFocus: false });
+    return;
+  }
+  const mode = state.files.transferMode === "move" ? "move" : "copy";
+  const source = preview.path;
+  const check = validateFsDestination(
+    els.filesTransferInput ? els.filesTransferInput.value : "",
+    source,
+  );
+  if (!check.ok) {
+    state.files.transferError = check.error;
+    renderFilesPreview();
+    focusFilesInput(els.filesTransferInput);
+    return;
+  }
+  const destination = check.path;
+  const name = preview.name || fsName(source);
+  const endpoint = mode === "move" ? "/fs/move" : "/fs/copy";
+  state.files.busy = "transfer";
+  state.files.transferError = "";
+  renderFilesChrome();
+  let transferred = false;
+  try {
+    const data = await apiRequest(endpoint, {
+      method: "POST",
+      body: { source, destination },
+      timeout: 30000,
+    });
+    const resolved =
+      data && typeof data.destination === "string"
+        ? normalizeFsPath(data.destination)
+        : destination;
+    state.files.transferOpen = false;
+    state.files.transferMode = "";
+    if (els.filesTransferInput) els.filesTransferInput.value = "";
+    transferred = true;
+    showToast(
+      mode === "move"
+        ? `Перемещено: ${name} → ${resolved}`
+        : `Скопировано: ${name} → ${resolved}`,
+      "ok",
+    );
+    await loadFiles(state.files.path, { force: true });
+    // Keep active search results accurate after the transfer.
+    if (filesSearchActive()) {
+      await runFilesSearch(state.files.searchQuery);
+    }
+    if (mode === "move" && state.files.preview && state.files.preview.path === source) {
+      // Follow the moved file so the preview does not point at a missing path.
+      await loadFilesPreview(resolved, fileRow(resolved));
+    } else if (state.files.preview) {
+      focusFilesPreview();
+    }
+  } catch (error) {
+    state.files.transferError = describeFilesTransferError(error, mode);
+  } finally {
+    state.files.busy = "";
+    renderFilesChrome();
+    if (!transferred && state.files.transferOpen) {
+      focusFilesInput(els.filesTransferInput);
     }
   }
 }
@@ -5268,6 +5558,10 @@ function onGlobalKeydown(event) {
     closeFilesTrashForm();
     return;
   }
+  if (state.files.transferOpen) {
+    closeFilesTransferForm();
+    return;
+  }
   if (state.files.preview) closeFilesPreview();
   resetClearHistory();
   if (state.mic.active) stopMic();
@@ -5429,6 +5723,15 @@ function bindEvents() {
       if (preview) void loadFilesPreview(preview.path, state.files.previewTrigger);
     });
     els.filesCopy.addEventListener("click", () => void copyFilesPreview());
+    els.filesTransferCopy.addEventListener("click", () => toggleFilesTransferForm("copy"));
+    els.filesTransferMove.addEventListener("click", () => toggleFilesTransferForm("move"));
+    els.filesTransferForm.addEventListener("submit", (event) => void submitFilesTransfer(event));
+    els.filesTransferCancel.addEventListener("click", () => closeFilesTransferForm());
+    els.filesTransferInput.addEventListener("input", () => {
+      if (!state.files.transferError) return;
+      state.files.transferError = "";
+      renderFilesPreview();
+    });
     els.filesPreviewRename.addEventListener("click", toggleFilesRenameForm);
     els.filesRenameForm.addEventListener("submit", (event) => void submitFilesRename(event));
     els.filesRenameCancel.addEventListener("click", () => closeFilesRenameForm());
@@ -5580,6 +5883,8 @@ function installDebugHook() {
           mkdirOpen: state.files.mkdirOpen,
           renameOpen: state.files.renameOpen,
           trashOpen: state.files.trashOpen,
+          transferOpen: state.files.transferOpen,
+          transferMode: state.files.transferMode,
           searchQuery: state.files.searchQuery,
           searchState: state.files.searchState,
           searchMatches: state.files.searchMatches.length,
@@ -5755,6 +6060,15 @@ function cacheDom() {
     filesTrashSubmit: $id("files-trash-submit"),
     filesTrashCancel: $id("files-trash-cancel"),
     filesTrashError: $id("files-trash-error"),
+    filesTransferForm: $id("files-transfer-form"),
+    filesTransferTitle: $id("files-transfer-title"),
+    filesTransferInput: $id("files-transfer-input"),
+    filesTransferSubmit: $id("files-transfer-submit"),
+    filesTransferCancel: $id("files-transfer-cancel"),
+    filesTransferHint: $id("files-transfer-hint"),
+    filesTransferError: $id("files-transfer-error"),
+    filesTransferCopy: $id("files-transfer-copy"),
+    filesTransferMove: $id("files-transfer-move"),
     filesCopy: $id("files-copy"),
     filesCopyStatus: $id("files-copy-status"),
     crmStatusBadge: $id("crm-status-badge"),

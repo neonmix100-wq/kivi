@@ -45,6 +45,7 @@ FsListHandler = Callable[[str], dict[str, Any]]
 FsReadHandler = Callable[[str], dict[str, Any]]
 FsMkdirHandler = Callable[[str], dict[str, Any]]
 FsRenameHandler = Callable[[str, str], dict[str, Any]]
+FsCopyMoveHandler = Callable[[str, str], dict[str, Any]]
 FsTrashHandler = Callable[[str], dict[str, Any]]
 FsSearchHandler = Callable[[str], dict[str, Any]]
 CrmStatusHandler = Callable[[], dict[str, Any]]
@@ -70,6 +71,8 @@ _JSON_POST_PATHS = {
     "/settings",
     "/media/image",
     "/fs/mkdir",
+    "/fs/copy",
+    "/fs/move",
     "/fs/rename",
     "/fs/trash",
     "/crm/fill",
@@ -121,6 +124,8 @@ class LocalApi:
         fs_read_handler: FsReadHandler | None = None,
         fs_mkdir_handler: FsMkdirHandler | None = None,
         fs_rename_handler: FsRenameHandler | None = None,
+        fs_copy_handler: FsCopyMoveHandler | None = None,
+        fs_move_handler: FsCopyMoveHandler | None = None,
         fs_trash_handler: FsTrashHandler | None = None,
         fs_search_handler: FsSearchHandler | None = None,
         crm_status_handler: CrmStatusHandler | None = None,
@@ -157,6 +162,8 @@ class LocalApi:
         self._fs_read_handler = fs_read_handler
         self._fs_mkdir_handler = fs_mkdir_handler
         self._fs_rename_handler = fs_rename_handler
+        self._fs_copy_handler = fs_copy_handler
+        self._fs_move_handler = fs_move_handler
         self._fs_trash_handler = fs_trash_handler
         self._fs_search_handler = fs_search_handler
         self._crm_status_handler = crm_status_handler
@@ -343,6 +350,10 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._handle_fs_mkdir()
         elif method == "POST" and path == "/fs/rename":
             self._handle_fs_rename()
+        elif method == "POST" and path == "/fs/copy":
+            self._handle_fs_transfer(self.server.api._fs_copy_handler, "copy")
+        elif method == "POST" and path == "/fs/move":
+            self._handle_fs_transfer(self.server.api._fs_move_handler, "move")
         elif method == "POST" and path == "/fs/trash":
             self._handle_fs_trash()
         elif method == "GET" and path == "/fs/search":
@@ -624,6 +635,28 @@ class _ApiHandler(BaseHTTPRequestHandler):
             result = api._fs_rename_handler(source.strip(), destination.strip())
         except Exception:  # noqa: BLE001 - no internals to the client
             self._send_json(400, {"error": "cannot rename"})
+            return
+        self._send_json(200, result)
+
+    def _handle_fs_transfer(self, handler: FsCopyMoveHandler | None, label: str) -> None:
+        if handler is None:
+            self._send_json(503, {"error": "files are not configured"})
+            return
+        payload = self._read_json_object()
+        if payload is None:
+            return
+        source = payload.get("source")
+        destination = payload.get("destination")
+        if not isinstance(source, str) or not isinstance(destination, str):
+            self._send_json(400, {"error": "source and destination are required"})
+            return
+        if not source.strip() or not destination.strip():
+            self._send_json(400, {"error": "source and destination are required"})
+            return
+        try:
+            result = handler(source.strip(), destination.strip())
+        except Exception:  # noqa: BLE001 - no internals to the client
+            self._send_json(400, {"error": f"cannot {label}"})
             return
         self._send_json(200, result)
 

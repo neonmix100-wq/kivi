@@ -518,10 +518,11 @@
               <div>
                 <h2 class="media-heading" id="files-title">Файлы</h2>
                 <p class="view-lead">
-                  Рабочая папка Kivi: чтение, создание папок, переименование и корзина.
-                  Список и предпросмотр приходят с локального API:
-                  <code>GET /fs/list</code> и <code>GET /fs/read</code>; действия —
-                  <code>POST /fs/mkdir</code>, <code>POST /fs/rename</code> и
+                  Рабочая папка Kivi: чтение, создание папок, переименование,
+                  копирование, перемещение и корзина. Список и предпросмотр приходят с
+                  локального API: <code>GET /fs/list</code> и <code>GET /fs/read</code>;
+                  действия — <code>POST /fs/mkdir</code>, <code>POST /fs/rename</code>,
+                  <code>POST /fs/copy</code>, <code>POST /fs/move</code> и
                   <code>POST /fs/trash</code>. Поиск по имени идёт через
                   <code>GET /fs/search</code> и охватывает всю рабочую папку.
                   Безвозвратного удаления нет: элементы перемещаются в Корзину Windows.
@@ -801,6 +802,51 @@
                   <p class="files-form-error" id="files-trash-error" role="alert" hidden></p>
                 </form>
 
+                <form
+                  class="files-transfer-form"
+                  id="files-transfer-form"
+                  aria-labelledby="files-transfer-title"
+                  novalidate
+                  hidden
+                >
+                  <p class="files-form-title" id="files-transfer-title">Копировать файл</p>
+                  <label class="files-form-label" for="files-transfer-input">
+                    Путь назначения относительно рабочей папки
+                  </label>
+                  <div class="files-form-row">
+                    <input
+                      class="files-input"
+                      id="files-transfer-input"
+                      name="destination"
+                      type="text"
+                      maxlength="512"
+                      autocomplete="off"
+                      spellcheck="false"
+                      placeholder="например, архив/README-copy.md"
+                      aria-describedby="files-transfer-hint files-transfer-error"
+                    />
+                    <button
+                      type="submit"
+                      class="btn btn-primary btn-small"
+                      id="files-transfer-submit"
+                    >
+                      Копировать
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-small"
+                      id="files-transfer-cancel"
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                  <p class="files-form-hint" id="files-transfer-hint">
+                    Укажите полный путь вместе с новым именем. Существующие элементы не
+                    перезаписываются.
+                  </p>
+                  <p class="files-form-error" id="files-transfer-error" role="alert" hidden></p>
+                </form>
+
                 <div class="files-preview-actions">
                   <button
                     type="button"
@@ -817,12 +863,48 @@
                     </svg>
                     <span>Переименовать</span>
                   </button>
-                  <button type="button" class="btn btn-ghost btn-small" id="files-copy" disabled>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-small"
+                    id="files-transfer-copy"
+                    aria-label="Копировать текущий файл в другую папку"
+                    aria-expanded="false"
+                    aria-controls="files-transfer-form"
+                    disabled
+                  >
                     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                       <rect x="8" y="8" width="11" height="12" rx="2" />
                       <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" />
                     </svg>
                     <span>Копировать</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-small"
+                    id="files-transfer-move"
+                    aria-label="Переместить текущий файл в другую папку"
+                    aria-expanded="false"
+                    aria-controls="files-transfer-form"
+                    disabled
+                  >
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M4 12h13" />
+                      <path d="m12 7 5 5-5 5" />
+                    </svg>
+                    <span>Переместить</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-small"
+                    id="files-copy"
+                    aria-label="Скопировать текст текущего файла в буфер обмена"
+                    disabled
+                  >
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <rect x="8" y="8" width="11" height="12" rx="2" />
+                      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" />
+                    </svg>
+                    <span>Копировать текст</span>
                   </button>
                   <button
                     type="button"
@@ -860,10 +942,12 @@
             </div>
 
             <p class="view-footnote">
-              Доступны только чтение, создание, переименование и корзина: безвозвратного
-              удаления и записи содержимого файлов нет. Элементы перемещаются в Корзину
-              Windows, и их можно восстановить. Предпросмотр показывает текстовые файлы
-              UTF-8; бинарные файлы могут отображаться некорректно.
+              Доступны чтение, создание папок, переименование, копирование, перемещение
+              и корзина: безвозвратного удаления и записи содержимого файлов нет.
+              Копирование и перемещение не перезаписывают существующие элементы.
+              Удалённые элементы попадают в Корзину Windows, и их можно восстановить.
+              Предпросмотр показывает текстовые файлы UTF-8; бинарные файлы могут
+              отображаться некорректно.
             </p>
           </div>
         </section>

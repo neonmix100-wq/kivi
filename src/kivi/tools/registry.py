@@ -73,8 +73,10 @@ def build_registry(
     from kivi.tools.clipboard import ClipboardReadTool, ClipboardWriteTool
     from kivi.tools.code import CodeRunTool
     from kivi.tools.fs import (
+        FsCopyTool,
         FsListTool,
         FsMkdirTool,
+        FsMoveTool,
         FsReadTool,
         FsRenameTool,
         FsSearchTool,
@@ -123,8 +125,10 @@ def build_registry(
     for tool in (
         FsReadTool(),
         FsListTool(),
+        FsCopyTool(),
         FsWriteTool(),
         FsMkdirTool(),
+        FsMoveTool(),
         FsRenameTool(),
         FsSearchTool(),
         FsTrashTool(),

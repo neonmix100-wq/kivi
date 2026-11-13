@@ -9,6 +9,7 @@ replaced into place, so a crash cannot leave a half-written file.
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 from uuid import uuid4
 
@@ -66,6 +67,87 @@ class FsTrashArgs(_FsArgs):
 class FsSearchArgs(_FsArgs):
     query: str = Field(min_length=1, max_length=200)
     limit: int = Field(default=100, ge=1, le=500)
+
+
+class FsTransferArgs(_FsArgs):
+    source: str = Field(min_length=1, max_length=4096)
+    destination: str = Field(min_length=1, max_length=4096)
+
+
+def _transfer_paths(args: FsTransferArgs, ctx: ToolContext) -> tuple[Path, Path]:
+    source = _resolve(ctx, args.source, "read")
+    destination = _resolve(ctx, args.destination, "write")
+    _resolve(ctx, str(destination.parent), "write")
+    if not source.exists():
+        raise ToolError(f"source does not exist: {source}")
+    if source.is_symlink() or destination.is_symlink():
+        raise ToolError("symlink transfer is not supported")
+    if destination.exists():
+        raise ToolError(f"destination already exists: {destination}")
+    if not destination.parent.is_dir():
+        raise ToolError(f"destination parent does not exist: {destination.parent}")
+    if source == destination or source in destination.parents:
+        raise ToolError("cannot copy/move a directory into itself")
+    return source, destination
+
+
+class FsCopyTool:
+    """Copy one workspace entry without overwriting or following symlinks."""
+
+    name = "fs.copy"
+    description = "Copy a file/directory inside the workspace; no overwrite."
+    risk = "R1"
+    capabilities = ("fs.write",)
+    args_model = FsTransferArgs
+
+    def dry_run(self, args: BaseModel, ctx: ToolContext) -> Preview:
+        assert isinstance(args, FsTransferArgs)
+        return Preview(
+            "copy",
+            {"source": args.source, "destination": args.destination},
+            reversible=True,
+        )
+
+    def run(self, args: BaseModel, ctx: ToolContext) -> ToolResult:
+        assert isinstance(args, FsTransferArgs)
+        source, destination = _transfer_paths(args, ctx)
+        if source.is_dir():
+            shutil.copytree(source, destination, symlinks=False)
+        else:
+            shutil.copy2(source, destination)
+        return ToolResult(
+            ok=True,
+            output=f"copied {source} -> {destination}",
+            meta={"source": str(source), "destination": str(destination)},
+        )
+
+
+class FsMoveTool:
+    """Move one workspace entry without overwriting an existing path."""
+
+    name = "fs.move"
+    description = "Move a file/directory inside the workspace; no overwrite."
+    risk = "R1"
+    capabilities = ("fs.write",)
+    args_model = FsTransferArgs
+
+    def dry_run(self, args: BaseModel, ctx: ToolContext) -> Preview:
+        assert isinstance(args, FsTransferArgs)
+        return Preview(
+            "move",
+            {"source": args.source, "destination": args.destination},
+            reversible=True,
+        )
+
+    def run(self, args: BaseModel, ctx: ToolContext) -> ToolResult:
+        assert isinstance(args, FsTransferArgs)
+        source, destination = _transfer_paths(args, ctx)
+        shutil.move(str(source), str(destination))
+        return ToolResult(
+            ok=True,
+            output=f"moved {source} -> {destination}",
+            meta={"source": str(source), "destination": str(destination)},
+        )
 
 
 def _decode_text(data: bytes, *, allow_partial: bool = False) -> str:
@@ -427,14 +509,17 @@ class FsSearchTool:
 __all__ = [
     "FsListArgs",
     "FsListTool",
+    "FsCopyTool",
     "FsMkdirArgs",
     "FsMkdirTool",
+    "FsMoveTool",
     "FsReadArgs",
     "FsReadTool",
     "FsRenameArgs",
     "FsRenameTool",
     "FsSearchArgs",
     "FsSearchTool",
+    "FsTransferArgs",
     "FsTrashArgs",
     "FsTrashTool",
     "FsWriteArgs",

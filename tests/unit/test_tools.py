@@ -63,6 +63,18 @@ def test_fs_search_finds_names_inside_workspace(env: ToolEnv) -> None:
     assert env.run("fs.search", {"query": "SECRET"}).meta["matches"] == []
 
 
+def test_fs_copy_and_move(env: ToolEnv) -> None:
+    copied = env.run("fs.copy", {"source": "docs/note.txt", "destination": "docs/copy.txt"})
+    assert copied.ok is True
+    assert (env.workspace / "docs" / "copy.txt").read_text(encoding="utf-8") == "hello world"
+    moved = env.run("fs.move", {"source": "docs/copy.txt", "destination": "docs/moved.txt"})
+    assert moved.ok is True
+    assert not (env.workspace / "docs" / "copy.txt").exists()
+    assert (env.workspace / "docs" / "moved.txt").is_file()
+    refused = env.run("fs.copy", {"source": "docs/note.txt", "destination": "docs/note.txt"})
+    assert refused.ok is False
+
+
 def test_fs_trash_moves_to_recycle_bin(env: ToolEnv, monkeypatch) -> None:
     called: list[str] = []
     monkeypatch.setattr("send2trash.send2trash", lambda path: called.append(path))
@@ -136,8 +148,10 @@ def test_fs_rename_rejects_missing_source(env: ToolEnv) -> None:
         "crm.fill",
         "crm.read",
         "crm.task",
+        "fs.copy",
         "fs.list",
         "fs.mkdir",
+        "fs.move",
         "fs.read",
         "fs.rename",
         "fs.search",

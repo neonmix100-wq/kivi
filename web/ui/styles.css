@@ -2124,6 +2124,7 @@ a:hover {
 
 .files-write-form,
 .files-rename-form,
+.files-transfer-form,
 .files-trash-form {
   display: flex;
   flex-direction: column;
@@ -2145,6 +2146,18 @@ a:hover {
   border: 1px solid var(--line);
   border-radius: 11px;
   background: rgba(3, 12, 15, 0.35);
+}
+
+.files-transfer-form {
+  margin: 12px 0 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(94, 242, 214, 0.28);
+  border-radius: 11px;
+  background: rgba(94, 242, 214, 0.05);
+}
+
+.files-transfer-form .files-form-title {
+  color: #c9fff0;
 }
 
 .files-trash-form {

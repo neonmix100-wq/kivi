@@ -808,6 +808,29 @@ def _ui_fs_search(paths: Any, config: KiviConfig, query: str) -> dict[str, Any]:
     }
 
 
+def _ui_fs_transfer(
+    paths: Any,
+    config: KiviConfig,
+    tool: str,
+    source: str,
+    destination: str,
+) -> dict[str, Any]:
+    result = _run_direct_tool(
+        paths,
+        config,
+        tool,
+        {"source": source, "destination": destination},
+        ["fs.write"],
+    )
+    if not result.ok:
+        raise RuntimeError(result.error or f"cannot {tool.rsplit('.', 1)[-1]}")
+    return {
+        "ok": True,
+        "source": source,
+        "destination": destination,
+    }
+
+
 def _ui_fs_trash(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
     result = _run_direct_tool(
         paths,
@@ -1241,6 +1264,24 @@ def cmd_serve(args: argparse.Namespace) -> int:
             (lambda source, destination: _ui_fs_rename(
                 paths, config, source, destination
             ))
+            if getattr(args, "ui", False)
+            else None
+        ),
+        fs_copy_handler=(
+            (
+                lambda source, destination: _ui_fs_transfer(
+                    paths, config, "fs.copy", source, destination
+                )
+            )
+            if getattr(args, "ui", False)
+            else None
+        ),
+        fs_move_handler=(
+            (
+                lambda source, destination: _ui_fs_transfer(
+                    paths, config, "fs.move", source, destination
+                )
+            )
             if getattr(args, "ui", False)
             else None
         ),

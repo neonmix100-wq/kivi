@@ -45,6 +45,8 @@ def ui_api(tmp_path: Path):
             "source": source,
             "destination": destination,
         },
+        fs_copy_handler=lambda source, destination: {"ok": True},
+        fs_move_handler=lambda source, destination: {"ok": True},
         fs_trash_handler=lambda path: {"ok": True, "path": path},
         fs_search_handler=lambda query: {
             "query": query,
@@ -177,6 +179,20 @@ def test_cross_site_and_non_json_mutations_are_rejected(ui_api: LocalApi) -> Non
     assert evil_origin.status_code == 403
     assert evil_host.status_code == 403
     assert text_plain.status_code == 415
+
+
+def test_fs_copy_and_move(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        copied = client.post(
+            "/fs/copy",
+            json={"source": "a.txt", "destination": "b.txt"},
+        )
+        moved = client.post(
+            "/fs/move",
+            json={"source": "b.txt", "destination": "c.txt"},
+        )
+    assert copied.status_code == 200
+    assert moved.status_code == 200
 
 
 def test_fs_search(ui_api: LocalApi) -> None:

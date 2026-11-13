@@ -6,5 +6,9 @@ if not exist ".venv\Scripts\python.exe" (
   pause
   exit /b 1
 )
-".venv\Scripts\python.exe" -m kivi avatar --port 8766
-if errorlevel 1 pause
+if exist ".venv\Scripts\pythonw.exe" (
+  start "" ".venv\Scripts\pythonw.exe" -m kivi avatar --port 8766
+) else (
+  ".venv\Scripts\python.exe" -m kivi avatar --port 8766
+  if errorlevel 1 pause
+)
