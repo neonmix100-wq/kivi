@@ -52,6 +52,9 @@ voice = [
     "openwakeword>=0.6",
     "numpy>=1.26",
 ]
+video = [
+    "imageio-ffmpeg>=0.6",
+]
 image = [
     "diffusers>=0.43",
     "transformers>=5.22",

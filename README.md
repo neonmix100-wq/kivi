@@ -48,7 +48,7 @@ $env:FISH_AUDIO_API_KEY = "твой-ключ"
 
 ```powershell
 py -3.12 -m venv .venv
-.venv\Scripts\python.exe -m pip install -e ".[dev,gpu,ui,voice]"
+.venv\Scripts\python.exe -m pip install -e ".[dev,gpu,ui,voice,video]"
 .venv\Scripts\kivi.exe doctor
 .venv\Scripts\kivi.exe config check
 .venv\Scripts\kivi.exe ask "привет, кто ты?" --keep-alive 0
