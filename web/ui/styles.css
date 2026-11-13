@@ -2588,6 +2588,32 @@ button.file-row:hover {
   overscroll-behavior: contain;
 }
 
+.files-preview-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 52vh;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background:
+    radial-gradient(320px 220px at 50% 0%, rgba(47, 212, 196, 0.06), transparent 72%),
+    rgba(3, 12, 15, 0.6);
+  overscroll-behavior: contain;
+}
+
+.files-preview-image img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(52vh - 22px);
+  border-radius: 8px;
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.25);
+}
+
 .files-preview-loading {
   display: flex;
   align-items: center;
@@ -3925,6 +3951,14 @@ button.file-row:hover {
 
   .files-preview-body {
     max-height: 46vh;
+  }
+
+  .files-preview-image {
+    max-height: 46vh;
+  }
+
+  .files-preview-image img {
+    max-height: calc(46vh - 22px);
   }
 
   .crm-order-text {

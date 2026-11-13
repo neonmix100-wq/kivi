@@ -634,7 +634,8 @@
                 <p class="view-lead">
                   Рабочая папка Kivi: чтение, создание папок, переименование,
                   копирование, перемещение и корзина. Список и предпросмотр приходят с
-                  локального API: <code>GET /fs/list</code> и <code>GET /fs/read</code>;
+                  локального API: <code>GET /fs/list</code>, <code>GET /fs/read</code> и
+                  <code>GET /fs/raw</code> для изображений;
                   действия — <code>POST /fs/mkdir</code>, <code>POST /fs/rename</code>,
                   <code>POST /fs/copy</code>, <code>POST /fs/move</code> и
                   <code>POST /fs/trash</code>. Поиск по имени идёт через
@@ -810,7 +811,15 @@
                 <p class="files-preview-error" id="files-preview-error" role="alert" hidden></p>
                 <div class="files-preview-loading" id="files-preview-loading" hidden>
                   <span class="media-spinner" aria-hidden="true"></span>
-                  <span>Читаю файл…</span>
+                  <span id="files-preview-loading-text">Читаю файл…</span>
+                </div>
+                <div
+                  class="files-preview-image"
+                  id="files-preview-image"
+                  aria-busy="false"
+                  hidden
+                >
+                  <img id="files-preview-img" alt="" decoding="async" />
                 </div>
                 <pre
                   class="files-preview-body"
@@ -1060,7 +1069,8 @@
               и корзина: безвозвратного удаления и записи содержимого файлов нет.
               Копирование и перемещение не перезаписывают существующие элементы.
               Удалённые элементы попадают в Корзину Windows, и их можно восстановить.
-              Предпросмотр показывает текстовые файлы UTF-8; бинарные файлы могут
+              Предпросмотр показывает текстовые файлы UTF-8 и изображения
+              PNG, JPG, JPEG, WebP, GIF и BMP (до 8 МБ); прочие бинарные файлы могут
               отображаться некорректно.
             </p>
           </div>

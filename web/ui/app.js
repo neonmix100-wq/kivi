@@ -2099,6 +2099,79 @@ function fsName(path) {
   return index === -1 ? normalized : normalized.slice(index + 1);
 }
 
+// Image previews go through GET /fs/raw only; everything else keeps /fs/read.
+// The suffix list is the single switch that enables the raw request.
+const FS_IMAGE_MIME = Object.freeze({
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  bmp: "image/bmp",
+});
+const FS_IMAGE_MIME_LABELS = Object.freeze({
+  "image/png": "PNG",
+  "image/jpeg": "JPEG",
+  "image/webp": "WebP",
+  "image/gif": "GIF",
+  "image/bmp": "BMP",
+});
+// The server caps raw previews at 8 MiB; mirror that cap here so an oversized
+// or malformed response never reaches the DOM.
+const FS_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+const FS_IMAGE_DATA_URL_LIMIT = Math.ceil((FS_IMAGE_MAX_BYTES * 4) / 3) + 64;
+
+function fsImageSuffix(path) {
+  const name = fsName(path).toLowerCase();
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(dot + 1) : "";
+}
+
+function isFsImagePath(path) {
+  return Object.prototype.hasOwnProperty.call(FS_IMAGE_MIME, fsImageSuffix(path));
+}
+
+function fsImageMimeLabel(mime) {
+  return FS_IMAGE_MIME_LABELS[mime] || "";
+}
+
+function parseFsImageDataUrl(raw) {
+  if (typeof raw !== "string") return null;
+  const text = raw.trim();
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/.exec(text);
+  if (!match) return null;
+  const mime = match[1].toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(FS_IMAGE_MIME_LABELS, mime)) return null;
+  const base64 = match[2];
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return {
+    src: text,
+    mime,
+    // Approximate the decoded size; only the status line needs it.
+    bytes: Math.max(0, Math.floor((base64.length * 3) / 4) - padding),
+  };
+}
+
+function describeFilesImageError(error) {
+  if (error instanceof ApiError) {
+    const detail = error.code ? `: ${error.code}` : "";
+    if (error.status === 400) {
+      return (
+        "Не удалось показать изображение (400" +
+        detail +
+        "): сервер отклонил путь, формат или размер (лимит 8 МБ)."
+      );
+    }
+    if (error.status === 503) {
+      return (
+        "Предпросмотр изображений временно недоступен: " +
+        "файловые операции не настроены на сервере (503)."
+      );
+    }
+  }
+  return describeFilesError(error, "чтении изображения");
+}
+
 function fsCrumbs(path) {
   const normalized = normalizeFsPath(path);
   const crumbs = [{ label: ".", path: "." }];
@@ -2569,14 +2642,20 @@ function onFilesSearchInput() {
 async function loadFilesPreview(rawPath, trigger = null) {
   const path = normalizeFsPath(rawPath);
   const name = fsName(path);
+  const image = isFsImagePath(path);
+  const kind = image ? "image" : "text";
   if (!state.files.preview || state.files.preview.path !== path) resetFilesWriteForms();
   const epoch = ++state.files.previewEpoch;
   state.files.previewTrigger = trigger;
   state.files.copyStatus = "";
   state.files.preview = {
+    kind,
     path,
     name,
     content: null,
+    src: "",
+    mime: "",
+    bytes: 0,
     truncated: false,
     loading: true,
     error: "",
@@ -2584,30 +2663,73 @@ async function loadFilesPreview(rawPath, trigger = null) {
   renderFiles();
 
   try {
-    const data = await apiRequest(`/fs/read?path=${encodeURIComponent(path)}`, {
+    // Non-images never hit /fs/raw, and images never hit /fs/read: one request
+    // per preview keeps large binary scans out of the text path.
+    const endpoint = image ? "/fs/raw" : "/fs/read";
+    const data = await apiRequest(`${endpoint}?path=${encodeURIComponent(path)}`, {
       timeout: 20000,
     });
     if (epoch !== state.files.previewEpoch) return;
-    const content = data && typeof data.content === "string" ? data.content : "";
     const resolvedPath =
       data && typeof data.path === "string" ? normalizeFsPath(data.path) : path;
-    state.files.preview = {
-      path: resolvedPath,
-      name: fsName(resolvedPath),
-      content,
-      truncated: Boolean(data && data.truncated === true),
-      loading: false,
-      error: "",
-    };
+    if (image) {
+      const raw = data && typeof data.image === "string" ? data.image : "";
+      if (raw.length > FS_IMAGE_DATA_URL_LIMIT) {
+        throw new ApiError("Изображение слишком большое для предпросмотра (лимит 8 МБ).", {
+          status: 413,
+          code: "image-too-large",
+          path,
+        });
+      }
+      const parsed = parseFsImageDataUrl(raw);
+      if (!parsed) {
+        throw new ApiError("Сервер вернул некорректные данные изображения.", {
+          code: "bad-image",
+          path,
+        });
+      }
+      state.files.preview = {
+        kind: "image",
+        path: resolvedPath,
+        name: fsName(resolvedPath),
+        content: null,
+        src: parsed.src,
+        mime: parsed.mime,
+        bytes: parsed.bytes,
+        truncated: false,
+        loading: false,
+        error: "",
+      };
+    } else {
+      const content = data && typeof data.content === "string" ? data.content : "";
+      state.files.preview = {
+        kind: "text",
+        path: resolvedPath,
+        name: fsName(resolvedPath),
+        content,
+        src: "",
+        mime: "",
+        bytes: 0,
+        truncated: Boolean(data && data.truncated === true),
+        loading: false,
+        error: "",
+      };
+    }
   } catch (error) {
     if (epoch !== state.files.previewEpoch) return;
     state.files.preview = {
+      kind,
       path,
       name,
       content: null,
+      src: "",
+      mime: "",
+      bytes: 0,
       truncated: false,
       loading: false,
-      error: describeFilesError(error, "чтении файла"),
+      error: image
+        ? describeFilesImageError(error)
+        : describeFilesError(error, "чтении файла"),
     };
   } finally {
     if (epoch !== state.files.previewEpoch) return;
@@ -3022,7 +3144,16 @@ function renderFilesPreview() {
   els.filesPreviewCard.hidden = !open;
   if (els.filesLayout) els.filesLayout.classList.toggle("has-preview", open);
   if (!open) {
+    els.filesPreviewCard.setAttribute("aria-busy", "false");
     if (els.filesPreviewBody) els.filesPreviewBody.textContent = "";
+    if (els.filesPreviewImage) {
+      els.filesPreviewImage.hidden = true;
+      els.filesPreviewImage.setAttribute("aria-busy", "false");
+    }
+    if (els.filesPreviewImg) {
+      if (els.filesPreviewImg.hasAttribute("src")) els.filesPreviewImg.removeAttribute("src");
+      els.filesPreviewImg.alt = "";
+    }
     if (els.filesPreviewStatus) els.filesPreviewStatus.textContent = "";
     if (els.filesPreviewError) {
       els.filesPreviewError.hidden = true;
@@ -3052,29 +3183,61 @@ function renderFilesPreview() {
 
   const loading = preview.loading === true;
   const error = preview.error || "";
+  const isImage = preview.kind === "image";
   const content = preview.content;
-  const hasContent = typeof content === "string";
+  const hasContent = !isImage && typeof content === "string";
+  const src = isImage && typeof preview.src === "string" ? preview.src : "";
+  const hasImage = isImage && Boolean(src);
   els.filesPreviewTitle.textContent = preview.name || fsName(preview.path);
   els.filesPreviewPath.textContent = preview.path;
+  els.filesPreviewCard.setAttribute("aria-busy", loading ? "true" : "false");
   els.filesPreviewLoading.hidden = !loading;
+  if (els.filesPreviewLoadingText) {
+    els.filesPreviewLoadingText.textContent = isImage
+      ? "Загружаю изображение…"
+      : "Читаю файл…";
+  }
   els.filesPreviewError.hidden = !error;
   els.filesPreviewError.textContent = error;
   els.filesPreviewStatus.classList.toggle("is-error", Boolean(error));
   els.filesPreviewStatus.textContent = loading
-    ? "Загрузка файла…"
+    ? isImage
+      ? "Загрузка изображения…"
+      : "Загрузка файла…"
     : error
       ? ""
-      : !hasContent || content === ""
-        ? "Файл пуст."
-        : `${formatFileSize(new TextEncoder().encode(content).length)} · UTF-8${
-            preview.truncated ? " · фрагмент" : ""
-          }`;
-  els.filesPreviewBody.hidden = !hasContent || loading || Boolean(error);
-  if (hasContent && els.filesPreviewBody.textContent !== content) {
-    els.filesPreviewBody.textContent = content;
-  }
-  if (!hasContent && els.filesPreviewBody.textContent) {
+      : isImage
+        ? hasImage
+          ? `${fsImageMimeLabel(preview.mime)} · ${formatFileSize(preview.bytes)}`
+          : "Изображение недоступно."
+        : !hasContent || content === ""
+          ? "Файл пуст."
+          : `${formatFileSize(new TextEncoder().encode(content).length)} · UTF-8${
+              preview.truncated ? " · фрагмент" : ""
+            }`;
+  els.filesPreviewBody.hidden = isImage || !hasContent || loading || Boolean(error);
+  if (!isImage && hasContent) {
+    if (els.filesPreviewBody.textContent !== content) {
+      els.filesPreviewBody.textContent = content;
+    }
+  } else if (els.filesPreviewBody.textContent) {
     els.filesPreviewBody.textContent = "";
+  }
+  if (els.filesPreviewImage) {
+    els.filesPreviewImage.hidden = !hasImage || loading || Boolean(error);
+    els.filesPreviewImage.setAttribute("aria-busy", loading ? "true" : "false");
+  }
+  if (els.filesPreviewImg) {
+    if (hasImage && !loading && !error) {
+      if (els.filesPreviewImg.getAttribute("src") !== src) {
+        els.filesPreviewImg.src = src;
+      }
+      const alt = `Предпросмотр изображения: ${preview.name || fsName(preview.path)}`;
+      if (els.filesPreviewImg.alt !== alt) els.filesPreviewImg.alt = alt;
+    } else {
+      if (els.filesPreviewImg.hasAttribute("src")) els.filesPreviewImg.removeAttribute("src");
+      els.filesPreviewImg.alt = "";
+    }
   }
   if (els.filesPreviewTruncated) {
     els.filesPreviewTruncated.hidden = !preview.truncated || loading || Boolean(error);
@@ -3171,7 +3334,7 @@ function renderFilesPreview() {
   }
   if (els.filesPreviewClose) els.filesPreviewClose.disabled = busy;
   if (els.filesCopy) {
-    els.filesCopy.disabled = !hasContent || loading || Boolean(error) || busy;
+    els.filesCopy.disabled = !hasContent || isImage || loading || Boolean(error) || busy;
   }
   if (els.filesPreviewRefresh) els.filesPreviewRefresh.disabled = loading || busy;
   if (els.filesCopyStatus) els.filesCopyStatus.textContent = state.files.copyStatus;
@@ -6406,6 +6569,9 @@ function cacheDom() {
     filesPreviewStatus: $id("files-preview-status"),
     filesPreviewError: $id("files-preview-error"),
     filesPreviewLoading: $id("files-preview-loading"),
+    filesPreviewLoadingText: $id("files-preview-loading-text"),
+    filesPreviewImage: $id("files-preview-image"),
+    filesPreviewImg: $id("files-preview-img"),
     filesPreviewBody: $id("files-preview-body"),
     filesPreviewTruncated: $id("files-preview-truncated"),
     filesPreviewRefresh: $id("files-preview-refresh"),

@@ -57,6 +57,10 @@ def ui_api(tmp_path: Path):
             "matches": [{"path": "docs/API.md", "name": "API.md"}],
             "truncated": False,
         },
+        fs_raw_handler=lambda path: {
+            "path": path,
+            "image": "data:image/png;base64,AAAA",
+        },
         crm_status_handler=lambda: {
             "connected": False,
             "hint": "start Chrome",
@@ -191,6 +195,13 @@ def test_cross_site_and_non_json_mutations_are_rejected(ui_api: LocalApi) -> Non
     assert evil_origin.status_code == 403
     assert evil_host.status_code == 403
     assert text_plain.status_code == 415
+
+
+def test_fs_raw_image(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        response = client.get("/fs/raw?path=docs/logo.png")
+    assert response.status_code == 200
+    assert response.json()["image"].startswith("data:image/")
 
 
 def test_fs_copy_and_move(ui_api: LocalApi) -> None:

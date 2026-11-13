@@ -47,7 +47,8 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 - **CRM-панель**: статус расширения AltCRM в Яндекс.Браузере, read-only
   карточка, формы `Заполнить / Акт / Задача` без сохранения;
 - **файловый обзор**: список workspace, поиск имён, переход по папкам, preview
-  текста, копирование, перемещение, создание папок, переименование и корзина;
+  текста и изображений (png/jpg/jpeg/webp/gif/bmp), копирование, перемещение,
+  создание папок, переименование и корзина;
 - **медиа-панель**: prompt, 512/768/1024, flux/turbo, результат и галерея
   сессии через `/media/image`; вкладка «Видео» — `/media/video`, 2/4/6 с;
 - голосовые ответы: кнопка «Озвучить», авто-озвучка, `/tts`;
@@ -73,6 +74,7 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 | POST | `/media/image` | `{prompt,width,height,model}` → `{image: dataURL}` |
 | GET | `/fs/list?path=` | список папки workspace |
 | GET | `/fs/search?q=` | поиск имён в workspace |
+| GET | `/fs/raw?path=` | изображение для preview (≤8 МБ) |
 | GET | `/fs/read?path=` | текст файла workspace (read-only) |
 | POST | `/fs/mkdir` | `{path}` — создать папку |
 | POST | `/fs/rename` | `{source,destination}` — переименовать |

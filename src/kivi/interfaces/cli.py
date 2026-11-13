@@ -737,6 +737,33 @@ def _ui_fs_read(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
     return {"path": rel, "content": result.output, "truncated": bool(result.truncated)}
 
 
+def _ui_fs_raw(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
+    """Return a small image as a data URL for the files preview."""
+    from kivi.safety.zones import ProtectedZones
+
+    zones = ProtectedZones(paths.root, extra_rules=_zones_extra(paths))
+    path = zones.check(rel, "read").require()
+    if not path.is_file():
+        raise RuntimeError("not a file")
+    suffix = path.suffix.lower()
+    mime = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".bmp": "image/bmp",
+    }.get(suffix)
+    if mime is None:
+        raise RuntimeError("unsupported image type")
+    if path.stat().st_size > 8 * 1024 * 1024:
+        raise RuntimeError("image is too large")
+    return {
+        "path": rel,
+        "image": f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}",
+    }
+
+
 def _ui_settings_path(paths: Any) -> Path:
     return paths.data / "ui-settings.json"
 
@@ -1327,6 +1354,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
         ),
         fs_search_handler=(
             (lambda query: _ui_fs_search(paths, config, query))
+            if getattr(args, "ui", False)
+            else None
+        ),
+        fs_raw_handler=(
+            (lambda rel: _ui_fs_raw(paths, config, rel))
             if getattr(args, "ui", False)
             else None
         ),
