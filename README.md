@@ -1,6 +1,6 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–9 закрыты, M5 ~92%, M6 ~98%, M7 ~70%, M8 ~95% (v0.19). Железо
+> **Статус:** этапы 0–9 закрыты, M5 ~92%, M6 ~98%, M7 ~70%, M8 ~95% (v0.20). Железо
 > перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q4/14B/SDXL/Whisper
 > стали реалистичны. Работают `kivi doctor`, `kivi models`, `kivi ask`,
 > `kivi chat`, `kivi serve`, `kivi say`, `kivi voice design`, `kivi coder`,
@@ -223,6 +223,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/VOICE-LIBRARY.md`](docs/VOICE-LIBRARY.md) | Импорт голосов из файлов/URL, consent |
 | [`docs/CRM-EXTENSION.md`](docs/CRM-EXTENSION.md) | AltCRM через расширение Яндекс.Браузера |
 | [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) | матрица приёмки и acceptance-smoke |
+| [`docs/RELEASE-0.20.md`](docs/RELEASE-0.20.md) | release notes первого прототипа |
 | [`docs/MEDIA.md`](docs/MEDIA.md) | M7: бесплатная генерация изображений |
 | [`docs/MEDIA-JOBS.md`](docs/MEDIA-JOBS.md) | M7: очередь медиа-заданий |
 | [`docs/VIDEO.md`](docs/VIDEO.md) | M7: локальный видео-fallback |
