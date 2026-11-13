@@ -3502,6 +3502,7 @@ function openFilesMkdirForm() {
   state.files.transferOpen = false;
   state.files.transferMode = "";
   state.files.transferError = "";
+  state.files.target = null;
   if (els.filesTrashInput) els.filesTrashInput.value = "";
   if (els.filesTransferInput) els.filesTransferInput.value = "";
   if (els.filesMkdirInput) els.filesMkdirInput.value = "";
