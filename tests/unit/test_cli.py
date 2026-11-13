@@ -376,6 +376,36 @@ def test_open_app_window_uses_edge(monkeypatch) -> None:
     ]
 
 
+def test_feed_avatar_updates_3d_controller(tmp_path: Path, monkeypatch) -> None:
+    import wave
+
+    path = tmp_path / "voice.wav"
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(16000)
+        handle.writeframes(b"\x00\x40" * 160)
+
+    levels: list[float] = []
+    updates: list[dict] = []
+
+    class Fake3D:
+        def update_amplitude(self, value):
+            levels.append(value)
+            return {}
+
+        def snapshot(self):
+            return {"state": "speaking", "viseme": "A", "blendshapes": {}}
+
+    class FakeRenderer:
+        def update(self, snapshot):
+            updates.append(snapshot)
+
+    cli_module._feed_avatar(path, Fake3D(), FakeRenderer(), False)
+    assert levels
+    assert updates
+
+
 def test_speak_plays_without_avatar(tmp_path: Path, monkeypatch) -> None:
     played: list[Path] = []
 

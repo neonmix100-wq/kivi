@@ -20,6 +20,8 @@ assets/avatar/kivi.vrm   (~35 МБ, VRM 0.x / glTF 2.0)
 
 ## Запуск
 
+Только 3D-аватар:
+
 ```powershell
 cd D:\AI-assistent
 .venv\Scripts\kivi.exe avatar --port 8766
@@ -31,6 +33,12 @@ cd D:\AI-assistent
 kivi avatar --no-browser
 ```
 
+Чат с 3D-аватаром (открывает страницу и обновляет состояние при речи):
+
+```powershell
+kivi chat "Привет! Как дела?" --avatar --speak
+```
+
 ## Важно
 
 Модель **Big Fat Blue Fish** от Mzkagami: коммерческое использование и
@@ -39,6 +47,6 @@ kivi avatar --no-browser
 
 Осталось для полной M5-приёмки:
 
-- подключить animation mixer (idle/listen/think/talk), сейчас T-pose/idle;
-- связать виземы с TTS/UI-аватаром;
+- animation mixer (idle/listen/think/talk) и более точные жесты;
+- связать виземы с UI-аватаром (сейчас 3D-страница синхронизируется с `kivi chat --avatar` через `state.json`);
 - кастомный wake ONNX (текстовый wake через Whisper уже есть).

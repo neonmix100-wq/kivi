@@ -53,7 +53,12 @@ from kivi.interfaces.avatar2d import (
     AvatarError,
     TkAvatarRenderer,
 )
-from kivi.interfaces.avatar3d import ThreeVrmRenderer, vrm_status
+from kivi.interfaces.avatar3d import (
+    Avatar3DController,
+    Avatar3DError,
+    ThreeVrmRenderer,
+    vrm_status,
+)
 from kivi.kernel.db import Database
 from kivi.kernel.events import EventBus
 from kivi.kernel.logs import JsonlLogger
@@ -361,7 +366,40 @@ def _play_wav(path: Path) -> None:
         console.print(f"[yellow]playback unavailable:[/yellow] {_plain(str(exc))}")
 
 
+def _render_avatar_state(avatar: Any, renderer: Any) -> None:
+    if avatar is None or renderer is None:
+        return
+    if hasattr(renderer, "render") and hasattr(avatar, "state"):
+        renderer.render(avatar.state, avatar.openness)
+    elif hasattr(renderer, "update") and hasattr(avatar, "snapshot"):
+        renderer.update(avatar.snapshot())
+
+
 def _feed_avatar(path: Path, avatar: AvatarController, renderer: Any, play: bool) -> None:
+    if hasattr(avatar, "update_amplitude"):
+        try:
+            with wave.open(str(path), "rb") as handle:
+                if handle.getnchannels() != 1 or handle.getsampwidth() != 2:
+                    return
+                rate = handle.getframerate()
+                frames = handle.readframes(handle.getnframes())
+            samples = [
+                int.from_bytes(frames[index : index + 2], "little", signed=True) / 32768.0
+                for index in range(0, len(frames) - 1, 2)
+            ]
+            chunk = max(1, rate // 20)
+            for start in range(0, len(samples), chunk):
+                values = samples[start : start + chunk]
+                if not values:
+                    continue
+                rms = (sum(value * value for value in values) / len(values)) ** 0.5
+                avatar.update_amplitude(min(1.0, rms * 3.0))
+                renderer.update(avatar.snapshot())
+        except (OSError, wave.Error, AttributeError):
+            pass
+        if play:
+            _play_wav(path)
+        return
     try:
         with wave.open(str(path), "rb") as handle:
             if (
@@ -390,8 +428,7 @@ def _speak(
         return
     if avatar is not None:
         avatar.on_speech_start()
-        if renderer is not None:
-            renderer.render(avatar.state, avatar.openness)
+        _render_avatar_state(avatar, renderer)
     try:
         results = pipeline.synthesize(text, cache)
         for result in results:
@@ -404,8 +441,7 @@ def _speak(
     finally:
         if avatar is not None:
             avatar.on_speech_end()
-            if renderer is not None:
-                renderer.render(avatar.state, avatar.openness)
+            _render_avatar_state(avatar, renderer)
 
 
 def cmd_chat(args: argparse.Namespace) -> int:
@@ -427,13 +463,26 @@ def cmd_chat(args: argparse.Namespace) -> int:
     renderer: Any = None
     if args.avatar:
         try:
-            avatar = AvatarController()
-            renderer = TkAvatarRenderer(
-                show=True,
-                always_on_top=config.avatar.always_on_top,
-            )
-            renderer.start()
-        except AvatarError as exc:
+            if config.avatar.mode == "vrm" and vrm_status(paths.root).available:
+                avatar = Avatar3DController()
+                renderer = ThreeVrmRenderer(
+                    paths.root,
+                    open_browser=True,
+                    port=0,
+                )
+                renderer.start()
+                console.print(
+                    f"[cyan]3D avatar:[/cyan] {renderer.url} "
+                    "(окно откроется в браузере)"
+                )
+            else:
+                avatar = AvatarController()
+                renderer = TkAvatarRenderer(
+                    show=True,
+                    always_on_top=config.avatar.always_on_top,
+                )
+                renderer.start()
+        except (AvatarError, Avatar3DError) as exc:
             console.print(f"[yellow]avatar unavailable:[/yellow] {_plain(str(exc))}")
             avatar = None
             renderer = None
