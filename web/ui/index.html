@@ -648,6 +648,33 @@
               <button type="button" class="btn btn-ghost" id="files-refresh">Обновить</button>
             </div>
 
+            <div class="files-tabs">
+              <div
+                class="files-tablist"
+                id="files-tablist"
+                role="tablist"
+                aria-label="Открытые папки"
+                aria-orientation="horizontal"
+                aria-keyshortcuts="Control+Tab Control+Shift+Tab"
+              ></div>
+              <button
+                type="button"
+                class="btn btn-ghost btn-small files-tab-add"
+                id="files-tab-add"
+                aria-label="Новая вкладка: открыть рабочую папку"
+                aria-keyshortcuts="Control+T"
+                title="Новая вкладка: рабочая папка (Ctrl+T)"
+              >
+                <span aria-hidden="true">+</span>
+              </button>
+            </div>
+
+            <div
+              class="files-tabpanel"
+              id="files-tabpanel"
+              role="tabpanel"
+              aria-label="Содержимое открытой папки"
+            >
             <div class="files-toolbar">
               <div class="files-history-row">
                 <div class="files-history" role="group" aria-label="История папок">
@@ -1168,6 +1195,7 @@
                   <p class="files-form-error" id="files-transfer-error" role="alert" hidden></p>
                 </form>
               </div>
+            </div>
             </div>
 
             <p class="view-footnote">

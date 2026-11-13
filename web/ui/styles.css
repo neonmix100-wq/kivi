@@ -2131,6 +2131,116 @@ a:hover {
 /* Files                                                              */
 /* ------------------------------------------------------------------ */
 
+/* Browser-style folder tabs above the Files toolbar. The list scrolls on its
+   own so a long strip never widens the page. */
+.files-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 860px;
+  min-width: 0;
+  margin: 0 auto 10px;
+}
+
+.files-tablist {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  padding: 3px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(3, 12, 15, 0.34);
+  scrollbar-width: thin;
+}
+
+.files-tablist:empty {
+  display: none;
+}
+
+.files-tab {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  min-width: 0;
+  max-width: 240px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.files-tab:hover {
+  background: rgba(94, 242, 214, 0.06);
+}
+
+.files-tab.is-active {
+  border-color: rgba(94, 242, 214, 0.32);
+  background: rgba(94, 242, 214, 0.1);
+}
+
+.files-tab-main {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 190px;
+  padding: 7px 10px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-tab.is-active .files-tab-main {
+  color: var(--mint);
+}
+
+.files-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  margin: 2px 3px 2px 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--faint);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.files-tab-close:hover:not(:disabled) {
+  background: rgba(255, 122, 144, 0.14);
+  color: #ffb3c1;
+}
+
+.files-tab-close:disabled,
+.files-tab-main:disabled,
+.files-tab-add:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.files-tab-add {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.files-tabpanel {
+  min-width: 0;
+}
+
 .files-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -4306,6 +4416,10 @@ button.file-row.is-menu-open {
 
   .files-copy-status {
     flex-basis: 100%;
+  }
+
+  .files-tab-main {
+    max-width: 140px;
   }
 
   .files-form-row .btn {

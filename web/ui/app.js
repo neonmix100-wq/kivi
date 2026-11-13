@@ -169,6 +169,12 @@ const state = {
   },
   files: {
     path: ".",
+    // Open folder tabs: each one owns a path plus its own back/forward stack.
+    // The active tab's live state stays in path/history/historyIndex below and
+    // is copied into its tab on every navigation (syncActiveFilesTab).
+    tabs: [],
+    activeTabId: "",
+    tabSeq: 0,
     // Browser-like history: only directory loads push entries. The index is
     // moved before the request starts so back/forward states update instantly.
     history: [],
@@ -555,10 +561,16 @@ function isUnsupported(error) {
 
 function loadPrefs() {
   const raw = storageGet(STORAGE_KEYS.prefs);
-  if (!raw) return;
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+  let parsed = null;
+  if (raw) {
+    try {
+      const value = JSON.parse(raw);
+      if (value && typeof value === "object" && !Array.isArray(value)) parsed = value;
+    } catch {
+      /* corrupted preferences are ignored */
+    }
+  }
+  if (parsed) {
     state.prefs.autoSpeak = parsed.autoSpeak === true;
     state.prefs.avatarVisible = parsed.avatarVisible !== false;
     state.prefs.selectedVoiceId =
@@ -571,9 +583,12 @@ function loadPrefs() {
       ? parsed.filesSortKey
       : "name";
     state.files.sortDir = parsed.filesSortDir === "desc" ? "desc" : "asc";
-  } catch {
-    /* corrupted preferences are ignored */
+    // Tabs are restored before the first render; every stored path is validated
+    // as workspace-relative so a corrupted value cannot escape the workspace.
+    restoreFilesTabs(parsed.filesTabs, parsed.filesTabActive);
   }
+  // The panel needs exactly one usable tab even without stored preferences.
+  ensureFilesTabs();
 }
 
 function savePrefs() {
@@ -586,8 +601,74 @@ function savePrefs() {
       lastActiveId: state.prefs.lastActiveId,
       filesSortKey: state.files.sortKey,
       filesSortDir: state.files.sortDir,
+      // Open tabs persist as plain path/history pairs: tab ids are session-only
+      // and are rebuilt on restore.
+      filesTabs: state.files.tabs.map((tab) => ({
+        path: tab.path,
+        history: tab.history,
+        historyIndex: tab.historyIndex,
+      })),
+      filesTabActive: Math.max(
+        0,
+        state.files.tabs.findIndex((tab) => tab.id === state.files.activeTabId),
+      ),
     }),
   );
+}
+
+// Stored tab paths and history entries must stay inside the workspace: the
+// address-bar validator rejects drive letters, a leading slash and "..".
+function parseStoredFilesPath(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return "";
+  const result = validateFilesPathInput(raw);
+  return result.ok ? result.path : "";
+}
+
+function restoreFilesTabs(rawTabs, rawActive) {
+  if (!Array.isArray(rawTabs)) return;
+  const restored = [];
+  for (const item of rawTabs.slice(0, FS_TABS_LIMIT)) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const path = parseStoredFilesPath(item.path);
+    if (!path) continue;
+    const history = [];
+    if (Array.isArray(item.history)) {
+      // Oldest entries are dropped first if a stored stack grew too large.
+      for (const entry of item.history.slice(-FS_HISTORY_LIMIT)) {
+        const parsed = parseStoredFilesPath(entry);
+        if (parsed) history.push(parsed);
+      }
+    }
+    const index = Number(item.historyIndex);
+    restored.push(makeFilesTab(path, history, Number.isInteger(index) ? index : null));
+  }
+  if (!restored.length) return;
+  state.files.tabs = restored;
+  const active = Number(rawActive);
+  const activeIndex =
+    Number.isInteger(active) && active >= 0 && active < restored.length ? active : 0;
+  state.files.activeTabId = restored[activeIndex].id;
+  const tab = restored[activeIndex];
+  state.files.path = tab.path;
+  state.files.history = tab.history.slice();
+  state.files.historyIndex = tab.historyIndex;
+}
+
+function ensureFilesTabs() {
+  const fs = state.files;
+  if (!Array.isArray(fs.tabs)) fs.tabs = [];
+  if (!fs.tabs.length) {
+    const tab = makeFilesTab(fs.path);
+    fs.tabs = [tab];
+    fs.activeTabId = tab.id;
+    fs.path = tab.path;
+    fs.history = tab.history.slice();
+    fs.historyIndex = tab.historyIndex;
+    return;
+  }
+  if (!fs.tabs.some((tab) => tab.id === fs.activeTabId)) {
+    fs.activeTabId = fs.tabs[0].id;
+  }
 }
 
 function loadConversations() {
@@ -2216,6 +2297,9 @@ function fsCrumbs(path) {
 // Directory history is capped so a long session stays bounded; the oldest
 // entries fall off and the cursor always points at the last entry.
 const FS_HISTORY_LIMIT = 100;
+// The tab strip is capped so the panel and localStorage stay bounded. The
+// limit disables "+" instead of silently dropping an open tab.
+const FS_TABS_LIMIT = 8;
 const FS_PATH_LIMIT = 512;
 // Colons are checked separately as a drive prefix, so they are excluded here
 // together with the other characters Windows rejects in a path segment.
@@ -2303,6 +2387,280 @@ function stepFilesHistory(delta) {
   clearFilesSearch({ render: false });
   void loadFiles(path, { focus: true, recordHistory: false });
   return true;
+}
+
+/* ------------------------------------------------------------------ */
+/* Files tabs                                                         */
+/* ------------------------------------------------------------------ */
+
+// A tab keeps its path and its own history stack; ids stay session-only so a
+// restore never reuses a stale DOM id.
+function makeFilesTab(rawPath, rawHistory = null, rawHistoryIndex = null) {
+  const path = normalizeFsPath(rawPath);
+  const history = [];
+  if (Array.isArray(rawHistory)) {
+    for (const item of rawHistory) {
+      if (typeof item !== "string") continue;
+      const next = normalizeFsPath(item);
+      if (!history.length || history[history.length - 1] !== next) history.push(next);
+    }
+  }
+  if (!history.length) history.push(path);
+  let index = Number.isInteger(rawHistoryIndex) ? rawHistoryIndex : history.length - 1;
+  if (index < 0 || index >= history.length) index = history.length - 1;
+  if (history[index] !== path) {
+    const existing = history.indexOf(path);
+    if (existing >= 0) {
+      index = existing;
+    } else {
+      history.push(path);
+      index = history.length - 1;
+    }
+  }
+  if (history.length > FS_HISTORY_LIMIT) {
+    const overflow = history.length - FS_HISTORY_LIMIT;
+    history.splice(0, overflow);
+    index = Math.max(0, index - overflow);
+  }
+  state.files.tabSeq += 1;
+  return {
+    id: `ftab${state.files.tabSeq}`,
+    path,
+    history,
+    historyIndex: index,
+  };
+}
+
+function filesTabLabel(path) {
+  const normalized = normalizeFsPath(path);
+  return normalized === "." ? "Рабочая папка" : fsName(normalized);
+}
+
+function filesTabFullLabel(path) {
+  const normalized = normalizeFsPath(path);
+  return normalized === "." ? "Рабочая папка (корень)" : normalized;
+}
+
+// The active tab's live path/history lives on state.files; copy it back into
+// the tab before switching away or persisting preferences.
+function syncActiveFilesTab({ persist = true } = {}) {
+  const fs = state.files;
+  const tab = fs.tabs.find((item) => item.id === fs.activeTabId);
+  if (!tab) return;
+  tab.path = normalizeFsPath(fs.path);
+  tab.history = fs.history.slice();
+  tab.historyIndex = fs.historyIndex;
+  if (!tab.history.length) {
+    tab.history = [tab.path];
+    tab.historyIndex = 0;
+  }
+  if (persist) savePrefs();
+}
+
+// Replace the live navigation state with a tab's snapshot. The tab path is the
+// authority; history only needs a matching cursor for the back/forward buttons.
+function applyFilesTabState(tab) {
+  const fs = state.files;
+  const history = tab.history.slice();
+  let index = tab.historyIndex;
+  if (!history.length) {
+    history.push(tab.path);
+    index = 0;
+  } else if (!Number.isInteger(index) || index < 0 || index >= history.length) {
+    index = history.length - 1;
+  }
+  if (history[index] !== tab.path) {
+    const existing = history.indexOf(tab.path);
+    if (existing >= 0) {
+      index = existing;
+    } else {
+      history.splice(index + 1);
+      history.push(tab.path);
+      index = history.length - 1;
+    }
+  }
+  fs.history = history;
+  fs.historyIndex = index;
+  fs.path = tab.path;
+}
+
+function revealFilesTabButton(tabId) {
+  const list = els.filesTablist;
+  if (!list) return;
+  const button = list.querySelector(`[data-files-tab-id="${tabId}"]`);
+  if (!button) return;
+  // Horizontal reveal only: the page must not jump vertically when a tab is
+  // activated while the file list below is scrolled.
+  const item = button.closest(".files-tab") || button;
+  const listRect = list.getBoundingClientRect();
+  const itemRect = item.getBoundingClientRect();
+  const pad = 6;
+  if (itemRect.left < listRect.left + pad) {
+    list.scrollLeft -= listRect.left + pad - itemRect.left;
+  } else if (itemRect.right > listRect.right - pad) {
+    list.scrollLeft += itemRect.right - (listRect.right - pad);
+  }
+}
+
+function focusFilesTabButton(tabId) {
+  if (!els.filesTablist) return;
+  const button = els.filesTablist.querySelector(`[data-files-tab-id="${tabId}"]`);
+  if (!button) return;
+  try {
+    button.focus({ preventScroll: true });
+  } catch {
+    button.focus();
+  }
+  revealFilesTabButton(tabId);
+}
+
+function activateFilesTab(tabId, { focus = false } = {}) {
+  const fs = state.files;
+  const target = fs.tabs.find((tab) => tab.id === tabId);
+  if (!target) return false;
+  if (fs.busy) {
+    showToast("Дождитесь завершения текущей операции с файлами.", "info");
+    return false;
+  }
+  if (target.id === fs.activeTabId) {
+    if (focus) focusFilesTabButton(target.id);
+    return false;
+  }
+  const tabFocused = Boolean(
+    els.filesTablist && els.filesTablist.contains(document.activeElement),
+  );
+  // Snapshot the tab being left before replacing the live navigation state.
+  syncActiveFilesTab({ persist: false });
+  fs.activeTabId = target.id;
+  // Abort in-flight list, preview and search responses of the previous tab.
+  fs.epoch += 1;
+  fs.previewEpoch += 1;
+  fs.searchEpoch += 1;
+  // Switching tabs closes preview/search and every write form so no dialog
+  // keeps editing a file from another folder.
+  clearFilesSearch({ render: false });
+  if (fs.preview) closeFilesPreview({ returnFocus: false });
+  fs.preview = null;
+  fs.previewTrigger = null;
+  fs.copyStatus = "";
+  fs.pathDirty = false;
+  fs.pathError = "";
+  resetFilesWriteForms();
+  applyFilesTabState(target);
+  fs.entries = [];
+  fs.truncated = false;
+  fs.state = "idle";
+  fs.error = "";
+  syncActiveFilesTab();
+  renderFiles();
+  updateViewHeader();
+  if (focus || tabFocused) focusFilesTabButton(target.id);
+  // force bypasses the "same path" shortcut so the list and breadcrumbs of the
+  // restored tab are always fetched; recordHistory keeps the stored stack.
+  void loadFiles(fs.path, { force: true, recordHistory: false });
+  return true;
+}
+
+function openFilesTab(rawPath = null, { focus = true } = {}) {
+  const fs = state.files;
+  if (fs.busy) {
+    showToast("Дождитесь завершения текущей операции с файлами.", "info");
+    return false;
+  }
+  if (fs.tabs.length >= FS_TABS_LIMIT) {
+    showToast(`Открыто максимум ${FS_TABS_LIMIT} вкладок. Закройте одну из них.`, "info");
+    return false;
+  }
+  // "+" starts at the workspace root instead of cloning the current folder.
+  const path = normalizeFsPath(
+    typeof rawPath === "string" && rawPath.trim() ? rawPath : ".",
+  );
+  const tab = makeFilesTab(path);
+  fs.tabs.push(tab);
+  return activateFilesTab(tab.id, { focus });
+}
+
+function closeFilesTab(tabId, { focus = true } = {}) {
+  const fs = state.files;
+  if (fs.busy) {
+    showToast("Дождитесь завершения текущей операции с файлами.", "info");
+    return false;
+  }
+  if (fs.tabs.length <= 1) {
+    showToast("Последняя вкладка остаётся открытой.", "info");
+    return false;
+  }
+  const index = fs.tabs.findIndex((tab) => tab.id === tabId);
+  if (index === -1) return false;
+  const wasActive = fs.tabs[index].id === fs.activeTabId;
+  fs.tabs.splice(index, 1);
+  if (!wasActive) {
+    // Closing a background tab never disturbs the active folder.
+    renderFiles();
+    savePrefs();
+    if (focus) focusFilesTabButton(fs.activeTabId);
+    return true;
+  }
+  // Activate the right neighbour, or the new last tab when closing the end.
+  const neighbor = fs.tabs[Math.min(index, fs.tabs.length - 1)];
+  return activateFilesTab(neighbor.id, { focus });
+}
+
+function stepFilesTab(delta) {
+  const fs = state.files;
+  if (fs.tabs.length < 2) return false;
+  const index = fs.tabs.findIndex((tab) => tab.id === fs.activeTabId);
+  if (index === -1) return false;
+  const direction = delta < 0 ? -1 : 1;
+  const next = (index + direction + fs.tabs.length) % fs.tabs.length;
+  return activateFilesTab(fs.tabs[next].id, { focus: true });
+}
+
+// Roving-tabindex keyboard model inside the tablist (ARIA tabs pattern).
+function onFilesTablistKeydown(event) {
+  if (!els.filesTablist) return;
+  const target = event.target instanceof Element ? event.target.closest("[role='tab']") : null;
+  if (!target) return;
+  const tabId = target.getAttribute("data-files-tab-id") || "";
+  const index = state.files.tabs.findIndex((tab) => tab.id === tabId);
+  if (index === -1) return;
+  const count = state.files.tabs.length;
+  let next = -1;
+  if (event.key === "ArrowRight") next = (index + 1) % count;
+  else if (event.key === "ArrowLeft") next = (index + count - 1) % count;
+  else if (event.key === "Home") next = 0;
+  else if (event.key === "End") next = count - 1;
+  if (next === -1) return;
+  event.preventDefault();
+  if (next === index) return;
+  activateFilesTab(state.files.tabs[next].id, { focus: true });
+}
+
+// Middle-click closes a tab, like a browser. Mousedown is cancelled too so the
+// middle-click autoscroll cursor never starts.
+function onFilesTablistAuxClick(event) {
+  if (event.button !== 1) return;
+  const item = event.target instanceof Element ? event.target.closest(".files-tab") : null;
+  if (!item) return;
+  const main = item.querySelector("[data-files-tab-id]");
+  const tabId = main ? main.getAttribute("data-files-tab-id") : "";
+  if (!tabId) return;
+  event.preventDefault();
+  closeFilesTab(tabId);
+}
+
+function onFilesTablistMouseDown(event) {
+  if (event.button !== 1) return;
+  if (event.target instanceof Element && event.target.closest(".files-tab")) {
+    event.preventDefault();
+  }
+}
+
+// A viewport change can turn a wide strip into a scrollable one; keep the
+// active tab discoverable without touching the page's vertical scroll.
+function onFilesTabsResize() {
+  if (state.view !== "files") return;
+  revealFilesTabButton(state.files.activeTabId);
 }
 
 function syncFilesPathInput() {
@@ -2782,6 +3140,8 @@ async function loadFiles(
   // moved the cursor themselves.
   if (recordHistory) recordFilesHistory(path);
   state.files.path = path;
+  // Keep the active tab's label and stack in step before the request lands.
+  syncActiveFilesTab();
   state.files.pathDirty = false;
   state.files.pathError = "";
   if (changed) {
@@ -2821,6 +3181,8 @@ async function loadFiles(
     if (force) showToast(`Не удалось открыть папку: ${state.files.error}`, "error");
   } finally {
     if (epoch !== state.files.epoch) return;
+    // /fs/list may have resolved a different path (for example "." for root).
+    syncActiveFilesTab();
     renderFiles();
     updateViewHeader();
     if (focus) focusFilesList();
@@ -3089,7 +3451,80 @@ function renderFiles() {
   renderFilesList();
 }
 
+// The tab strip is rebuilt from state; focus inside it is restored to the
+// active tab so a rebuild never drops the keyboard user on <body>.
+let filesRenderedActiveTabId = "";
+
+function renderFilesTabs() {
+  const fs = state.files;
+  if (!els.filesTablist) return;
+  const focused = document.activeElement;
+  const tabFocused = Boolean(focused && els.filesTablist.contains(focused));
+  els.filesTablist.replaceChildren();
+  const canClose = fs.tabs.length > 1;
+  for (const tab of fs.tabs) {
+    const active = tab.id === fs.activeTabId;
+    const fullLabel = filesTabFullLabel(tab.path);
+    const item = el("div", {
+      class: `files-tab${active ? " is-active" : ""}`,
+      role: "presentation",
+    });
+    const main = el("button", {
+      type: "button",
+      class: "files-tab-main",
+      id: `files-tab-${tab.id}`,
+      role: "tab",
+      "aria-selected": active ? "true" : "false",
+      "aria-controls": "files-tabpanel",
+      "aria-label": `Вкладка: ${fullLabel}`,
+      title: fullLabel,
+      tabindex: active ? "0" : "-1",
+      dataset: { filesTabId: tab.id },
+      disabled: fs.busy ? true : null,
+    });
+    main.append(el("span", { class: "files-tab-label", text: filesTabLabel(tab.path) }));
+    main.addEventListener("click", () => activateFilesTab(tab.id, { focus: true }));
+    item.append(main);
+    if (canClose) {
+      const close = el("button", {
+        type: "button",
+        class: "files-tab-close",
+        "aria-label": `Закрыть вкладку: ${fullLabel}`,
+        "aria-keyshortcuts": "Control+W",
+        title: "Закрыть вкладку (Ctrl+W)",
+        dataset: { filesTabClose: tab.id },
+        disabled: fs.busy ? true : null,
+      });
+      close.append(el("span", { "aria-hidden": "true", text: "×" }));
+      close.addEventListener("click", () => closeFilesTab(tab.id, { focus: true }));
+      item.append(close);
+    }
+    els.filesTablist.append(item);
+  }
+  const activeTab = fs.tabs.find((tab) => tab.id === fs.activeTabId);
+  if (els.filesTabpanel) {
+    if (activeTab) {
+      els.filesTabpanel.setAttribute("aria-labelledby", `files-tab-${activeTab.id}`);
+      els.filesTabpanel.removeAttribute("aria-label");
+    } else {
+      els.filesTabpanel.removeAttribute("aria-labelledby");
+      els.filesTabpanel.setAttribute("aria-label", "Содержимое открытой папки");
+    }
+  }
+  if (els.filesTabAdd) {
+    els.filesTabAdd.disabled = Boolean(fs.busy) || fs.tabs.length >= FS_TABS_LIMIT;
+  }
+  if (tabFocused && activeTab) focusFilesTabButton(activeTab.id);
+  // Reveal a newly active tab once; later re-renders must not fight the user's
+  // own horizontal scrolling of a long tab strip.
+  if (activeTab && filesRenderedActiveTabId !== activeTab.id) {
+    filesRenderedActiveTabId = activeTab.id;
+    revealFilesTabButton(activeTab.id);
+  }
+}
+
 function renderFilesChrome() {
+  renderFilesTabs();
   renderFilesCrumbs();
   renderFilesToolbar();
   renderFilesWriteForm();
@@ -7126,6 +7561,24 @@ function onGlobalKeydown(event) {
     stepFilesHistory(event.key === "ArrowLeft" ? -1 : 1);
     return;
   }
+  // Browser-style tab shortcuts, scoped to the Files view: other panels keep
+  // the browser's own Ctrl+T / Ctrl+W / Ctrl+Tab behaviour.
+  if (state.view === "files" && event.ctrlKey && !event.altKey && !event.metaKey) {
+    const key = event.key.toLowerCase();
+    if (!event.shiftKey && (key === "t" || key === "w")) {
+      // Always swallow the browser command here: closing the Kivi page by
+      // accident is worse than a no-op on the last tab.
+      event.preventDefault();
+      if (key === "t") openFilesTab();
+      else closeFilesTab(state.files.activeTabId);
+      return;
+    }
+    if (event.key === "Tab") {
+      event.preventDefault();
+      stepFilesTab(event.shiftKey ? -1 : 1);
+      return;
+    }
+  }
   if (event.key !== "Escape") return;
   // Escape also drops a drag highlight; the browser cancels the native drag.
   if (state.files.drag) {
@@ -7310,6 +7763,15 @@ function bindEvents() {
     els.mediaClear.addEventListener("click", clearMediaGallery);
   }
   if (els.filesRefresh) {
+    if (els.filesTablist) {
+      els.filesTablist.addEventListener("keydown", onFilesTablistKeydown);
+      els.filesTablist.addEventListener("auxclick", onFilesTablistAuxClick);
+      els.filesTablist.addEventListener("mousedown", onFilesTablistMouseDown);
+    }
+    if (els.filesTabAdd) {
+      els.filesTabAdd.addEventListener("click", () => openFilesTab());
+    }
+    window.addEventListener("resize", onFilesTabsResize);
     els.filesRefresh.addEventListener("click", refreshFilesView);
     els.filesBack.addEventListener("click", () => stepFilesHistory(-1));
     els.filesForward.addEventListener("click", () => stepFilesHistory(1));
@@ -7526,6 +7988,14 @@ function installDebugHook() {
           // asserted from the UI without reaching into module scope.
           history: state.files.history.slice(),
           historyIndex: state.files.historyIndex,
+          activeTab: state.files.activeTabId,
+          // Tab snapshots let a browser test assert per-tab paths/history.
+          tabs: state.files.tabs.map((tab) => ({
+            path: tab.path,
+            active: tab.id === state.files.activeTabId,
+            history: tab.history.slice(),
+            historyIndex: tab.historyIndex,
+          })),
           pathError: state.files.pathError,
           preview: state.files.preview ? state.files.preview.path : null,
           previewLoading: Boolean(state.files.preview && state.files.preview.loading),
@@ -7687,6 +8157,9 @@ function cacheDom() {
     mediaGalleryPanel: $id("media-gallery-panel"),
     mediaGalleryList: $id("media-gallery"),
     mediaClear: $id("media-clear"),
+    filesTablist: $id("files-tablist"),
+    filesTabAdd: $id("files-tab-add"),
+    filesTabpanel: $id("files-tabpanel"),
     filesRefresh: $id("files-refresh"),
     filesBack: $id("files-back"),
     filesForward: $id("files-forward"),
