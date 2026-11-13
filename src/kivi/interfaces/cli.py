@@ -122,9 +122,8 @@ from kivi.senses import (
 )
 from kivi.senses.audio import (
     AudioUnavailable,
-    BufferedWakeDetector,
+    DirectOnnxWakeDetector,
     EnergyVad,
-    OpenWakeWordDetector,
     SoundDeviceSource,
     SttUnavailable,
     TextWakeWordDetector,
@@ -2026,12 +2025,12 @@ def cmd_listen(args: argparse.Namespace) -> int:
             wake = TextWakeWordDetector().detect
             if wake_model.is_file():
                 try:
-                    detector = OpenWakeWordDetector(wake_model)
-                    detector.load()
-                    frame_wake = BufferedWakeDetector(detector).feed
+                    detector = DirectOnnxWakeDetector(wake_model)
+                    detector._ensure()
+                    frame_wake = detector.detect
                     wake = None
                     console.print(f"[dim]wake: ONNX {wake_model.name}[/dim]")
-                except WakeWordUnavailable as exc:
+                except (WakeWordUnavailable, OSError, ValueError) as exc:
                     console.print(
                         f"[yellow]wake ONNX недоступен, использую текст:[/yellow] "
                         f"{_plain(str(exc))}"

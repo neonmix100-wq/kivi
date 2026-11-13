@@ -1038,6 +1038,87 @@ class BufferedWakeDetector:
         self.detector.reset()
 
 
+class DirectOnnxWakeDetector:
+    """Score the custom ONNX model on the same features used for training.
+
+    The stock openWakeWord streaming wrapper uses a feature window that did not
+    match this small classifier on real recordings.  This detector keeps a
+    two-second PCM window, computes the documented ``AudioFeatures`` embedding
+    and runs the ONNX model directly.
+    """
+
+    def __init__(
+        self,
+        model_path: Path | str | None = None,
+        *,
+        threshold: float = 0.8,
+        window_s: float = 2.0,
+        hop_s: float = 0.4,
+        feature_extractor: Any | None = None,
+        session: Any | None = None,
+    ) -> None:
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError("threshold must be between 0 and 1")
+        self.model_path = (
+            Path(model_path) if model_path is not None else default_wake_model_path()
+        )
+        self.threshold = float(threshold)
+        self.window_samples = int(window_s * 16_000)
+        self.hop_samples = max(1, int(hop_s * 16_000))
+        self._features = feature_extractor
+        self._session = session
+        self._buffer = np.zeros(0, dtype=np.int16)
+        self._since = 0
+        self._hit = False
+
+    def _ensure(self) -> tuple[Any, Any]:
+        if self._features is None:
+            from openwakeword.utils import AudioFeatures
+
+            self._features = AudioFeatures(device="cpu", ncpu=1)
+        if self._session is None:
+            if not self.model_path.is_file():
+                raise WakeWordUnavailable(f"wake model is missing: {self.model_path}")
+            import onnxruntime as ort
+
+            self._session = ort.InferenceSession(
+                str(self.model_path), providers=["CPUExecutionProvider"]
+            )
+        return self._features, self._session
+
+    @property
+    def loaded(self) -> bool:
+        """Whether the ONNX session has been created."""
+        return self._session is not None
+
+    def detect(self, frame: np.ndarray) -> bool:
+        """Return True once per window whose score crosses the threshold."""
+        pcm = _as_int16(frame)
+        if pcm.size:
+            self._buffer = np.concatenate((self._buffer, pcm))
+            self._since += int(pcm.size)
+        if self._hit or self._buffer.size < self.window_samples:
+            return False
+        if self._since < self.hop_samples:
+            return False
+        features, session = self._ensure()
+        window = self._buffer[-self.window_samples :][None, :]
+        embedding = np.asarray(features.embed_clips(window, batch_size=1))[0][None, :, :]
+        input_name = session.get_inputs()[0].name
+        scores = np.asarray(session.run(None, {input_name: embedding})[0]).ravel()
+        self._since = 0
+        if scores.size and float(scores[0]) >= self.threshold:
+            self._hit = True
+            return True
+        return False
+
+    def reset(self) -> None:
+        """Clear the audio window and allow the next detection."""
+        self._buffer = np.zeros(0, dtype=np.int16)
+        self._since = 0
+        self._hit = False
+
+
 class TextWakeWordDetector:
     """Detect a wake word at the start of an already transcribed phrase.
 

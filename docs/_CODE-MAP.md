@@ -60,7 +60,7 @@ generated: true
 | `src.kivi.interfaces.api` | 946 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
 | `src.kivi.interfaces.avatar3d` | 637 | 3D avatar (VRM) state, viseme lip-sync and a loopback web renderer. |
-| `src.kivi.interfaces.cli` | 4079 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 4078 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -138,7 +138,7 @@ generated: true
 | Модуль | Строк | Ответственность |
 | --- | ---: | --- |
 | `src.kivi.senses.__init__` | 35 | Senses: voice, hearing, vision and text input. |
-| `src.kivi.senses.audio` | 1124 | Local audio input: capture, voice activity detection, STT and wake words. |
+| `src.kivi.senses.audio` | 1205 | Local audio input: capture, voice activity detection, STT and wake words. |
 | `src.kivi.senses.fish_audio` | 205 | Fish Audio cloud TTS engine. |
 | `src.kivi.senses.qwen_tts` | 289 | Qwen3-TTS voice engine for Kivi. |
 | `src.kivi.senses.tts` | 485 | Local text-to-speech engines and the sentence streaming pipeline. |

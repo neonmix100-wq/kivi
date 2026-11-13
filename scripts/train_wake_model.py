@@ -181,6 +181,11 @@ def load_recordings(
     return clips, labels
 
 
+def _pack_pcm16(clips: list[np.ndarray]) -> np.ndarray:
+    """Convert float audio in [-1, 1] to openWakeWord's PCM16 input."""
+    return (np.clip(np.stack(clips), -1.0, 1.0) * 32767).astype(np.int16)
+
+
 def build_dataset(
     count_pos: int,
     count_neg: int,
@@ -196,7 +201,7 @@ def build_dataset(
             raise SystemExit("recording directories must contain .wav files")
         clips = pos_clips + neg_clips
         labels = pos_labels + neg_labels
-        return np.stack(clips).astype(np.int16), np.asarray(labels, dtype=np.float32)
+        return _pack_pcm16(clips), np.asarray(labels, dtype=np.float32)
 
     from piper.voice import PiperVoice
 
@@ -221,7 +226,7 @@ def build_dataset(
             np.clip(noise_rng.normal(0, 0.01, CLIP_SAMPLES), -1, 1).astype(np.float32)
         )
         labels.append(0)
-    return np.stack(clips).astype(np.int16), np.asarray(labels, dtype=np.float32)
+    return _pack_pcm16(clips), np.asarray(labels, dtype=np.float32)
 
 
 def extract_features(clips: np.ndarray) -> np.ndarray:
@@ -268,7 +273,7 @@ def train(
     # final bias so openWakeWord's fixed 0.5 threshold has the same effect.
     best_threshold = 0.5
     best_score = -1.0
-    for candidate in (0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99):
+    for candidate in np.linspace(0.5, 0.99, 50):
         predicted = scores >= candidate
         tp = int(((predicted == 1) & (y_test == 1)).sum())
         fn = int(((predicted == 0) & (y_test == 1)).sum())
@@ -277,9 +282,9 @@ def train(
         recall = tp / max(1, tp + fn)
         fpr = fp / max(1, fp + tn)
         score = recall - 2.0 * fpr
-        if fpr <= 0.03 and score > best_score:
+        if score > best_score:
             best_score = score
-            best_threshold = candidate
+            best_threshold = float(candidate)
     with torch.no_grad():
         model.net[-1].bias -= math.log(best_threshold / (1.0 - best_threshold))
         scores = torch.sigmoid(model(x_test)).numpy().ravel()
@@ -342,10 +347,11 @@ def main() -> int:
     metrics.update(
         {
             "trained_at": datetime.now(UTC).isoformat(timespec="seconds"),
-            "positives": args.positives,
-            "negatives": args.negatives,
+            "positives": int(labels.sum()),
+            "negatives": int(len(labels) - labels.sum()),
             "epochs": args.epochs,
-            "voice": VOICE.name,
+            "voice": "user-recordings" if args.positive_dir else VOICE.name,
+            "threshold": 0.8,
             "model": str(args.out),
         }
     )

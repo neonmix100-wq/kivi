@@ -58,12 +58,13 @@
 - **Этап 9 (M4 Communicator) закрыт:** Gmail OAuth readonly+compose без send,
   `mail.list/search/read/attachment/draft`, Telegram-бот с allowlist и rate limit,
   CLI `kivi mail`/`kivi telegram`; 10+5 сценариев.
-- **Этап 10 (M5 Voice & Avatar) ~96%:** audio/VAD/STT, barge-in, подтверждения,
+- **Этап 10 (M5 Voice & Avatar) ~98%:** audio/VAD/STT, barge-in, подтверждения,
   voice pipeline, avatar3d/visemes/states, CLI `listen`, **Qwen3-TTS
   VoiceDesign/Base (3 взрослых тембра)**, **Fish Audio S2.1 Pro Free / Astrea/s
   как основной голос**, библиотека голосов, **`chat --speak`**, `audio devices/test`,
   голосовой ввод в UI, **VRM-аватар, `kivi avatar`, 3D lip-sync через `chat --avatar`**.
-  ONNX wake-gate подключён к `listen`; нужны 20+ записей «Киви» твоим голосом.
+  ONNX wake обучен на голосе пользователя (17/20 recall, 0/20 false wakes)
+  и подключён к `listen`.
 - **Этап 11 (M6 Work CRM) ~99%:** headless-домен, AltCRM CDP adapter,
   `crm.read/fill/act/task`, расширение AltCRM через WebSocket-мост,
   read-only карточка, формы и счётчик; **13 уникальных чтений**;
@@ -133,7 +134,7 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 После перепроверки 12.11.2026:
 
 - этапы 0–9 закрыты;
-- M5 ~96% (VRM/липсинк/STT; ONNX-gate готов, нужны записи голоса);
+- M5 ~98% (VRM/липсинк/STT; ONNX wake обучен на голосе пользователя);
 - M6 ~95% (расширение AltCRM подключено, чтение/формы работают; нужны 10 заказов и паритет);
 - 16 ГБ VRAM снимают прежнее ограничение: 8B Q4, 7B coder @16k, Whisper
   и 3D-аватар помещаются; Qwen3-TTS 1.7B добавляет ~4,1 ГБ.
@@ -207,7 +208,7 @@ rate limit, CLI. 10 почтовых и 5 Telegram-сценариев.
 ## 6. Следующий шаг
 
 ```
-этапы 0–9 ✅ + M5 ~96% + M6 ~99% + M7 ~80% + M8 ~95%
+этапы 0–9 ✅ + M5 ~98% + M6 ~99% + M7 ~80% + M8 ~95%
    │
    ├─► M7 Cloud Media: image/video-провайдеры
    │
