@@ -304,6 +304,8 @@ const state = {
     sampleRate: 48000,
     sending: false,
     finishing: false,
+    pressAt: 0,
+    pressStartedActive: false,
   },
   prefs: {
     autoSpeak: false,
@@ -7731,6 +7733,8 @@ function bindMicControls() {
       return;
     }
     event.preventDefault();
+    state.mic.pressAt = Date.now();
+    state.mic.pressStartedActive = state.mic.active;
     if (event.pointerId !== undefined && typeof button.setPointerCapture === "function") {
       try {
         button.setPointerCapture(event.pointerId);
@@ -7742,6 +7746,14 @@ function bindMicControls() {
   };
   const release = (event) => {
     if (event) event.preventDefault();
+    const held = Date.now() - (state.mic.pressAt || 0);
+    // Short first tap: keep listening until the next tap. Long press or a
+    // second tap: stop and transcribe. This supports both hold-to-talk and
+    // click-to-talk without changing the server contract.
+    if (!state.mic.pressStartedActive && held < 700 && state.mic.active) {
+      setMicStatus("Слушаю… Нажми ещё раз, чтобы отправить.", "ok");
+      return;
+    }
     stopMic();
   };
   button.addEventListener("pointerdown", press);
