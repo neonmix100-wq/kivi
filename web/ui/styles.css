@@ -1933,6 +1933,14 @@ a:hover {
   text-transform: uppercase;
 }
 
+@media (forced-colors: active) {
+  .media-heading {
+    background: none;
+    color: CanvasText;
+    -webkit-text-fill-color: CanvasText;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Avatar panel                                                       */
 /* ------------------------------------------------------------------ */
