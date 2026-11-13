@@ -71,7 +71,11 @@ kivi crm task "Позвонить клиенту" --when "завтра"
 ## Если не подключается
 
 - на значке расширения не ON — перезагрузи расширение;
-- порт 8799 занят: `Get-NetTCPConnection -LocalPort 8799`;
+- **порт 8799 занят** (например, старым ИИ-агентом): Kivi напишет PID.
+  Закрой старое окно/процесс либо смени порт:
+  `crm.bridge_port: 8800` в `config/kivi.yaml`, затем `port: 8800` в
+  `D:\ai-agent\extension\config.js`, перезагрузи расширение в
+  `browser://extensions`;
 - токен в `config.js` расширения должен совпадать с
   `D:/ai-agent/data/bridge_token.txt`;
 - вкладка AltCRM должна быть открыта и видима;

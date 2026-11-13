@@ -880,7 +880,7 @@
               <div>
                 <h2 class="media-heading" id="crm-title">CRM</h2>
                 <p class="view-lead">
-                  AltCRM в уже открытом Chrome через CDP. Интерфейс только читает
+                  AltCRM через расширение в Яндекс.Браузере. Интерфейс только читает
                   карточку заказа: заполнение, сохранение и отправка недоступны.
                 </p>
               </div>
@@ -897,11 +897,11 @@
                 </div>
 
                 <p class="crm-status-line" id="crm-status" role="status" aria-live="polite">
-                  Откройте раздел «CRM», чтобы проверить подключение к Chrome.
+                  Откройте раздел «CRM», чтобы проверить расширение AltCRM.
                 </p>
 
                 <div class="crm-endpoint" id="crm-endpoint-row" hidden>
-                  <span class="crm-endpoint-label">CDP</span>
+                  <span class="crm-endpoint-label">Расширение</span>
                   <code class="crm-endpoint-value" id="crm-endpoint"></code>
                 </div>
 
@@ -917,29 +917,31 @@
                       <path d="M12 3 2.8 19.5h18.4L12 3Z" />
                       <path d="M12 9v4.5M12 17h.01" />
                     </svg>
-                    <h3 id="crm-hint-title">Chrome с CDP ещё не запущен</h3>
+                    <h3 id="crm-hint-title">Расширение AltCRM не подключено</h3>
                   </div>
                   <p class="crm-hint-text" id="crm-hint-text"></p>
                   <ol class="crm-steps">
                     <li>
-                      Закройте все окна Chrome и запустите отдельный профиль:
-                      <code class="crm-command">&amp; "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="C:\chrome-agent"</code>
+                      Включите расширение AltCRM в Яндекс.Браузере. На значке
+                      расширения должно быть <strong>ON</strong>.
                     </li>
                     <li>
-                      Войдите в AltCRM в этом окне один раз. Пароль вводит человек —
-                      Kivi его не видит и не хранит.
+                      Откройте AltCRM и карточку заказа в этом браузере. Пароль
+                      вводит человек — Kivi его не видит и не хранит.
                     </li>
                     <li>
-                      Откройте карточку заказа (например,
-                      <code>https://&lt;crm&gt;/devices/order/&lt;id&gt;</code>) и оставьте
-                      вкладку открытой.
+                      Вернитесь в Kivi и нажмите «Проверить». Мост Kivi слушает
+                      <code>127.0.0.1:8799</code>.
                     </li>
-                    <li>Вернитесь сюда и нажмите «Проверить».</li>
+                    <li>
+                      Если порт 8799 занят старым ИИ-агентом, закройте его окно
+                      или перезапустите Kivi.
+                    </li>
                   </ol>
                   <p class="crm-hint-error" id="crm-hint-error" hidden></p>
                   <p class="crm-hint-note">
-                    Kivi не запускает Chrome, не читает пароли и cookies и не открывает
-                    новые вкладки. Порт по умолчанию — 9222.
+                    Kivi не читает пароли и cookies и не открывает новые вкладки.
+                    Расширение никогда не нажимает «Сохранить».
                   </p>
                 </div>
 
@@ -963,7 +965,7 @@
                 </div>
 
                 <p class="crm-order-status" id="crm-order-status" role="status" aria-live="polite">
-                  Сначала подключитесь к Chrome, затем нажмите «Прочитать заказ».
+                  Сначала подключите расширение AltCRM, затем нажмите «Прочитать заказ».
                 </p>
                 <p class="crm-order-error" id="crm-order-error" role="alert" hidden></p>
                 <div class="crm-order-loading" id="crm-order-loading" hidden>
@@ -997,8 +999,8 @@
 
             <p class="view-footnote">
               Панель только для чтения: нет кнопок заполнения, сохранения или отправки.
-              Если карточка не открыта, сервер вернёт подсказку — откройте вкладку заказа
-              в Chrome, запущенном с <code>--remote-debugging-port=9222</code>.
+              Если карточка не открыта, сервер вернёт подсказку — включите расширение
+              AltCRM и откройте вкладку заказа в Яндекс.Браузере.
             </p>
           </div>
         </section>

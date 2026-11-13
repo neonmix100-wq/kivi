@@ -7,6 +7,7 @@ panel; no save/delete/send action is exposed by the extension.
 
 from __future__ import annotations
 
+import threading
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,10 @@ DEFAULT_PORT = 8799
 
 class ExtensionCrmError(AltCrmError):
     """Raised when the extension bridge or AltCRM tab is unavailable."""
+
+
+_SHARED_BRIDGES: dict[tuple[str, int], ExtensionBridge] = {}
+_SHARED_LOCK = threading.Lock()
 
 
 def _token(path: Path) -> str:
@@ -58,21 +63,31 @@ class ExtensionCrmClient:
         self._selectors: dict[str, Any] | None = None
 
     def _ensure(self) -> ExtensionBridge:
-        if self._bridge is None:
-            bridge = ExtensionBridge(_token(self.token_file), "127.0.0.1", self.port)
-            try:
-                bridge.start()
-            except Exception as exc:  # noqa: BLE001 - bridge boundary
-                raise ExtensionCrmError(str(exc)) from exc
+        if self._bridge is not None:
+            return self._bridge
+        key = (str(self.token_file.resolve()), self.port)
+        with _SHARED_LOCK:
+            bridge = _SHARED_BRIDGES.get(key)
+            if bridge is None or not bridge.connected:
+                if bridge is not None:
+                    bridge.stop()
+                bridge = ExtensionBridge(_token(self.token_file), "127.0.0.1", self.port)
+                try:
+                    bridge.start()
+                except Exception as exc:  # noqa: BLE001 - bridge boundary
+                    raise ExtensionCrmError(str(exc)) from exc
+                _SHARED_BRIDGES[key] = bridge
+                self._selectors = _selectors(self.selectors_path)
+                if not bridge.wait_connected(5):
+                    bridge.stop()
+                    _SHARED_BRIDGES.pop(key, None)
+                    raise ExtensionCrmError(
+                        "Расширение браузера не подключилось за 5 с. Проверьте, что "
+                        "оно включено, на значке написано ON и открыта вкладка AltCRM."
+                    )
             self._bridge = bridge
-            self._selectors = _selectors(self.selectors_path)
-            if not bridge.wait_connected(5):
-                bridge.stop()
-                self._bridge = None
-                raise ExtensionCrmError(
-                    "Расширение браузера не подключилось за 5 с. Проверьте, что "
-                    "оно включено, на значке написано ON и открыта вкладка AltCRM."
-                )
+            if self._selectors is None:
+                self._selectors = _selectors(self.selectors_path)
         return self._bridge
 
     def _payload(self) -> dict[str, Any]:
@@ -127,9 +142,10 @@ class ExtensionCrmClient:
         return _results(data)
 
     def close(self) -> None:
-        if self._bridge is not None:
-            self._bridge.stop()
-            self._bridge = None
+        # The bridge is process-shared; stopping it here would break the next
+        # status/read call in the same UI process. The daemon thread exits with
+        # the process.
+        self._bridge = None
 
 
 def _results(data: Any) -> list[FieldResult]:

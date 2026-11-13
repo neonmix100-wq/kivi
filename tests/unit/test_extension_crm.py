@@ -60,7 +60,7 @@ def test_extension_read_order_maps_to_order_info(tmp_path: Path, monkeypatch) ->
     assert info.order_code == "202610-1"
     assert info.fields["Логист"] == "плата 15000"
     client.close()
-    assert bridge.stopped is True
+    assert bridge.stopped is False
 
 
 def test_extension_fill_results(tmp_path: Path, monkeypatch) -> None:

@@ -850,7 +850,7 @@ def _ui_crm_status(config: KiviConfig) -> dict[str, Any]:
                     "На значке расширения должно быть ON."
                 ),
                 "url": "",
-                "error": type(exc).__name__,
+                "error": str(exc)[:300],
                 "mode": "extension",
             }
     hint = (
