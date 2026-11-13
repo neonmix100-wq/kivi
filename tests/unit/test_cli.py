@@ -362,6 +362,20 @@ def test_voice_design_command(tmp_path: Path, monkeypatch) -> None:
     assert main(["voice", "design", "--text", "привет", "--out", str(out)]) == 0
 
 
+def test_speak_plays_without_avatar(tmp_path: Path, monkeypatch) -> None:
+    played: list[Path] = []
+
+    class FakePipeline:
+        def synthesize(self, text, output_dir):
+            path = tmp_path / "speech.wav"
+            path.write_bytes(b"RIFF")
+            return [SimpleNamespace(path=path)]
+
+    monkeypatch.setattr(cli_module, "_play_wav", played.append)
+    cli_module._speak("привет", FakePipeline(), cache=tmp_path, play=True)
+    assert played == [tmp_path / "speech.wav"]
+
+
 def test_media_image_command(tmp_path: Path, monkeypatch) -> None:
     paths = make_tools_profile(tmp_path)
     monkeypatch.setattr(cli_module, "get_paths", lambda: paths)

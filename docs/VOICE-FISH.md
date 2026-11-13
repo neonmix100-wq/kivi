@@ -45,7 +45,11 @@ voice:
 
 ```powershell
 .venv\Scripts\kivi.exe say --engine fish "Привет! Я Киви." --play
+.venv\Scripts\kivi.exe chat "Привет! Как дела?" --speak
 ```
+
+`chat --speak` синтезирует и **сразу проигрывает** ответ; отдельный `--play`
+не нужен (оставлен для совместимости).
 
 Другой публичный voice ID:
 

@@ -53,6 +53,7 @@ py -3.12 -m venv .venv
 .venv\Scripts\kivi.exe voice design --out assets\voice-samples\kivi_voice_warm.wav
 .venv\Scripts\kivi.exe say --engine qwen "Привет! Я Киви." --play
 .venv\Scripts\kivi.exe say --engine fish "Привет! Я Киви." --play
+.venv\Scripts\kivi.exe chat "Привет! Как дела?" --speak
 .venv\Scripts\kivi.exe voice add --file my_voice.wav --name my-voice --consent --transcript "Привет, это Киви."
 .venv\Scripts\kivi.exe voice list
 .venv\Scripts\kivi.exe media image "kivi portrait, anime style" --width 1024

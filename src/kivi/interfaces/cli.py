@@ -332,6 +332,16 @@ def _speech_pipeline(config: KiviConfig) -> SpeechPipeline:
     )
 
 
+def _play_wav(path: Path) -> None:
+    """Play a WAV file on Windows; used by chat/listen independent of avatar."""
+    try:
+        import winsound
+
+        winsound.PlaySound(str(path), winsound.SND_FILENAME)
+    except Exception as exc:  # noqa: BLE001 - audio is best effort
+        console.print(f"[yellow]playback unavailable:[/yellow] {_plain(str(exc))}")
+
+
 def _feed_avatar(path: Path, avatar: AvatarController, renderer: Any, play: bool) -> None:
     try:
         with wave.open(str(path), "rb") as handle:
@@ -345,12 +355,7 @@ def _feed_avatar(path: Path, avatar: AvatarController, renderer: Any, play: bool
     except (OSError, wave.Error):
         pass
     if play:
-        try:
-            import winsound
-
-            winsound.PlaySound(str(path), winsound.SND_FILENAME)
-        except Exception:  # noqa: BLE001 - audio is best effort
-            pass
+        _play_wav(path)
 
 
 def _speak(
@@ -372,7 +377,9 @@ def _speak(
         results = pipeline.synthesize(text, cache)
         for result in results:
             if avatar is not None and renderer is not None:
-                _feed_avatar(result.path, avatar, renderer, play)
+                _feed_avatar(result.path, avatar, renderer, False)
+            if play:
+                _play_wav(result.path)
     except TtsError as exc:
         console.print(f"[yellow]TTS:[/yellow] {_plain(str(exc))}")
     finally:
@@ -500,7 +507,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
                         cache=cache,
                         avatar=avatar,
                         renderer=renderer,
-                        play=args.play,
+                        play=args.play or args.speak,
                     )
                     if not args.prompt and result.ok:
                         try:
@@ -527,7 +534,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
                                 cache=cache,
                                 avatar=avatar,
                                 renderer=renderer,
-                                play=args.play,
+                                play=args.play or args.speak,
                             )
 
                 if args.prompt:
@@ -1144,7 +1151,7 @@ def cmd_listen(args: argparse.Namespace) -> int:
 
             def speak(text: str) -> None:
                 if pipeline is not None:
-                    _speak(text, pipeline, cache=paths.cache / "tts")
+                    _speak(text, pipeline, cache=paths.cache / "tts", play=args.speak)
 
             session = VoiceSession(
                 SoundDeviceSource(),
@@ -2553,8 +2560,12 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--timeout", type=float, default=180.0, help="HTTP timeout in seconds")
     chat.add_argument("--num-predict", type=int, default=512)
     chat.add_argument("--wait", type=float, default=0.0, help="seconds to wait for a pinned model")
-    chat.add_argument("--speak", action="store_true", help="synthesize answers with TTS")
-    chat.add_argument("--play", action="store_true", help="play synthesized WAV files")
+    chat.add_argument(
+        "--speak",
+        action="store_true",
+        help="speak answers aloud with the configured TTS",
+    )
+    chat.add_argument("--play", action="store_true", help="play WAV files (implied by --speak)")
     chat.add_argument("--avatar", action="store_true", help="open the 2D avatar window")
     chat.add_argument("--yes", action="store_true", help="auto-approve R2/R3 tool steps")
     chat.set_defaults(func=cmd_chat)

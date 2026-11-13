@@ -65,6 +65,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe voice design --out assets\voice-samples\kivi_voice_warm.wav
 .venv\Scripts\kivi.exe say --engine qwen "Привет! Я Киви."
 .venv\Scripts\kivi.exe say --engine fish "Привет! Я Киви."
+.venv\Scripts\kivi.exe chat "Привет! Как дела?" --speak
 .venv\Scripts\kivi.exe voice add --file my_voice.wav --name my-voice --consent --transcript "Привет, это Киви."
 .venv\Scripts\kivi.exe media image "kivi portrait" --width 1024
 .venv\Scripts\kivi.exe media sdxl "kivi portrait" --width 1024
