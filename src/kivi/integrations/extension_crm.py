@@ -22,7 +22,7 @@ from kivi.modules.work_crm.altcrm import (
     parse_when,
 )
 
-DEFAULT_TOKEN_FILE = Path("D:/ai-agent/data/bridge_token.txt")
+DEFAULT_TOKEN_FILE = Path("data/bridge_token.txt")
 DEFAULT_SELECTORS = Path("config/crm-selectors.toml")
 DEFAULT_PORT = 8799
 

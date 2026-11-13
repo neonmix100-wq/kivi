@@ -160,7 +160,7 @@ class CrmSettings(BaseModel):
 
     backend: Literal["extension", "cdp"] = "extension"
     bridge_port: int = Field(default=8799, ge=1, le=65535)
-    bridge_token_file: Path = Path("D:/ai-agent/data/bridge_token.txt")
+    bridge_token_file: Path = Path("data/bridge_token.txt")
     selectors: Path = Path("config/crm-selectors.toml")
 
 

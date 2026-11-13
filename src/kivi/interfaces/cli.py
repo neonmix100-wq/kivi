@@ -1936,6 +1936,17 @@ def cmd_crm(args: argparse.Namespace) -> int:
     config = _config(paths)
     action = args.crm_action
     approved = bool(getattr(args, "approve", False))
+    if action == "token":
+        from kivi.integrations.extension_bridge import get_or_create_token
+
+        path = config.crm.bridge_token_file
+        token = get_or_create_token(path)
+        console.print(f"Токен расширения: [bold]{path}[/bold]")
+        console.print(
+            "Скопируйте его в config.js расширения (поле token) и перезагрузите расширение. "
+            f"Длина: {len(token)} символов."
+        )
+        return 0
     if action == "read":
         name, payload, caps = "crm.read", {}, ["crm.read"]
     elif action == "fill":
@@ -3576,6 +3587,8 @@ def build_parser() -> argparse.ArgumentParser:
     crm_sub = crm.add_subparsers(dest="crm_action", required=True)
     crm_read = crm_sub.add_parser("read")
     crm_read.set_defaults(func=cmd_crm)
+    crm_token = crm_sub.add_parser("token", help="create/show the extension token file")
+    crm_token.set_defaults(func=cmd_crm)
     crm_fill = crm_sub.add_parser("fill")
     crm_fill.add_argument("--comment", default="")
     crm_fill.add_argument("--field", action="append", default=[])
