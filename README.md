@@ -30,8 +30,14 @@ Kivi (Edge/Chrome app mode) и иконка в трее. Повторный за
 powershell -ExecutionPolicy Bypass -File scripts\create_desktop_shortcut.ps1
 ```
 
-Если в футере старая версия, запусти **`Kivi Restart.bat`** — он закроет
-процесс на `8765` и запустит текущий код.
+Если в футере старая версия, запусти **`KiviRestart.bat`** (без пробела в имени):
+
+```powershell
+cd D:\AI-assistent
+.\KiviRestart.bat
+```
+
+Он закроет процесс на `8765` и запустит текущий код.
 
 Или вручную:
 
