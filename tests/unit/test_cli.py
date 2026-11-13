@@ -376,6 +376,23 @@ def test_open_app_window_uses_edge(monkeypatch) -> None:
     ]
 
 
+def test_ui_crm_read_appends_log(monkeypatch, tmp_path: Path) -> None:
+    paths = SimpleNamespace(data=tmp_path, root=tmp_path)
+
+    def fake_tool(*args, **kwargs):
+        return SimpleNamespace(
+            ok=True,
+            output="order text",
+            error="",
+            meta={"order_code": "A-9", "device_id": "99", "url": "https://x/1"},
+        )
+
+    monkeypatch.setattr(cli_module, "_run_direct_tool", fake_tool)
+    response = cli_module._ui_crm_read(paths, None)
+    assert response["ok"] is True
+    assert "A-9" in (tmp_path / "crm-reads.jsonl").read_text(encoding="utf-8")
+
+
 def test_crm_read_log_counts_unique_orders(tmp_path: Path) -> None:
     log = tmp_path / "crm-reads.jsonl"
     log.write_text(

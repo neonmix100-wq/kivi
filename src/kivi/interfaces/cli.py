@@ -2124,6 +2124,8 @@ def cmd_crm(args: argparse.Namespace) -> int:
     if not result.ok:
         console.print(f"[red]crm error:[/red] {_plain(result.error)}")
         return 1
+    if action == "read":
+        _append_crm_read(paths, getattr(result, "meta", {}) or {})
     console.print(_plain(result.output))
     return 0
 
