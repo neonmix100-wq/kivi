@@ -2037,6 +2037,7 @@ function normalizeVoice(raw) {
     name: name.slice(0, 120),
     engine: engine.slice(0, 120),
     active: raw.active === true || raw.is_active === true || raw.selected === true,
+    available: raw.available !== false,
   };
 }
 
@@ -2168,14 +2169,29 @@ function renderVoices() {
 
 function renderVoiceItem(voice) {
   const selected = voiceIsSelected(voice);
+  const unavailable = voice.available === false;
   const button = el("button", {
     type: "button",
-    class: `voice-card${selected ? " is-selected" : ""}`,
+    class: `voice-card${selected ? " is-selected" : ""}${unavailable ? " is-unavailable" : ""}`,
     "aria-pressed": selected ? "true" : "false",
+    "aria-disabled": unavailable ? "true" : "false",
     "aria-label": `${voice.name}. Движок: ${engineLabel(voice.engine)}.${
       voice.active ? " Активен на сервере." : ""
-    }`,
-    on: { click: () => void selectVoice(voice) },
+    }${unavailable ? " Недоступен без ключа или модели." : ""}`,
+    on: {
+      click: () => {
+        if (unavailable) {
+          showToast(
+            voice.engine === "fish"
+              ? "Fish Astrea требует FISH_AUDIO_API_KEY. Ключ задаётся в окружении и после этого Kivi перезапускается."
+              : "Голос недоступен: не установлена модель.",
+            "error",
+          );
+          return;
+        }
+        void selectVoice(voice);
+      },
+    },
   });
   button.append(el("span", { class: "voice-orb", "aria-hidden": "true" }));
   const main = el("span", { class: "voice-main" });
@@ -2184,6 +2200,7 @@ function renderVoiceItem(voice) {
   button.append(main);
   const badges = el("span", { class: "voice-badges" });
   if (voice.active) badges.append(el("span", { class: "badge badge-active", text: "активен" }));
+  if (unavailable) badges.append(el("span", { class: "badge", text: voice.engine === "fish" ? "нужен ключ" : "нет модели" }));
   if (selected && !voice.active) {
     badges.append(el("span", { class: "badge badge-selected", text: "выбран" }));
   }
@@ -2192,6 +2209,7 @@ function renderVoiceItem(voice) {
 }
 
 async function selectVoice(voice) {
+  const previous = state.prefs.selectedVoiceId;
   state.prefs.selectedVoiceId = voice.id;
   savePrefs();
   hideVoicesNote();
@@ -2208,18 +2226,21 @@ async function selectVoice(voice) {
     }));
     showToast(`Голос «${voice.name}» выбран.`, "ok");
   } catch (error) {
+    const serverActive = state.voices.find((item) => item.active);
+    state.prefs.selectedVoiceId = serverActive ? serverActive.id : previous;
+    savePrefs();
     if (isUnsupported(error)) {
       const reason =
         error.status === 503
           ? "Переключение голоса не настроено на сервере"
           : "Сервер не поддерживает POST /voices/active";
-      showVoicesNote(`${reason}. Выбор сохранён только в этом интерфейсе.`);
+      showVoicesNote(`${reason}. Выбор отменён.`);
     } else {
       showVoicesNote(
         `Не удалось переключить голос на сервере: ${describeApiError(
           error,
           "выборе голоса",
-        )} Выбор сохранён локально.`,
+        )} Выбор отменён.`,
       );
     }
   } finally {

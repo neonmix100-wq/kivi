@@ -1327,38 +1327,57 @@ def cmd_serve(args: argparse.Namespace) -> int:
             active_profile = library.active()
         except VoiceLibraryError:
             profiles, active_profile = [], None
+        fish_ready = bool(os.environ.get("FISH_AUDIO_API_KEY"))
+        qwen_ready = (paths.root / config.voice.qwen_model_dir).is_dir()
+        silero_ready = (paths.root / ".venv/Lib/site-packages/silero/model/v5_ru.pt").is_file()
+        piper_ready = (
+            (paths.root / ".venv/Scripts/piper.exe").is_file()
+            and (
+                paths.root
+                / "assets/voice-samples/piper-voices/ru_RU-irina-medium.onnx"
+            ).is_file()
+        )
         voices: list[dict[str, Any]] = [
             {
                 "id": "fish:astrea",
                 "name": "Fish Astrea",
                 "engine": "fish",
+                "available": fish_ready,
                 "active": voice_provider == "fish",
-            },
-            {
-                "id": "qwen:kivi-warm",
-                "name": "Qwen kivi-warm",
-                "engine": "qwen",
-                "active": voice_provider == "qwen" and active_profile is None,
             },
             {
                 "id": "silero:baya",
                 "name": "Silero Baya",
                 "engine": "silero",
+                "available": silero_ready,
                 "active": voice_provider == "silero",
             },
             {
                 "id": "piper:irina",
                 "name": "Piper Irina",
                 "engine": "piper",
+                "available": piper_ready,
                 "active": voice_provider == "piper",
             },
         ]
+        if not profiles:
+            voices.insert(
+                1,
+                {
+                    "id": "qwen:kivi-warm",
+                    "name": "Qwen kivi-warm",
+                    "engine": "qwen",
+                    "available": qwen_ready,
+                    "active": voice_provider == "qwen",
+                },
+            )
         for profile in profiles:
             voices.append(
                 {
                     "id": profile.id,
                     "name": profile.name,
                     "engine": profile.engine,
+                    "available": profile.engine in {"qwen", "fish", "silero"},
                     "active": (
                         voice_provider == profile.engine
                         and active_profile is not None
