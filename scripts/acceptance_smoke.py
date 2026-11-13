@@ -51,12 +51,20 @@ def main() -> int:
     ]
     missing = [name for name in required_files if not (ROOT / name).is_file()]
     results.append(
-        check("ui-assets", not missing, "all UI files present" if not missing else f"missing: {missing}")
+        check(
+            "ui-assets",
+            not missing,
+            "all UI files present" if not missing else f"missing: {missing}",
+        )
     )
 
     pythonw = ROOT / ".venv" / "Scripts" / "pythonw.exe"
     results.append(
-        check("no-console-launcher", pythonw.is_file(), f"{pythonw.name} present" if pythonw.is_file() else "pythonw missing")
+        check(
+            "no-console-launcher",
+            pythonw.is_file(),
+            f"{pythonw.name} present" if pythonw.is_file() else "pythonw missing",
+        )
     )
 
     try:
@@ -81,7 +89,9 @@ def main() -> int:
             check(
                 "crm-token",
                 token.is_file(),
-                f"token file: {token}" if token.is_file() else f"missing token: {token} (run kivi crm token)",
+                f"token file: {token}"
+                if token.is_file()
+                else f"missing token: {token} (run kivi crm token)",
                 required=False,
             )
         )
@@ -122,7 +132,13 @@ def main() -> int:
 
     hard_failures = [item for item in results if item["required"] and not item["ok"]]
     if args.json:
-        print(json.dumps({"ok": not hard_failures, "results": results}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {"ok": not hard_failures, "results": results},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
     else:
         for item in results:
             mark = "PASS" if item["ok"] else ("FAIL" if item["required"] else "WARN")
