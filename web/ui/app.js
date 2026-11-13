@@ -627,10 +627,13 @@ function parseStoredFilesPath(raw) {
 function restoreFilesTabs(rawTabs, rawActive) {
   if (!Array.isArray(rawTabs)) return;
   const restored = [];
-  for (const item of rawTabs.slice(0, FS_TABS_LIMIT)) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+  // Remember which stored slot each surviving tab came from so the active tab
+  // keeps its identity even when an invalid sibling is dropped.
+  const rawIndices = [];
+  rawTabs.slice(0, FS_TABS_LIMIT).forEach((item, rawIndex) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return;
     const path = parseStoredFilesPath(item.path);
-    if (!path) continue;
+    if (!path) return;
     const history = [];
     if (Array.isArray(item.history)) {
       // Oldest entries are dropped first if a stored stack grew too large.
@@ -641,12 +644,17 @@ function restoreFilesTabs(rawTabs, rawActive) {
     }
     const index = Number(item.historyIndex);
     restored.push(makeFilesTab(path, history, Number.isInteger(index) ? index : null));
-  }
+    rawIndices.push(rawIndex);
+  });
   if (!restored.length) return;
   state.files.tabs = restored;
   const active = Number(rawActive);
-  const activeIndex =
-    Number.isInteger(active) && active >= 0 && active < restored.length ? active : 0;
+  let activeIndex = 0;
+  if (Number.isInteger(active) && active >= 0) {
+    const mapped = rawIndices.indexOf(active);
+    if (mapped >= 0) activeIndex = mapped;
+    else if (active < restored.length) activeIndex = active;
+  }
   state.files.activeTabId = restored[activeIndex].id;
   const tab = restored[activeIndex];
   state.files.path = tab.path;
@@ -668,6 +676,9 @@ function ensureFilesTabs() {
   }
   if (!fs.tabs.some((tab) => tab.id === fs.activeTabId)) {
     fs.activeTabId = fs.tabs[0].id;
+    // Repair the live navigation state together with the active id so a later
+    // sync cannot write a foreign path into the first tab.
+    applyFilesTabState(fs.tabs[0]);
   }
 }
 
@@ -2555,8 +2566,9 @@ function activateFilesTab(tabId, { focus = false } = {}) {
   renderFiles();
   updateViewHeader();
   if (focus || tabFocused) focusFilesTabButton(target.id);
-  // force bypasses the "same path" shortcut so the list and breadcrumbs of the
-  // restored tab are always fetched; recordHistory keeps the stored stack.
+  // force re-fetches even when the tab path equals the live path, so the list
+  // and breadcrumbs of the restored tab are always rebuilt; recordHistory:false
+  // keeps that tab's stored stack intact.
   void loadFiles(fs.path, { force: true, recordHistory: false });
   return true;
 }
