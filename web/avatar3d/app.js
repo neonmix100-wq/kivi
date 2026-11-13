@@ -465,9 +465,12 @@ function frameVrm(model) {
   box.getSize(size);
   box.getCenter(center);
   const height = Math.max(0.5, size.y);
-  const focusY = box.min.y + height * 0.82;
-  camera.position.set(center.x, focusY + height * 0.02, Math.max(1.2, height * 0.95));
-  camera.lookAt(center.x, focusY, center.z);
+  // Fit the whole character vertically. A fixed close camera cuts the head
+  // off for tall VRMs; derive the distance from the vertical FOV instead.
+  const fov = THREE.MathUtils.degToRad(camera.fov);
+  const distance = ((height * 1.08) / 2) / Math.tan(fov / 2) + size.z * 0.5;
+  camera.position.set(center.x, center.y + height * 0.02, center.z + distance);
+  camera.lookAt(center.x, center.y, center.z);
   camera.updateProjectionMatrix();
 }
 

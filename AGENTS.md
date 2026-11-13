@@ -73,6 +73,7 @@ Model Gateway (этап 2), ядро и CLI уже работают.
 .venv\Scripts\kivi.exe media sdxl "kivi portrait" --width 1024
 .venv\Scripts\kivi.exe serve --port 8765
 .venv\Scripts\kivi.exe ui
+.venv\Scripts\kivi.exe avatar --port 8766
 .venv\Scripts\kivi.exe zones status
 ```
 

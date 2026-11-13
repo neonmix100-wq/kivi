@@ -53,6 +53,7 @@ from kivi.interfaces.avatar2d import (
     AvatarError,
     TkAvatarRenderer,
 )
+from kivi.interfaces.avatar3d import ThreeVrmRenderer, vrm_status
 from kivi.kernel.db import Database
 from kivi.kernel.events import EventBus
 from kivi.kernel.logs import JsonlLogger
@@ -810,6 +811,33 @@ def _ui_media(paths: Any, config: KiviConfig, payload: dict[str, Any]) -> dict[s
         "prompt": str(args.get("prompt", "")),
         "model": str(args.get("model", "flux")),
     }
+
+
+def cmd_avatar(args: argparse.Namespace) -> int:
+    """Serve the 3D VRM avatar page."""
+    paths = get_paths()
+    status = vrm_status(paths.root)
+    if not status.available:
+        console.print(f"[red]avatar error:[/red] {_plain(status.message)}")
+        return 1
+    renderer = ThreeVrmRenderer(
+        paths.root,
+        open_browser=not args.no_browser,
+        port=args.port,
+    )
+    try:
+        renderer.start()
+    except Exception as exc:  # noqa: BLE001 - renderer boundary
+        console.print(f"[red]avatar error:[/red] {_plain(str(exc))}")
+        return 1
+    console.print(f"Kivi 3D avatar: [bold]{renderer.url}[/bold] (Ctrl+C чтобы остановить)")
+    try:
+        threading.Event().wait()
+    except KeyboardInterrupt:
+        console.print("\nОстанавливаю 3D-аватар.")
+    finally:
+        renderer.stop()
+    return 0
 
 
 def cmd_ui(args: argparse.Namespace) -> int:
@@ -3088,6 +3116,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="data/models/faster-whisper-large-v3-turbo",
     )
     serve.set_defaults(func=cmd_serve)
+
+    avatar = sub.add_parser("avatar", help="run the 3D VRM avatar page")
+    avatar.add_argument("--port", type=int, default=8766)
+    avatar.add_argument("--no-browser", action="store_true")
+    avatar.set_defaults(func=cmd_avatar)
 
     ui = sub.add_parser("ui", help="open the Kivi local interface")
     ui.add_argument("--host", default="127.0.0.1")

@@ -49,7 +49,7 @@ voice:
     model_dir: private/voice/models
 
 avatar:
-  mode: 2d                   # none | 2d | vrm
+  mode: vrm                   # none | 2d | vrm
   vrm: assets/avatar/kivi.vrm
   lip_sync: amplitude        # amplitude | viseme
   always_on_top: true

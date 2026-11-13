@@ -42,3 +42,7 @@ docs/.obsidian/cache/
 # web avatar runtime/build artifacts
 web/avatar3d/state.json
 web/avatar3d/node_modules/
+
+# third-party VRM avatars: local use only, never redistribute
+assets/avatar/*.vrm
+assets/avatar/*.vrma

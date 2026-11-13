@@ -141,17 +141,15 @@
     </style>
 
     <!--
-      No build step: the browser resolves bare module specifiers through the
-      import map below. It requires network access to unpkg.com. To work fully
-      offline, install the same versions into web/avatar3d/node_modules and
-      replace the three URLs with local paths (see README.md).
+      Local modules: `npm install` in this directory keeps the avatar fully
+      offline. The CDN URLs are kept in README.md as a fallback.
     -->
     <script type="importmap">
       {
         "imports": {
-          "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
-          "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/",
-          "@pixiv/three-vrm": "https://unpkg.com/@pixiv/three-vrm@3.5.5/lib/three-vrm.module.js"
+          "three": "./node_modules/three/build/three.module.js",
+          "three/addons/": "./node_modules/three/examples/jsm/",
+          "@pixiv/three-vrm": "./node_modules/@pixiv/three-vrm/lib/three-vrm.module.js"
         }
       }
     </script>

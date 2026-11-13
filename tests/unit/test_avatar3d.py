@@ -558,7 +558,10 @@ def test_web_page_files_exist() -> None:
 def test_index_html_uses_an_import_map_for_three_and_three_vrm() -> None:
     html = (project_root() / "web" / "avatar3d" / "index.html").read_text(encoding="utf-8")
     assert 'type="importmap"' in html
-    assert "unpkg.com/three@" in html
+    assert (
+        "./node_modules/three/build/three.module.js" in html
+        or "unpkg.com/three@" in html
+    )
     assert "@pixiv/three-vrm" in html
     assert "./app.js" in html
     assert "<canvas" in html

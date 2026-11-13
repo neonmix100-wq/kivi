@@ -1,6 +1,6 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–9 закрыты, M5 ~80%, M6 ~75%, M7 ~50%, M8 ~75% (v0.19). Железо
+> **Статус:** этапы 0–9 закрыты, M5 ~90%, M6 ~75%, M7 ~50%, M8 ~75% (v0.19). Железо
 > перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q4/14B/SDXL/Whisper
 > стали реалистичны. Работают `kivi doctor`, `kivi models`, `kivi ask`,
 > `kivi chat`, `kivi serve`, `kivi say`, `kivi voice design`, `kivi coder`,
@@ -28,6 +28,12 @@ Kivi (Edge/Chrome app mode) и иконка в трее.
 ```powershell
 cd D:\AI-assistent
 .venv\Scripts\kivi.exe ui
+```
+
+3D-аватар отдельно:
+
+```powershell
+.venv\Scripts\kivi.exe avatar --port 8766
 ```
 
 Для Fish Audio нужен ключ в окружении:
@@ -200,6 +206,8 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/TELEGRAM.md`](docs/TELEGRAM.md) | Telegram-бот, allowlist, rate limits |
 | [`docs/VOICE-INPUT.md`](docs/VOICE-INPUT.md) | Audio, VAD, faster-whisper, wake-word |
 | [`docs/UI.md`](docs/UI.md) | Kivi UI: запуск, API, возможности |
+| [`docs/AVATAR3D-STATUS.md`](docs/AVATAR3D-STATUS.md) | 3D-VRM: текущий статус и запуск |
+| [`docs/ASSET-LICENSE.md`](docs/ASSET-LICENSE.md) | Лицензия VRM и three.js |
 | [`docs/VOICE-PIPELINE.md`](docs/VOICE-PIPELINE.md) | VoiceSession, barge-in, подтверждения |
 | [`docs/VOICE-QWEN.md`](docs/VOICE-QWEN.md) | Qwen3-TTS VoiceDesign/Base, CUDA и замеры |
 | [`docs/VOICE-FISH.md`](docs/VOICE-FISH.md) | Fish Audio voice ID, API-ключ и права |

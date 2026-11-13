@@ -58,13 +58,12 @@
 - **Этап 9 (M4 Communicator) закрыт:** Gmail OAuth readonly+compose без send,
   `mail.list/search/read/attachment/draft`, Telegram-бот с allowlist и rate limit,
   CLI `kivi mail`/`kivi telegram`; 10+5 сценариев.
-- **Этап 10 (M5 Voice & Avatar) ~80%:** audio/VAD/STT, barge-in, подтверждения,
+- **Этап 10 (M5 Voice & Avatar) ~90%:** audio/VAD/STT, barge-in, подтверждения,
   voice pipeline, avatar3d/visemes/states, CLI `listen`, **Qwen3-TTS
   VoiceDesign/Base (3 взрослых тембра)**, **Fish Audio S2.1 Pro Free / Astrea/s
-  как основной голос**, библиотека голосов (файл/URL/consent), **`chat --speak`
-  озвучивает ответ без аватара**, `audio devices/test`, **голосовой ввод в UI
-  через `/transcribe` + локальный Whisper**. Блокеры:
-  `assets/wake/kivi.onnx`, `assets/avatar/kivi.vrm`, микрофон и замеры false wake/WER.
+  как основной голос**, библиотека голосов, **`chat --speak`**, `audio devices/test`,
+  голосовой ввод в UI, **реальный VRM-аватар и `kivi avatar`**. Осталось:
+  animation mixer, связка виземов с TTS, кастомный wake ONNX.
 - **Этап 11 (M6 Work CRM) ~75%:** headless-домен, AltCRM CDP adapter,
   `crm.read/fill/act/task`, **read-only CRM-панель в UI**; реальный AltCRM,
   10 заказов и паритет extension — блокеры.
@@ -88,7 +87,7 @@
 | 7. M2: Coder | ✅ готово | code.run sandbox, repo.index, code.patch, git, Coder loop, CLI | WSL2/Sandbox — апгрейд |
 | 8. M3: Operator | ✅ готово | окна/приложения, UI, system, browser, 20 сценариев | — |
 | 9. M4: Communicator | ✅ готово | Gmail drafts, Telegram bot, CLI, 15 сценариев | — |
-| 10. M5: Voice & Avatar | 🟡 ~80% | audio/VAD/STT, barge-in, avatar3d, Qwen3-TTS, Fish Audio, voice library, UI mic | wake ONNX, VRM, замеры |
+| 10. M5: Voice & Avatar | 🟡 ~90% | audio/VAD/STT, Qwen3-TTS, Fish, voice library, UI mic, VRM + `kivi avatar` | animation mixer, wake ONNX |
 | 11. M6: Work CRM | 🟡 ~75% | домен, AltCRM CDP, tools, CLI, CRM UI panel | реальный CRM, паритет |
 | 12. M7: Cloud Media | 🟡 ~50% | `media.image`, `media.sdxl`, `MediaJobQueue`, UI media panel | видео, UI очереди, ComfyUI |
 | 13. M8: Kivi Shell | 🟡 ~75% | Kivi UI, app-окно, трей, голос, медиа, файлы (mkdir/rename/trash), CRM, settings | Explorer |
