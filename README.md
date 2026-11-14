@@ -238,6 +238,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/APPROVALS.md`](docs/APPROVALS.md) | durable approvals → PermissionEngine |
 | [`docs/CRM-PARITY.md`](docs/CRM-PARITY.md) | паритет extension/CDP и rollback |
 | [`docs/SHELL-P2.md`](docs/SHELL-P2.md) | shell namespace, undo, thumbnails |
+| [`docs/NATIVE-APP.md`](docs/NATIVE-APP.md) | нативный WPF/XAML-клиент и план миграции |
 | [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) | матрица приёмки и acceptance-smoke |
 | [`docs/RELEASE-0.20.md`](docs/RELEASE-0.20.md) | release notes первого прототипа |
 | [`docs/MEDIA.md`](docs/MEDIA.md) | M7: бесплатная генерация изображений |

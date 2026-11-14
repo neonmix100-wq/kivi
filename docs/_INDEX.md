@@ -46,6 +46,7 @@ generated: true
 | [[MEDIA]] | 18.2 KB | 13 | Первый срез M7 Cloud Media: инструмент media.image генерирует картинку через публичный бесплатный сервис Pollinations без API-ключа, проверяет ответ и сохраняет файл в data/media. Локальный SDXL, ComfyUI, очередь job'ов … |
 | [[MEMORY]] | 7.5 KB | 7 | Память Kivi — это SQLite плюс файлы артефактов. Первый срез даёт сообщения, факты, предпочтения, content-addressed артефакты, FTS5-поиск и Context Builder. Векторная база и эмбеддинги подключаются следующим срезом. |
 | [[MODULES]] | 9.7 KB | 9 | Цель: подключать возможности (например, workcrm из D:\ai-agent) так, чтобы их можно было обновлять, тестировать и откатывать, не переписывая ядро. |
+| [[NATIVE-APP]] | 1.6 KB | 4 | The native client is WPF/XAML, not WinUI 3. WinUI 3 unpacked builds require Visual Studio/MSIX PRI tasks; without Visual Studio the current .NET 8 SDK fails with MSB4062. WPF is a native Windows XAML framework, builds wi… |
 | [[OCR-PDF]] | 0.7 KB | 0 | Two read-only tools are registered by default: |
 | [[OPEN-QUESTIONS]] | 9.4 KB | 11 | Версия: после второй итерации ответов, 09.11.2026. Полные решения — в docs/DECISIONS.md. Безопасность — docs/SECURITY.md. Shell — docs/SHELL.md. |
 | [[OPERATOR-SYSTEM]] | 15.4 KB | 11 | Версия: 0.1 (11.11.2026). Стадия 8 / M3: Operator. Связанные документы: docs/TOOLS.md, docs/SECURITY.md, docs/ELEVATED.md, docs/STATUS.md. |
@@ -60,7 +61,7 @@ generated: true
 | [[SANDBOX]] | 24.6 KB | 9 | code.run запускает сгенерированный Python в best-effort песочнице. Это первый шаг M2 Coder: код изолирован на уровне Python-аудита и ресурсных лимитов Windows, но это не граница безопасности ОС. Полная изоляция — WSL2 ил… |
 | [[SDXL]] | 19.4 KB | 12 | Срез media.sdxl: локальная генерация картинок через уже установленный Stable Diffusion WebUI (D:\stable-diffusion-webui) и его HTTP API. Инструмент не запускает сервер, не скачивает модели и не ходит в интернет: он делае… |
 | [[SECURITY]] | 26.4 KB | 11 | Версия: 0.1 (09.11.2026). Связанные документы: docs/DECISIONS.md, docs/ARCHITECTURE.md, docs/MODULES.md, docs/SHELL.md. |
-| [[SHELL-P2]] | 1.7 KB | 5 | The Files page has a Компьютер button. It opens shell:// with: |
+| [[SHELL-P2]] | 2.0 KB | 6 | The Files page has a Компьютер button. It opens shell:// with: |
 | [[SHELL]] | 22.6 KB | 15 | Версия: 0.1 (09.11.2026). Связанные документы: docs/ARCHITECTURE.md, docs/SECURITY.md, docs/ROADMAP.md. |
 | [[SKILLS-PLUGINS]] | 2.4 KB | 5 | Проверено через pluginmanager listplugins / listbundles. |
 | [[STATUS]] | 15.8 KB | 9 | Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1700, ruff чистый. kivi doctor и kivi models работают. |
@@ -401,6 +402,15 @@ _Нет разделов второго уровня._
 - [[MODULES#8. Contract tests|8. Contract tests]]
 - [[MODULES#9. Будущие модули|9. Будущие модули]]
 
+## [[NATIVE-APP|Kivi Desktop: native Windows rewrite]]
+
+> The native client is WPF/XAML, not WinUI 3. WinUI 3 unpacked builds require Visual Studio/MSIX PRI tasks; without Visual Studio the current .NET 8 SDK fails with MSB4062. WPF is a native Windows XAML framework, builds wi…
+
+- [[NATIVE-APP#Decision|Decision]]
+- [[NATIVE-APP#Architecture|Architecture]]
+- [[NATIVE-APP#Phases|Phases]]
+- [[NATIVE-APP#Build|Build]]
+
 ## [[OCR-PDF|PDF and image readers]]
 
 > Two read-only tools are registered by default:
@@ -613,6 +623,7 @@ _Нет разделов второго уровня._
 - [[SHELL-P2#Shell namespace|Shell namespace]]
 - [[SHELL-P2#Undo|Undo]]
 - [[SHELL-P2#Thumbnails|Thumbnails]]
+- [[SHELL-P2#Search|Search]]
 - [[SHELL-P2#Explorer and sorting|Explorer and sorting]]
 - [[SHELL-P2#Checks|Checks]]
 

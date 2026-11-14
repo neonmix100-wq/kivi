@@ -22,6 +22,11 @@ dist/
 build/
 .vite/
 
+# native desktop build output
+desktop/**/bin/
+desktop/**/obj/
+desktop/**/publish/
+
 # local model/config overrides
 config/local.*
 config/secrets.*
