@@ -2549,6 +2549,8 @@ function normalizeFsPath(raw) {
   const text = typeof raw === "string" ? raw.trim().replace(/\\/g, "/") : ".";
   if (!text) return ".";
   if (text.toLowerCase() === "shell://") return "shell://";
+  if (/^[A-Za-z]:$/.test(text)) return `${text}/`;
+  if (/^[A-Za-z]:\/$/.test(text)) return `${text.slice(0, 2)}/`;
   const parts = [];
   for (const segment of text.split("/")) {
     if (!segment || segment === ".") continue;
@@ -2569,8 +2571,12 @@ function fsJoin(dir, name) {
 function fsParent(path) {
   const normalized = normalizeFsPath(path);
   if (normalized === ".") return null;
+  if (normalized === "shell://") return null;
+  if (/^[A-Za-z]:\/?$/.test(normalized)) return "shell://";
   const index = normalized.lastIndexOf("/");
-  return index === -1 ? "." : normalized.slice(0, index);
+  if (index === -1) return ".";
+  const parent = normalized.slice(0, index);
+  return /^[A-Za-z]:$/.test(parent) ? `${parent}/` : parent;
 }
 
 function fsName(path) {
@@ -2655,6 +2661,24 @@ function describeFilesImageError(error) {
 
 function fsCrumbs(path) {
   const normalized = normalizeFsPath(path);
+  if (normalized === "shell://") {
+    return [{ label: "Компьютер", path: "shell://" }];
+  }
+  if (/^[A-Za-z]:\//.test(normalized)) {
+    const drive = normalized.slice(0, 2);
+    const crumbs = [
+      { label: "Компьютер", path: "shell://" },
+      { label: drive, path: `${drive}/` },
+    ];
+    let current = `${drive}/`;
+    const rest = normalized.slice(3);
+    for (const segment of rest.split("/")) {
+      if (!segment) continue;
+      current = `${current}${segment}/`;
+      crumbs.push({ label: segment, path: current.replace(/\/$/, "") });
+    }
+    return crumbs;
+  }
   const crumbs = [{ label: ".", path: "." }];
   if (normalized === ".") return crumbs;
   let current = "";
@@ -4168,6 +4192,34 @@ function renderFilesList() {
         on: { click: () => void loadFiles(fs.path, { force: true }) },
       }),
     );
+    els.filesStatus.append(
+      el("button", {
+        type: "button",
+        class: "btn btn-ghost btn-small",
+        text: "Компьютер",
+        on: {
+          click: () => {
+            clearFilesSearch({ render: false });
+            void loadFiles("shell://", { focus: true });
+          },
+        },
+      }),
+    );
+    if (/^[A-Za-z]:\//.test(fs.path) || fs.path === "shell://") {
+      els.filesStatus.append(
+        el("button", {
+          type: "button",
+          class: "btn btn-ghost btn-small",
+          text: "Рабочая папка",
+          on: {
+            click: () => {
+              clearFilesSearch({ render: false });
+              void loadFiles(".", { focus: true });
+            },
+          },
+        }),
+      );
+    }
     return;
   }
   if (fs.state === "empty") {

@@ -805,7 +805,10 @@ def _shell_list(paths: Any, rel: str) -> dict[str, Any]:
 
 
 def _ui_fs_list(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
-    if rel.strip().lower() == "shell://" or Path(rel).is_absolute():
+    rel = rel.strip()
+    if len(rel) == 2 and rel[1] == ":" and rel[0].isalpha():
+        rel = f"{rel}/"
+    if rel.lower() == "shell://" or Path(rel).is_absolute():
         return _shell_list(paths, rel)
     result = _run_direct_tool(
         paths,
