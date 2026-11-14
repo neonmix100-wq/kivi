@@ -336,6 +336,17 @@ public partial class MainWindow : Window
             using var result = await PostJsonAsync("/settings", new { voice_provider = combo.SelectedItem?.ToString() });
             await ShowPageAsync("settings");
         }));
+        foreach (var key in new[] { "model", "speaker", "sample_rate", "fish_model" })
+        {
+            if (!doc.RootElement.TryGetProperty(key, out var value)) continue;
+            PagePanel.Children.Add(new TextBlock
+            {
+                Text = $"{key}: {value}",
+                Foreground = (Brush)FindResource("Muted"),
+                FontSize = 12,
+                Margin = new Thickness(0, 4, 0, 0),
+            });
+        }
     }
 
     private void BuildMediaPage()
@@ -448,6 +459,8 @@ public partial class MainWindow : Window
     private StackPanel? _nativeFilesList;
     private StackPanel? _nativePreview;
     private TextBlock? _nativeFilesStatus;
+    private readonly List<NativeEntry> _nativeEntries = new();
+    private string _nativeSort = "name";
 
     private async Task BuildFilesPageAsync()
     {
@@ -522,6 +535,27 @@ public partial class MainWindow : Window
         searchRow.Children.Add(_nativeSearchBox);
         PagePanel.Children.Add(searchRow);
 
+        var sortRow = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
+        sortRow.Children.Add(new TextBlock
+        {
+            Text = "Сортировка:",
+            Foreground = (Brush)FindResource("Muted"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+        });
+        var sort = new ComboBox { Width = 180 };
+        sort.Items.Add("По имени");
+        sort.Items.Add("По размеру");
+        sort.Items.Add("По типу");
+        sort.SelectedIndex = _nativeSort switch { "size" => 1, "type" => 2, _ => 0 };
+        sort.SelectionChanged += (_, _) =>
+        {
+            _nativeSort = sort.SelectedIndex switch { 1 => "size", 2 => "type", _ => "name" };
+            RenderNativeEntries();
+        };
+        sortRow.Children.Add(sort);
+        PagePanel.Children.Add(sortRow);
+
         _nativeFilesStatus = PageSub("Загружаю…");
         PagePanel.Children.Add(_nativeFilesStatus);
 
@@ -564,6 +598,7 @@ public partial class MainWindow : Window
             return;
         }
         var count = 0;
+        _nativeEntries.Clear();
         foreach (var entry in entries.EnumerateArray())
         {
             count++;
@@ -572,10 +607,25 @@ public partial class MainWindow : Window
             var entryPath = entry.TryGetProperty("path", out var ep) ? ep.GetString() : null;
             entryPath ??= NativeJoin(_nativeFilesView, name);
             var size = entry.TryGetProperty("size", out var s) && s.TryGetInt64(out var bytes) ? bytes : 0;
-            _nativeFilesList.Children.Add(BuildNativeFileRow(name, type, entryPath, size));
+            _nativeEntries.Add(new NativeEntry(name, type, entryPath, size));
         }
+        RenderNativeEntries();
         _nativeFilesStatus.Text = count == 0 ? "Папка пуста." : $"{count} объектов · {_nativeFilesView}";
         if (_nativePreview is not null) _nativePreview.Children.Clear();
+    }
+
+    private void RenderNativeEntries()
+    {
+        if (_nativeFilesList is null) return;
+        _nativeFilesList.Children.Clear();
+        IEnumerable<NativeEntry> ordered = _nativeSort switch
+        {
+            "size" => _nativeEntries.OrderByDescending(item => item.Size),
+            "type" => _nativeEntries.OrderBy(item => item.Type).ThenBy(item => item.Name),
+            _ => _nativeEntries.OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+        };
+        foreach (var entry in ordered)
+            _nativeFilesList.Children.Add(BuildNativeFileRow(entry.Name, entry.Type, entry.Path, entry.Size));
     }
 
     private FrameworkElement BuildNativeFileRow(string name, string type, string path, long size)
@@ -1216,4 +1266,6 @@ public partial class MainWindow : Window
         }
         MessagesScroll.ScrollToEnd();
     }
+
+    private sealed record NativeEntry(string Name, string Type, string Path, long Size);
 }

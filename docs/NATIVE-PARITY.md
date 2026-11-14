@@ -10,11 +10,11 @@ Snapshot: native WPF/XAML client, installer built and cold-start verified.
 | voice input | yes | yes | NAudio → `/transcribe` |
 | wake | yes | yes | NAudio → `/wake` |
 | voices list/select | yes | yes | `/voices`, `/voices/active` |
-| settings | full | provider only | model/sample rate not yet editable |
+| settings | full | provider + read-only model/speaker/rate | save of model/speaker not yet exposed |
 | media image | yes | yes | `/media/image` |
 | media video | local fallback | playable MP4 | `/media/video` |
 | media gallery | yes | partial | current result only |
-| files list | yes | yes | `/fs/list` |
+| files list | yes | yes | `/fs/list`, native sorting |
 | files search | yes | yes | recursive `/fs/search` |
 | thumbnails | yes | yes | `/fs/thumb` |
 | preview text/image | yes | yes | `/fs/read`, `/fs/raw` |
