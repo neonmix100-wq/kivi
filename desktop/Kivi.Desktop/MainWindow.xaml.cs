@@ -1483,13 +1483,15 @@ public partial class MainWindow : Window
 
     private void AddBubble(string text, bool fromUser, bool pending = false)
     {
-        var content = new TextBlock
+        var content = new StackPanel();
+        content.Children.Add(new TextBlock
         {
             Text = text,
             Foreground = (Brush)FindResource("Text"),
             FontSize = 14,
             TextWrapping = TextWrapping.Wrap,
-        };
+        });
+        if (!fromUser && !pending) AddSpeakButton(content, text);
         var border = new Border
         {
             Background = new SolidColorBrush(fromUser ? Color.FromRgb(10, 58, 52) : Color.FromRgb(8, 47, 43)),
@@ -1507,11 +1509,29 @@ public partial class MainWindow : Window
         MessagesScroll.ScrollToEnd();
     }
 
+    private void AddSpeakButton(StackPanel content, string text)
+    {
+        var speak = new Button
+        {
+            Content = "Озвучить",
+            Style = (Style)FindResource("NavButton"),
+            Foreground = (Brush)FindResource("Mint"),
+            Padding = new Thickness(0, 4, 8, 0),
+            Margin = new Thickness(0, 6, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            FontSize = 11,
+        };
+        speak.Click += async (_, _) => await SpeakTextAsync(text);
+        content.Children.Add(speak);
+    }
+
     private void ReplacePending(string text)
     {
-        if (_pendingBubble?.Child is TextBlock block)
+        if (_pendingBubble?.Child is StackPanel content && content.Children.Count > 0
+            && content.Children[0] is TextBlock block)
         {
             block.Text = text;
+            AddSpeakButton(content, text);
             _pendingBubble = null;
         }
         MessagesScroll.ScrollToEnd();

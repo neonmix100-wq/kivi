@@ -4,7 +4,7 @@ Snapshot: native WPF/XAML client, installer built and cold-start verified.
 
 | Feature | Web UI | Native | Notes |
 |---|---|---|---|
-| chat request/answer | yes | yes | `/chat` |
+| chat request/answer | yes | yes | `/chat`, per-answer speak |
 | history | yes | yes | `/history` |
 | auto TTS | yes | yes | `/tts`, SoundPlayer |
 | voice input | yes | yes | NAudio → `/transcribe` |
@@ -35,6 +35,11 @@ With no Kivi backend running:
 Kivi.exe (installed) → runtime\pythonw.exe -m kivi ui --no-browser --port 8765
 GET /health → {"status":"ok","version":"0.20.0"}
 ```
+
+## Verified clean install
+
+`dist\KiviTest3` installed from `dist\Kivi-Setup.exe`; cold start launched
+`runtime\pythonw.exe -m kivi ui --no-browser --port 8765`, health returned ok.
 
 ## Main remaining gaps
 
