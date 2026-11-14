@@ -896,6 +896,28 @@ public sealed partial class MainWindow : Window
             });
             PagePanel.Children.Add(Sub(result is null ? "Не удалось заполнить." : "Заполнено, не сохранено."));
         }));
+        var work = new TextBox { PlaceholderText = "Работа", Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
+        var price = new TextBox { PlaceholderText = "Цена, ₽", Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
+        var warranty = new TextBox { PlaceholderText = "Гарантия, дней", Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
+        PagePanel.Children.Add(work);
+        PagePanel.Children.Add(price);
+        PagePanel.Children.Add(warranty);
+        PagePanel.Children.Add(PageButton("Добавить строку акта", async (_, _) =>
+        {
+            using var result = await PostJsonAsync("/crm/act", new
+            {
+                rows = new[]
+                {
+                    new
+                    {
+                        name = work.Text,
+                        price = int.TryParse(price.Text, out var p) ? p : 0,
+                        warranty = int.TryParse(warranty.Text, out var w) ? w : 0,
+                    },
+                },
+            });
+            PagePanel.Children.Add(Sub(result is null ? "Не удалось добавить." : "Строка добавлена, не сохранено."));
+        }));
         var task = new TextBox { PlaceholderText = "Текст задачи", Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
         var when = new TextBox { PlaceholderText = "Срок, например завтра", Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
         PagePanel.Children.Add(task);
