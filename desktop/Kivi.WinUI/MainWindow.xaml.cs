@@ -7,7 +7,9 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using NAudio.Wave;
+using Windows.Storage.Streams;
 using Windows.System;
 using Windows.UI;
 
@@ -25,6 +27,11 @@ public sealed partial class MainWindow : Window
     private WaveInEvent? _waveIn;
     private MemoryStream? _micStream;
     private WaveFileWriter? _micWriter;
+    private bool _wakeMode;
+    private WaveInEvent? _wakeIn;
+    private readonly List<byte> _wakePcm = new();
+    private readonly object _wakeLock = new();
+    private bool _wakeBusy;
     private string _filesPath = ".";
     private string _filesView = ".";
     private string _filesSort = "name";
@@ -499,13 +506,23 @@ public sealed partial class MainWindow : Window
     private Button WinFileRow(WinFileEntry entry)
     {
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        content.Children.Add(new TextBlock
+        var iconHost = new Border
+        {
+            Width = 30,
+            Height = 30,
+            CornerRadius = new CornerRadius(7),
+            Background = new SolidColorBrush(Color.FromArgb(255, 10, 55, 49)),
+        };
+        iconHost.Child = new TextBlock
         {
             Text = entry.Type == "dir" ? "▸" : "·",
             Foreground = new SolidColorBrush(Color.FromArgb(255, 94, 242, 214)),
             FontSize = 18,
-            Width = 18,
-        });
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        content.Children.Add(iconHost);
+        if (entry.Type != "dir") _ = LoadWinThumbAsync(iconHost, entry.Path);
         content.Children.Add(new TextBlock
         {
             Text = entry.Name,
@@ -541,15 +558,62 @@ public sealed partial class MainWindow : Window
         var flyout = new MenuFlyout();
         var rename = new MenuFlyoutItem { Text = "Переименовать" };
         rename.Click += async (_, _) => await WinRenameAsync(entry);
+        var copy = new MenuFlyoutItem { Text = "Копировать в…" };
+        copy.Click += async (_, _) => await WinTransferAsync(entry, "copy");
+        var move = new MenuFlyoutItem { Text = "Переместить в…" };
+        move.Click += async (_, _) => await WinTransferAsync(entry, "move");
         var trash = new MenuFlyoutItem { Text = "В корзину" };
         trash.Click += async (_, _) => await WinTrashAsync(entry);
         var explorer = new MenuFlyoutItem { Text = "Открыть в Проводнике" };
         explorer.Click += async (_, _) => await PostJsonAsync("/fs/reveal", new { path = entry.Path });
         flyout.Items.Add(rename);
+        flyout.Items.Add(copy);
+        flyout.Items.Add(move);
         flyout.Items.Add(trash);
         flyout.Items.Add(explorer);
         button.ContextFlyout = flyout;
         return button;
+    }
+
+    private async Task LoadWinThumbAsync(Border host, string path)
+    {
+        try
+        {
+            var bytes = await Http.GetByteArrayAsync(
+                $"{_baseUrl}/fs/thumb?path={Uri.EscapeDataString(path)}");
+            var bitmap = new BitmapImage();
+            using var stream = new InMemoryRandomAccessStream();
+            using var writer = new DataWriter(stream);
+            writer.WriteBytes(bytes);
+            await writer.StoreAsync();
+            await writer.FlushAsync();
+            writer.DetachStream();
+            stream.Seek(0);
+            await bitmap.SetSourceAsync(stream);
+            host.Child = new Image
+            {
+                Source = bitmap,
+                Stretch = Stretch.UniformToFill,
+                Width = 30,
+                Height = 30,
+            };
+        }
+        catch
+        {
+            // keep the glyph when no thumbnail exists
+        }
+    }
+
+    private async Task WinTransferAsync(WinFileEntry entry, string mode)
+    {
+        var destination = await PromptAsync(mode == "copy" ? "Копировать" : "Переместить", "Куда (полный путь)", _filesView);
+        if (string.IsNullOrWhiteSpace(destination)) return;
+        await PostJsonAsync(mode == "copy" ? "/fs/copy" : "/fs/move", new
+        {
+            source = entry.Path,
+            destination = WinJoin(destination.Trim(), entry.Name),
+        });
+        await LoadFilesAsync(_filesPath, false);
     }
 
     private async Task SearchFilesAsync()
@@ -797,7 +861,100 @@ public sealed partial class MainWindow : Window
         }
     }
     private void Speak_Click(object sender, RoutedEventArgs e) => _autoSpeak = !_autoSpeak;
-    private void Wake_Click(object sender, RoutedEventArgs e) { }
+    private void Wake_Click(object sender, RoutedEventArgs e)
+    {
+        if (_wakeMode)
+        {
+            StopWake();
+            return;
+        }
+        try
+        {
+            _wakeMode = true;
+            lock (_wakeLock) _wakePcm.Clear();
+            _wakeIn = new WaveInEvent { WaveFormat = new WaveFormat(16000, 16, 1), BufferMilliseconds = 200 };
+            _wakeIn.DataAvailable += (_, args) =>
+            {
+                lock (_wakeLock)
+                {
+                    _wakePcm.AddRange(args.Buffer.Take(args.BytesRecorded));
+                    if (_wakePcm.Count > 16000 * 2 * 4)
+                        _wakePcm.RemoveRange(0, _wakePcm.Count - 16000 * 2 * 4);
+                }
+            };
+            _wakeIn.StartRecording();
+            ConnectionText.Text = "Слушаю «Киви»…";
+            _ = WakeLoopAsync();
+        }
+        catch (Exception ex)
+        {
+            _wakeMode = false;
+            AddBubble($"Wake недоступен: {ex.Message}", false);
+        }
+    }
+
+    private async Task WakeLoopAsync()
+    {
+        while (_wakeMode)
+        {
+            await Task.Delay(1200);
+            if (!_wakeMode || _wakeBusy) continue;
+            byte[] pcm;
+            lock (_wakeLock) pcm = _wakePcm.ToArray();
+            if (pcm.Length < 32000) continue;
+            _wakeBusy = true;
+            try
+            {
+                var wav = PcmToWav(pcm);
+                using var content = new ByteArrayContent(wav);
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+                using var response = await Http.PostAsync($"{_baseUrl}/wake", content);
+                if (!response.IsSuccessStatusCode) continue;
+                using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                if (!(doc.RootElement.TryGetProperty("detected", out var value) && value.GetBoolean())) continue;
+                StopWake();
+                using var audio = new ByteArrayContent(wav);
+                audio.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+                using var stt = await Http.PostAsync($"{_baseUrl}/transcribe", audio);
+                if (!stt.IsSuccessStatusCode) return;
+                using var sttDoc = JsonDocument.Parse(await stt.Content.ReadAsStringAsync());
+                var text = sttDoc.RootElement.TryGetProperty("text", out var t) ? t.GetString() : "";
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    ComposerInput.Text = text;
+                    await SendMessageAsync();
+                }
+                return;
+            }
+            catch
+            {
+                // keep listening after a transient probe failure
+            }
+            finally
+            {
+                _wakeBusy = false;
+            }
+        }
+    }
+
+    private void StopWake()
+    {
+        _wakeMode = false;
+        _wakeIn?.StopRecording();
+        _wakeIn?.Dispose();
+        _wakeIn = null;
+        ConnectionText.Text = $"API: {_baseUrl.Replace("http://", "")}";
+    }
+
+    private static byte[] PcmToWav(byte[] pcm)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new WaveFileWriter(stream, new WaveFormat(16000, 16, 1)))
+        {
+            writer.Write(pcm, 0, pcm.Length);
+        }
+        return stream.ToArray();
+    }
 
     private async Task SendMessageAsync()
     {
