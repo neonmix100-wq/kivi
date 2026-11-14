@@ -363,43 +363,307 @@ public partial class MainWindow : Window
         };
     }
 
+    private string _nativeFilesPath = ".";
+    private string _nativeFilesView = ".";
+    private readonly Stack<string> _nativeFilesBack = new();
+    private TextBox? _nativePathBox;
+    private StackPanel? _nativeFilesList;
+    private StackPanel? _nativePreview;
+    private TextBlock? _nativeFilesStatus;
+
     private async Task BuildFilesPageAsync()
     {
         PagePanel.Children.Add(PageHeading("Файлы"));
-        PagePanel.Children.Add(PageSub("Нативный список файлов через /fs/list. Рабочая папка Kivi."));
-        var list = new StackPanel();
-        using var doc = await GetJsonAsync("/fs/list?path=.");
+        PagePanel.Children.Add(PageSub("Нативный файловый менеджер Kivi: рабочая папка, известные папки и диски."));
+
+        var toolbar = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
+        toolbar.Children.Add(PageButton("Компьютер", async (_, _) =>
+        {
+            _nativeFilesBack.Push(_nativeFilesPath);
+            await LoadNativeFilesAsync("shell://");
+        }));
+        toolbar.Children.Add(PageButton("Назад", async (_, _) =>
+        {
+            if (_nativeFilesBack.Count > 0) await LoadNativeFilesAsync(_nativeFilesBack.Pop());
+        }));
+        toolbar.Children.Add(PageButton("Вверх", async (_, _) =>
+        {
+            var parent = NativeParent(_nativeFilesView);
+            if (parent is not null) await LoadNativeFilesAsync(parent);
+        }));
+        toolbar.Children.Add(PageButton("Новая папка", async (_, _) => await NativeMkdirAsync()));
+        toolbar.Children.Add(PageButton("Отменить", async (_, _) =>
+        {
+            using var result = await PostJsonAsync("/fs/undo", new { });
+            if (result is not null) await LoadNativeFilesAsync(_nativeFilesPath, false);
+        }));
+        PagePanel.Children.Add(toolbar);
+
+        var pathRow = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+        _nativePathBox = new TextBox
+        {
+            Text = _nativeFilesPath,
+            Background = (Brush)FindResource("Panel2"),
+            Foreground = (Brush)FindResource("Text"),
+            BorderBrush = (Brush)FindResource("Line"),
+            Padding = new Thickness(10, 8, 10, 8),
+            FontSize = 13,
+        };
+        var go = PageButton("Перейти", async (_, _) =>
+        {
+            var target = (_nativePathBox?.Text ?? ".").Trim();
+            if (target.Length > 0) await LoadNativeFilesAsync(target);
+        });
+        go.Margin = new Thickness(8, 0, 0, 0);
+        DockPanel.SetDock(go, Dock.Right);
+        pathRow.Children.Add(go);
+        pathRow.Children.Add(_nativePathBox);
+        PagePanel.Children.Add(pathRow);
+
+        _nativeFilesStatus = PageSub("Загружаю…");
+        PagePanel.Children.Add(_nativeFilesStatus);
+
+        var body = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
+        var scroller = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 620 };
+        _nativeFilesList = new StackPanel();
+        scroller.Content = _nativeFilesList;
+        body.Children.Add(scroller);
+        var previewScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(12, 0, 0, 0) };
+        _nativePreview = new StackPanel();
+        previewScroll.Content = _nativePreview;
+        Grid.SetColumn(previewScroll, 1);
+        body.Children.Add(previewScroll);
+        PagePanel.Children.Add(body);
+        await LoadNativeFilesAsync(_nativeFilesPath);
+    }
+
+    private async Task LoadNativeFilesAsync(string path, bool record = true)
+    {
+        if (_nativeFilesList is null || _nativeFilesStatus is null) return;
+        if (record && _nativeFilesPath != path) _nativeFilesBack.Push(_nativeFilesPath);
+        _nativeFilesPath = path;
+        if (_nativePathBox is not null) _nativePathBox.Text = path;
+        _nativeFilesList.Children.Clear();
+        _nativeFilesStatus.Text = "Загружаю…";
+        using var doc = await GetJsonAsync($"/fs/list?path={Uri.EscapeDataString(path)}");
         if (doc is null)
         {
-            PagePanel.Children.Add(PageSub("Не удалось получить список файлов."));
+            _nativeFilesStatus.Text = "Не удалось открыть папку.";
             return;
         }
-        if (doc.RootElement.TryGetProperty("entries", out var entries))
+        _nativeFilesView = doc.RootElement.TryGetProperty("path", out var resolved)
+            ? resolved.GetString() ?? path
+            : path;
+        if (!doc.RootElement.TryGetProperty("entries", out var entries))
         {
-            foreach (var entry in entries.EnumerateArray())
-            {
-                var name = entry.TryGetProperty("name", out var n) ? n.GetString() : "";
-                var type = entry.TryGetProperty("type", out var t) ? t.GetString() : "file";
-                var card = new Border
-                {
-                    Background = (Brush)FindResource("Panel2"),
-                    BorderBrush = (Brush)FindResource("Line"),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(9),
-                    Padding = new Thickness(12, 9, 12, 9),
-                    Margin = new Thickness(0, 0, 0, 6),
-                };
-                card.Child = new TextBlock
-                {
-                    Text = $"{(type == "dir" ? "▸" : "·")} {name}",
-                    Foreground = (Brush)FindResource("Text"),
-                    FontSize = 14,
-                };
-                list.Children.Add(card);
-            }
+            _nativeFilesStatus.Text = "Пустая папка.";
+            return;
         }
-        PagePanel.Children.Add(list);
+        var count = 0;
+        foreach (var entry in entries.EnumerateArray())
+        {
+            count++;
+            var name = entry.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+            var type = entry.TryGetProperty("type", out var t) ? t.GetString() ?? "file" : "file";
+            var entryPath = entry.TryGetProperty("path", out var ep) ? ep.GetString() : null;
+            entryPath ??= NativeJoin(_nativeFilesView, name);
+            var size = entry.TryGetProperty("size", out var s) && s.TryGetInt64(out var bytes) ? bytes : 0;
+            _nativeFilesList.Children.Add(BuildNativeFileRow(name, type, entryPath, size));
+        }
+        _nativeFilesStatus.Text = count == 0 ? "Папка пуста." : $"{count} объектов · {_nativeFilesView}";
+        if (_nativePreview is not null) _nativePreview.Children.Clear();
     }
+
+    private FrameworkElement BuildNativeFileRow(string name, string type, string path, long size)
+    {
+        var row = new Border
+        {
+            Background = (Brush)FindResource("Panel2"),
+            BorderBrush = (Brush)FindResource("Line"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(9),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 0, 6, 6),
+            Cursor = System.Windows.Input.Cursors.Hand,
+        };
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var icon = new TextBlock
+        {
+            Text = type == "dir" ? "▸" : "·",
+            Foreground = (Brush)FindResource(type == "dir" ? "Mint" : "Muted"),
+            FontSize = 18,
+            Width = 24,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        grid.Children.Add(icon);
+        var title = new TextBlock
+        {
+            Text = name,
+            Foreground = (Brush)FindResource("Text"),
+            FontSize = 13.5,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        Grid.SetColumn(title, 1);
+        grid.Children.Add(title);
+        var meta = new TextBlock
+        {
+            Text = type == "dir" ? "папка" : size > 0 ? $"{size / 1024.0:0.#} КБ" : "файл",
+            Foreground = (Brush)FindResource("Muted"),
+            FontSize = 10.5,
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(meta, 2);
+        grid.Children.Add(meta);
+        row.Child = grid;
+
+        row.MouseLeftButtonUp += async (_, _) =>
+        {
+            if (type == "dir") await LoadNativeFilesAsync(path);
+            else await ShowNativePreviewAsync(path, name);
+        };
+        var menu = new ContextMenu();
+        var openExplorer = new MenuItem { Header = "Открыть в Проводнике" };
+        openExplorer.Click += async (_, _) => await PostJsonAsync("/fs/reveal", new { path });
+        var rename = new MenuItem { Header = "Переименовать" };
+        rename.Click += async (_, _) => await NativeRenameAsync(path, name);
+        var trash = new MenuItem { Header = "В корзину" };
+        trash.Click += async (_, _) => await NativeTrashAsync(path, name);
+        menu.Items.Add(openExplorer);
+        menu.Items.Add(rename);
+        menu.Items.Add(trash);
+        row.ContextMenu = menu;
+        return row;
+    }
+
+    private async Task ShowNativePreviewAsync(string path, string name)
+    {
+        if (_nativePreview is null) return;
+        _nativePreview.Children.Clear();
+        _nativePreview.Children.Add(new TextBlock
+        {
+            Text = name,
+            Foreground = (Brush)FindResource("Text"),
+            FontSize = 17,
+            FontWeight = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 8),
+        });
+        var suffix = System.IO.Path.GetExtension(name).ToLowerInvariant();
+        if (new[] { ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp" }.Contains(suffix))
+        {
+            try
+            {
+                var bytes = await Http.GetByteArrayAsync($"{_baseUrl}/fs/raw?path={Uri.EscapeDataString(path)}");
+                using var doc = JsonDocument.Parse(bytes);
+                var data = doc.RootElement.GetProperty("image").GetString() ?? "";
+                var comma = data.IndexOf(',');
+                if (comma > 0) _nativePreview.Children.Add(BuildImage(Convert.FromBase64String(data[(comma + 1)..])));
+            }
+            catch
+            {
+                _nativePreview.Children.Add(PageSub("Не удалось показать изображение."));
+            }
+            return;
+        }
+        using var textDoc = await GetJsonAsync($"/fs/read?path={Uri.EscapeDataString(path)}");
+        if (textDoc is null)
+        {
+            _nativePreview.Children.Add(PageSub("Предпросмотр недоступен."));
+            return;
+        }
+        var content = textDoc.RootElement.TryGetProperty("content", out var value) ? value.GetString() : "";
+        _nativePreview.Children.Add(new TextBox
+        {
+            Text = content,
+            IsReadOnly = true,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            Background = (Brush)FindResource("Panel"),
+            Foreground = (Brush)FindResource("Text"),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(8),
+            MaxHeight = 520,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        });
+    }
+
+    private async Task NativeMkdirAsync()
+    {
+        var name = Prompt("Новая папка", "Имя папки");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        var path = NativeJoin(_nativeFilesView, name.Trim());
+        using var result = await PostJsonAsync("/fs/mkdir", new { path });
+        await LoadNativeFilesAsync(_nativeFilesPath, false);
+    }
+
+    private async Task NativeRenameAsync(string path, string oldName)
+    {
+        var name = Prompt("Переименовать", "Новое имя", oldName);
+        if (string.IsNullOrWhiteSpace(name) || name == oldName) return;
+        var destination = NativeJoin(NativeParent(path) ?? _nativeFilesView, name.Trim());
+        using var result = await PostJsonAsync("/fs/rename", new { source = path, destination });
+        await LoadNativeFilesAsync(_nativeFilesPath, false);
+    }
+
+    private async Task NativeTrashAsync(string path, string name)
+    {
+        if (MessageBox.Show($"Переместить «{name}» в Корзину?", "Kivi", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+        using var result = await PostJsonAsync("/fs/trash", new { path, confirm = name });
+        await LoadNativeFilesAsync(_nativeFilesPath, false);
+    }
+
+    private static string? NativeParent(string path)
+    {
+        if (path == "shell://" || path == ".") return null;
+        var trimmed = path.TrimEnd('/', '\\');
+        if (trimmed.Length == 2 && trimmed[1] == ':') return "shell://";
+        var index = Math.Max(trimmed.LastIndexOf('/'), trimmed.LastIndexOf('\\'));
+        if (index <= 0) return ".";
+        var parent = trimmed[..index];
+        return parent.Length == 2 && parent[1] == ':' ? parent + "/" : parent;
+    }
+
+    private static string NativeJoin(string directory, string name)
+    {
+        if (directory == "shell://") return name;
+        if (directory.EndsWith('/') || directory.EndsWith('\\')) return directory + name;
+        return directory + "/" + name;
+    }
+
+    private static string Prompt(string title, string label, string initial = "")
+    {
+        var window = new Window
+        {
+            Title = title,
+            Width = 420,
+            Height = 170,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            Background = new SolidColorBrush(Color.FromRgb(4, 31, 29)),
+            Foreground = new SolidColorBrush(Color.FromRgb(228, 247, 241)),
+            Owner = Application.Current.MainWindow,
+        };
+        var panel = new StackPanel { Margin = new Thickness(18) };
+        panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 0, 0, 8) });
+        var box = new TextBox { Text = initial, Padding = new Thickness(8) };
+        panel.Children.Add(box);
+        var ok = new Button { Content = "OK", Width = 80, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Right };
+        ok.Click += (_, _) => window.DialogResult = true;
+        panel.Children.Add(ok);
+        window.Content = panel;
+        window.Loaded += (_, _) => box.Focus();
+        return window.ShowDialog() == true ? box.Text : "";
+    }
+
 
     private async Task BuildCrmPageAsync()
     {
