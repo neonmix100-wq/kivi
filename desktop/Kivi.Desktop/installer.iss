@@ -1,4 +1,4 @@
-#define MyAppName "Kivi"
+﻿#define MyAppName "Kivi"
 #define MyAppVersion "0.21.0"
 #define MyAppPublisher "Kivi Project"
 #define MyAppExeName "Kivi.exe"
@@ -13,7 +13,7 @@ DefaultGroupName=Kivi
 PrivilegesRequired=lowest
 OutputDir=..\..\dist
 OutputBaseFilename=Kivi-Setup
-Compression=lzma2/ultra64
+Compression=none
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
@@ -27,10 +27,10 @@ Name: "{group}\Kivi"; Filename: "{app}\Kivi.exe"
 Name: "{autodesktop}\Kivi"; Filename: "{app}\Kivi.exe"; Tasks: desktopicon
 
 [Tasks]
-Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Ярлыки:"
+Name: "desktopicon"; Description: "РЎРѕР·РґР°С‚СЊ СЏСЂР»С‹Рє РЅР° СЂР°Р±РѕС‡РµРј СЃС‚РѕР»Рµ"; GroupDescription: "РЇСЂР»С‹РєРё:"
 
 [Run]
-Filename: "{app}\Kivi.exe"; Description: "Запустить Kivi"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\Kivi.exe"; Description: "Р—Р°РїСѓСЃС‚РёС‚СЊ Kivi"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

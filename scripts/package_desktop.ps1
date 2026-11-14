@@ -19,13 +19,21 @@ foreach ($name in @("src", "config", "web", "assets", "docs")) {
 }
 
 if (-not $SkipRuntime) {
-    $base = (& (Join-Path $root ".venv\Scripts\python.exe") -c "import sys; print(sys.base_prefix)").Trim()
+    $runtimeVenv = Join-Path $root ".runtime-venv"
+    if (-not (Test-Path (Join-Path $runtimeVenv "Scripts\python.exe"))) {
+        throw "runtime venv missing: $runtimeVenv"
+    }
+    $base = (& (Join-Path $runtimeVenv "Scripts\python.exe") -c "import sys; print(sys.base_prefix)").Trim()
     $runtime = Join-Path $stage "runtime"
     New-Item $runtime -ItemType Directory -Force | Out-Null
     robocopy $base $runtime /E /XD (Join-Path $base "Lib\site-packages") /NFL /NDL /NJH /NJS /NP | Out-Null
     $site = Join-Path $runtime "Lib\site-packages"
     New-Item $site -ItemType Directory -Force | Out-Null
-    robocopy (Join-Path $root ".venv\Lib\site-packages") $site /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    robocopy (Join-Path $runtimeVenv "Lib\site-packages") $site /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    $wakeResources = Join-Path $root ".venv\Lib\site-packages\openwakeword\resources"
+    if (Test-Path $wakeResources) {
+        Copy-Item $wakeResources (Join-Path $site "openwakeword") -Recurse -Force
+    }
 }
 
 $iss = Join-Path $root "desktop\Kivi.Desktop\installer.iss"

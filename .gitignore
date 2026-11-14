@@ -27,6 +27,9 @@ desktop/**/bin/
 desktop/**/obj/
 desktop/**/publish/
 
+# portable Python runtime used by the desktop installer
+.runtime-venv/
+
 # local model/config overrides
 config/local.*
 config/secrets.*

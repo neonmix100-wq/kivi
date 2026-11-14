@@ -37,9 +37,10 @@ the native window closes.
 | media video playback | basic |
 | files list/search/thumbnails/ops | basic |
 | CRM status/read/fill/act/task | forms |
-| full files/shell operations | next |
+| installer / Python sidecar | built: `dist\Kivi-Setup.exe` (~1.8 GB) |
+| installer signing / compression polish | next |
+| full files/shell edge cases | next |
 | media gallery/history | next |
-| installer / Python sidecar | installer scaffold built; runtime bundling next |
 
 The existing web UI remains available during the migration; both clients use
 the same API and data.
