@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using NAudio.Wave;
 using Windows.System;
 using Windows.UI;
 
@@ -20,6 +21,10 @@ public sealed partial class MainWindow : Window
     private bool _sending;
     private Border? _pendingBubble;
     private bool _autoSpeak;
+    private bool _recording;
+    private WaveInEvent? _waveIn;
+    private MemoryStream? _micStream;
+    private WaveFileWriter? _micWriter;
 
     public MainWindow()
     {
@@ -445,9 +450,86 @@ public sealed partial class MainWindow : Window
     }
 
     private void Send_Click(object sender, RoutedEventArgs e) => _ = SendMessageAsync();
-    private void Mic_Click(object sender, RoutedEventArgs e) { }
-    private void Wake_Click(object sender, RoutedEventArgs e) { }
+
+    private async void Mic_Click(object sender, RoutedEventArgs e)
+    {
+        if (_recording)
+        {
+            await StopRecordingAsync();
+            return;
+        }
+        try
+        {
+            _micStream = new MemoryStream();
+            _micWriter = new WaveFileWriter(_micStream, new WaveFormat(16000, 16, 1));
+            _waveIn = new WaveInEvent { WaveFormat = new WaveFormat(16000, 16, 1), BufferMilliseconds = 100 };
+            _waveIn.DataAvailable += (_, args) =>
+            {
+                _micWriter?.Write(args.Buffer, 0, args.BytesRecorded);
+                _micWriter?.Flush();
+            };
+            _waveIn.StartRecording();
+            _recording = true;
+        }
+        catch (Exception ex)
+        {
+            AddBubble($"Микрофон недоступен: {ex.Message}", false);
+        }
+    }
+
+    private async Task StopRecordingAsync()
+    {
+        if (!_recording) return;
+        _recording = false;
+        _waveIn?.StopRecording();
+        _waveIn?.Dispose();
+        _waveIn = null;
+        _micWriter?.Dispose();
+        _micWriter = null;
+        if (_micStream is null) return;
+        var audio = _micStream.ToArray();
+        _micStream.Dispose();
+        _micStream = null;
+        try
+        {
+            using var content = new ByteArrayContent(audio);
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+            using var response = await Http.PostAsync($"{_baseUrl}/transcribe", content);
+            if (!response.IsSuccessStatusCode) return;
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var text = doc.RootElement.TryGetProperty("text", out var value) ? value.GetString() : "";
+            if (!string.IsNullOrWhiteSpace(text)) ComposerInput.Text = text;
+        }
+        catch (Exception ex)
+        {
+            AddBubble($"Не удалось распознать речь: {ex.Message}", false);
+        }
+    }
+
+    private async Task SpeakAsync(string text)
+    {
+        try
+        {
+            using var response = await Http.PostAsJsonAsync($"{_baseUrl}/tts", new { text });
+            if (!response.IsSuccessStatusCode) return;
+            var audio = await response.Content.ReadAsByteArrayAsync();
+            await Task.Run(async () =>
+            {
+                using var stream = new MemoryStream(audio);
+                using var reader = new WaveFileReader(stream);
+                using var output = new WaveOutEvent();
+                output.Init(reader);
+                output.Play();
+                while (output.PlaybackState == PlaybackState.Playing) await Task.Delay(100);
+            });
+        }
+        catch
+        {
+            // best effort
+        }
+    }
     private void Speak_Click(object sender, RoutedEventArgs e) => _autoSpeak = !_autoSpeak;
+    private void Wake_Click(object sender, RoutedEventArgs e) { }
 
     private async Task SendMessageAsync()
     {
@@ -469,7 +551,9 @@ public sealed partial class MainWindow : Window
             }
             using var doc = JsonDocument.Parse(body);
             var answer = doc.RootElement.TryGetProperty("answer", out var value) ? value.GetString() : null;
-            ReplacePending(string.IsNullOrWhiteSpace(answer) ? "Пустой ответ." : answer!);
+            var answerText = string.IsNullOrWhiteSpace(answer) ? "Пустой ответ." : answer!;
+            ReplacePending(answerText);
+            if (_autoSpeak) await SpeakAsync(answerText);
         }
         catch (Exception ex)
         {

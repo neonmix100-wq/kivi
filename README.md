@@ -238,7 +238,8 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/APPROVALS.md`](docs/APPROVALS.md) | durable approvals → PermissionEngine |
 | [`docs/CRM-PARITY.md`](docs/CRM-PARITY.md) | паритет extension/CDP и rollback |
 | [`docs/SHELL-P2.md`](docs/SHELL-P2.md) | shell namespace, undo, thumbnails |
-| [`docs/NATIVE-APP.md`](docs/NATIVE-APP.md) | нативный WPF/XAML-клиент и план миграции |
+| [`docs/NATIVE-APP.md`](docs/NATIVE-APP.md) | нативный клиент и план миграции |
+| [`docs/WINUI.md`](docs/WINUI.md) | WinUI 3: toolchain, сборка и текущий объём |
 | [`docs/NATIVE-PARITY.md`](docs/NATIVE-PARITY.md) | матрица паритета native-клиента |
 | [`docs/NATIVE-RELEASE.md`](docs/NATIVE-RELEASE.md) | native-релиз, установщик и ограничения |
 | [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) | матрица приёмки и acceptance-smoke |

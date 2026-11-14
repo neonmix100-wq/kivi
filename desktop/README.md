@@ -1,4 +1,11 @@
-# Kivi Desktop (native WPF/XAML)
+# Kivi Desktop (native)
+
+**Primary target: WinUI 3** in `desktop/Kivi.WinUI`; build/package instructions
+are in [`../docs/WINUI.md`](../docs/WINUI.md).
+
+The older WPF/XAML client in `desktop/Kivi.Desktop` remains as a fallback.
+
+# Kivi Desktop (WPF fallback)
 
 This is the native Windows client. It does **not** open a browser and does not
 embed a web page: the shell, navigation and chat are WPF/XAML controls.
