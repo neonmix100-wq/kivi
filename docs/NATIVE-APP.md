@@ -29,8 +29,9 @@ share the same SQLite data, config and loopback API.
 1. **Shell** — window, sidebar, chat send/answer, backend autostart. Done.
 2. **Chat/history/voices/settings** — history rendering, voices list/select,
    settings provider. Done in native alpha 2.
-3. **Pages** — native basic media image, file list, CRM status/read. Next:
-   full files/shell, media gallery/video, CRM forms, voice/TTS controls.
+3. **Pages** — native basic media image/video, file list/search/thumbnails and
+   operations, CRM status/read/fill/act/task. Next: full parity edge cases and
+   voice/wake polish.
 4. **Packaging** — Python sidecar/installer, icon, first-run, update check.
 5. **Parity audit** — every current UI action covered by a native control and
    tested.

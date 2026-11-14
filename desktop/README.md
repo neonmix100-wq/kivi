@@ -34,11 +34,11 @@ the native window closes.
 | voices list/select | done |
 | settings provider | done |
 | media image generation | basic |
-| files list | basic |
-| CRM status/read | basic |
+| media video playback | basic |
+| files list/search/thumbnails/ops | basic |
+| CRM status/read/fill/act/task | forms |
 | full files/shell operations | next |
-| media gallery/video | next |
-| CRM write forms | next |
+| media gallery/history | next |
 | installer / Python sidecar | next |
 
 The existing web UI remains available during the migration; both clients use

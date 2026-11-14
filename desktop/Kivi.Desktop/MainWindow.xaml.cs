@@ -315,7 +315,7 @@ public partial class MainWindow : Window
     private void BuildMediaPage()
     {
         PagePanel.Children.Add(PageHeading("Медиа"));
-        PagePanel.Children.Add(PageSub("Локальная генерация изображений через текущий Kivi API."));
+        PagePanel.Children.Add(PageSub("Локальная генерация изображений и видео через текущий Kivi API."));
         var prompt = new TextBox
         {
             MinHeight = 58,
@@ -352,6 +352,45 @@ public partial class MainWindow : Window
                 var comma = image.IndexOf(',');
                 if (comma > 0) output.Children.Add(BuildImage(Convert.FromBase64String(image[(comma + 1)..])));
             }
+        }));
+        PagePanel.Children.Add(PageButton("Сгенерировать видео 4 с", async (_, _) =>
+        {
+            output.Children.Clear();
+            output.Children.Add(PageSub("Генерирую видео…"));
+            using var result = await PostJsonAsync("/media/video", new
+            {
+                prompt = prompt.Text,
+                duration = 4,
+                model = "local",
+            });
+            output.Children.Clear();
+            if (result is null)
+            {
+                output.Children.Add(PageSub("Видео недоступно."));
+                return;
+            }
+            var video = result.RootElement.TryGetProperty("video", out var value) ? value.GetString() : null;
+            if (video is null || !video.StartsWith("data:video/", StringComparison.Ordinal))
+            {
+                output.Children.Add(PageSub("Сервер вернул не видео."));
+                return;
+            }
+            var comma = video.IndexOf(',');
+            if (comma <= 0) return;
+            var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"kivi-{Guid.NewGuid():N}.mp4");
+            await File.WriteAllBytesAsync(path, Convert.FromBase64String(video[(comma + 1)..]));
+            var player = new MediaElement
+            {
+                Source = new Uri(path),
+                Width = 520,
+                Height = 292,
+                LoadedBehavior = MediaState.Manual,
+                UnloadedBehavior = MediaState.Manual,
+                Margin = new Thickness(0, 12, 0, 0),
+            };
+            player.MediaEnded += (_, _) => player.Position = TimeSpan.Zero;
+            output.Children.Add(player);
+            player.Play();
         }));
         PagePanel.Children.Add(output);
     }
@@ -794,18 +833,86 @@ public partial class MainWindow : Window
     private async Task BuildCrmPageAsync()
     {
         PagePanel.Children.Add(PageHeading("CRM"));
-        PagePanel.Children.Add(PageSub("Статус расширения AltCRM и read-only карточка."));
+        PagePanel.Children.Add(PageSub("Статус AltCRM, read-only карточка и формы без сохранения."));
         using var doc = await GetJsonAsync("/crm/status");
         var connected = doc?.RootElement.TryGetProperty("connected", out var c) == true && c.GetBoolean();
         PagePanel.Children.Add(PageSub(connected ? "Расширение подключено." : "Расширение не подключено."));
-        var read = PageButton("Прочитать заказ", async (_, _) =>
+        PagePanel.Children.Add(PageButton("Прочитать заказ", async (_, _) =>
         {
             using var result = await GetJsonAsync("/crm/read");
             if (result is null) return;
             PagePanel.Children.Add(PageSub(result.RootElement.ToString()));
-        });
-        PagePanel.Children.Add(read);
+        }));
+
+        PagePanel.Children.Add(PageSub("Заполнить карточку (без сохранения)"));
+        var comment = NativeInput("Комментарий");
+        var deadline = NativeInput("Согласованные сроки ремонта");
+        PagePanel.Children.Add(comment);
+        PagePanel.Children.Add(deadline);
+        PagePanel.Children.Add(PageButton("Заполнить", async (_, _) =>
+        {
+            using var result = await PostJsonAsync("/crm/fill", new
+            {
+                comment = comment.Text,
+                checklist = new Dictionary<string, string>
+                {
+                    ["deadline"] = deadline.Text,
+                },
+            });
+            PagePanel.Children.Add(PageSub(result is null ? "Не удалось заполнить." : "Заполнено, не сохранено."));
+        }));
+
+        PagePanel.Children.Add(PageSub("Добавить строку акта"));
+        var work = NativeInput("Работа");
+        var price = NativeInput("Цена, ₽");
+        var warranty = NativeInput("Гарантия, дней");
+        PagePanel.Children.Add(work);
+        PagePanel.Children.Add(price);
+        PagePanel.Children.Add(warranty);
+        PagePanel.Children.Add(PageButton("Добавить", async (_, _) =>
+        {
+            using var result = await PostJsonAsync("/crm/act", new
+            {
+                rows = new[]
+                {
+                    new
+                    {
+                        name = work.Text,
+                        price = int.TryParse(price.Text, out var p) ? p : 0,
+                        warranty = int.TryParse(warranty.Text, out var w) ? w : 0,
+                    },
+                },
+            });
+            PagePanel.Children.Add(PageSub(result is null ? "Не удалось добавить." : "Строка добавлена, не сохранено."));
+        }));
+
+        PagePanel.Children.Add(PageSub("Черновик задачи"));
+        var taskComment = NativeInput("Текст задачи");
+        var taskWhen = NativeInput("Срок, например завтра");
+        PagePanel.Children.Add(taskComment);
+        PagePanel.Children.Add(taskWhen);
+        PagePanel.Children.Add(PageButton("Заполнить задачу", async (_, _) =>
+        {
+            using var result = await PostJsonAsync("/crm/task", new
+            {
+                comment = taskComment.Text,
+                when_text = taskWhen.Text,
+            });
+            PagePanel.Children.Add(PageSub(result is null ? "Не удалось заполнить." : "Форма задачи заполнена, не создана."));
+        }));
     }
+
+    private TextBox NativeInput(string placeholder) => new()
+    {
+        Text = placeholder,
+        Foreground = (Brush)FindResource("Muted"),
+        Background = (Brush)FindResource("Panel2"),
+        BorderBrush = (Brush)FindResource("Line"),
+        Padding = new Thickness(8),
+        Margin = new Thickness(0, 0, 0, 8),
+        MinWidth = 320,
+        HorizontalAlignment = HorizontalAlignment.Left,
+    };
 
     private void ComposerInput_KeyDown(object sender, KeyEventArgs e)
     {
