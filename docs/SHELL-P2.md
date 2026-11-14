@@ -39,6 +39,12 @@ Larger items are moved to the Recycle Bin without undo.
 
 Thumbnails load lazily in the file list.
 
+## Search
+
+Search is recursive and has no result-depth/result-count cap. It skips only
+system/protected names, symlink cycles and unreadable directories. Searching a
+whole drive can take time; searching the relevant folder is faster.
+
 ## Explorer and sorting
 
 - Context menu has **Открыть в Проводнике** (`/fs/reveal`).

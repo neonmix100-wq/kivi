@@ -954,14 +954,7 @@ def _ui_fs_rename(
     }
 
 
-def _shell_search(
-    paths: Any,
-    query: str,
-    root: str,
-    *,
-    limit: int = 100,
-    max_depth: int = 8,
-) -> dict[str, Any]:
+def _shell_search(paths: Any, query: str, root: str) -> dict[str, Any]:
     roots = _shell_roots(paths)
     if root.strip().lower() == "shell://" or not root.strip():
         starts = [Path(item["path"]) for item in roots]
@@ -989,19 +982,23 @@ def _shell_search(
         "__pycache__",
     }
     matches: list[dict[str, Any]] = []
-    visited = 0
-    stack = [(path, 0) for path in starts if path.is_dir()]
-    while stack and len(matches) < limit and visited < 20_000:
-        directory, depth = stack.pop()
+    seen: set[str] = set()
+    stack = [path for path in starts if path.is_dir()]
+    while stack:
+        directory = stack.pop()
+        try:
+            key = str(directory.resolve()).casefold()
+        except OSError:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
         try:
             with os.scandir(directory) as iterator:
                 entries = sorted(iterator, key=lambda item: item.name.lower())
         except OSError:
             continue
         for entry in entries:
-            visited += 1
-            if visited >= 20_000 or len(matches) >= limit:
-                break
             if entry.name.lower() in blocked:
                 continue
             try:
@@ -1018,13 +1015,13 @@ def _shell_search(
                         "size": 0 if is_dir else stat.st_size,
                     }
                 )
-            if is_dir and depth < max_depth:
-                stack.append((Path(entry.path), depth + 1))
+            if is_dir:
+                stack.append(Path(entry.path))
     return {
         "query": query,
         "path": root,
         "matches": matches,
-        "truncated": bool(stack or visited >= 20_000),
+        "truncated": False,
     }
 
 
@@ -1034,22 +1031,12 @@ def _ui_fs_search(
     query: str,
     root: str = "",
 ) -> dict[str, Any]:
-    if root.startswith("shell://") or Path(root).is_absolute():
-        return _shell_search(paths, query, root)
-    result = _run_direct_tool(
-        paths,
-        config,
-        "fs.search",
-        {"query": query, "limit": 100},
-        ["fs.read"],
-    )
-    if not result.ok:
-        raise RuntimeError(result.error or "search failed")
-    return {
-        "query": query,
-        "matches": result.meta.get("matches", []),
-        "truncated": bool(result.truncated),
-    }
+    stripped = root.strip()
+    if not stripped or stripped == ".":
+        return _shell_search(paths, query, str(paths.root))
+    if stripped.startswith("shell://") or Path(stripped).is_absolute():
+        return _shell_search(paths, query, stripped)
+    return _shell_search(paths, query, str(paths.root / stripped))
 
 
 def _ui_fs_transfer(

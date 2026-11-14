@@ -3664,7 +3664,7 @@ async function runFilesSearch(rawQuery) {
   try {
     const data = await apiRequest(
       `/fs/search?q=${encodeURIComponent(query)}&path=${encodeURIComponent(state.files.path)}`,
-      { timeout: 20000 },
+      { timeout: 600000 },
     );
     if (epoch !== state.files.searchEpoch) return;
     const matches = normalizeFsSearchMatches(data && data.matches);
