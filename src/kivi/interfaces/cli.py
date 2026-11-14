@@ -869,7 +869,11 @@ def _ui_fs_raw(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
     from kivi.safety.zones import ProtectedZones
 
     zones = ProtectedZones(paths.root, extra_rules=_zones_extra(paths))
-    path = zones.check(rel, "read").require()
+    candidate = Path(rel)
+    if candidate.is_absolute() and _shell_allowed(candidate, _shell_roots(paths)):
+        path = candidate
+    else:
+        path = zones.check(rel, "read").require()
     if not path.is_file():
         raise RuntimeError("not a file")
     suffix = path.suffix.lower()
