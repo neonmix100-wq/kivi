@@ -62,6 +62,8 @@ def ui_api(tmp_path: Path):
             "path": path,
             "image": "data:image/png;base64,AAAA",
         },
+        fs_thumb_handler=lambda path: b"\xff\xd8\xff\xe0thumb",
+        fs_undo_handler=lambda: {"ok": True, "undone": {"kind": "mkdir"}},
         crm_status_handler=lambda: {
             "connected": False,
             "hint": "start Chrome",
@@ -217,6 +219,23 @@ def test_fs_raw_image(ui_api: LocalApi) -> None:
         response = client.get("/fs/raw?path=docs/logo.png")
     assert response.status_code == 200
     assert response.json()["image"].startswith("data:image/")
+
+
+def test_fs_thumb(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        response = client.get("/fs/thumb?path=docs/logo.png")
+        missing = client.get("/fs/thumb")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/jpeg"
+    assert response.content.startswith(b"\xff\xd8")
+    assert missing.status_code == 400
+
+
+def test_fs_undo(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        response = client.post("/fs/undo", json={})
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
 
 
 def test_fs_copy_and_move(ui_api: LocalApi) -> None:

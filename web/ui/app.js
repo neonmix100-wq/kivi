@@ -3133,10 +3133,15 @@ function normalizeFsEntries(raw) {
     seen.add(name);
     const type = item.type === "dir" || item.type === "file" ? item.type : "other";
     const size = Number(item.size);
+    const entryPath =
+      typeof item.path === "string" && item.path.trim()
+        ? normalizeFsPath(item.path)
+        : "";
     entries.push({
       name,
       type,
       size: Number.isFinite(size) && size >= 0 ? size : null,
+      ...(entryPath ? { path: entryPath } : {}),
     });
   }
   const order = { dir: 0, file: 1, other: 2 };
