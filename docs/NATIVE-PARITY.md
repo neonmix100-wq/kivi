@@ -22,7 +22,7 @@ Snapshot: native WPF/XAML client, installer built and cold-start verified.
 | undo | yes | yes | `/fs/undo` |
 | history tabs | yes | yes | native file tabs |
 | drag-and-drop | yes | basic | drop files to copy into current folder |
-| multi-select/keyboard | yes | no | next |
+| multi-select/keyboard | yes | Ctrl+click + bulk copy/trash |
 | CRM read | yes | yes | `/crm/read` |
 | CRM fill/act/task | yes | yes | native forms |
 | installer | no | yes | Inno Setup, portable runtime |

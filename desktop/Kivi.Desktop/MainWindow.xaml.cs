@@ -514,6 +514,7 @@ public partial class MainWindow : Window
     private readonly Stack<string> _nativeFilesBack = new();
     private readonly List<string> _nativeTabs = new() { "." };
     private int _nativeTabIndex;
+    private readonly HashSet<string> _nativeSelected = new(StringComparer.OrdinalIgnoreCase);
     private StackPanel? _nativeTabStrip;
     private TextBox? _nativePathBox;
     private TextBox? _nativeSearchBox;
@@ -551,6 +552,13 @@ public partial class MainWindow : Window
         {
             using var result = await PostJsonAsync("/fs/undo", new { });
             if (result is not null) await LoadNativeFilesAsync(_nativeFilesPath, false);
+        }));
+        toolbar.Children.Add(PageButton("Копировать выбранные", async (_, _) => await NativeBulkCopyAsync()));
+        toolbar.Children.Add(PageButton("Удалить выбранные", async (_, _) => await NativeBulkTrashAsync()));
+        toolbar.Children.Add(PageButton("Сбросить выбор", (_, _) =>
+        {
+            _nativeSelected.Clear();
+            RenderNativeEntries();
         }));
         PagePanel.Children.Add(toolbar);
 
@@ -728,8 +736,12 @@ public partial class MainWindow : Window
     {
         var row = new Border
         {
-            Background = (Brush)FindResource("Panel2"),
-            BorderBrush = (Brush)FindResource("Line"),
+            Background = _nativeSelected.Contains(path)
+                ? new SolidColorBrush(Color.FromRgb(11, 58, 52))
+                : (Brush)FindResource("Panel2"),
+            BorderBrush = _nativeSelected.Contains(path)
+                ? (Brush)FindResource("Mint")
+                : (Brush)FindResource("Line"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),
             Padding = new Thickness(10, 8, 10, 8),
@@ -785,6 +797,12 @@ public partial class MainWindow : Window
 
         row.MouseLeftButtonUp += async (_, _) =>
         {
+            if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != 0)
+            {
+                if (!_nativeSelected.Add(path)) _nativeSelected.Remove(path);
+                RenderNativeEntries();
+                return;
+            }
             if (type == "dir") await LoadNativeFilesAsync(path);
             else await ShowNativePreviewAsync(path, name);
         };
@@ -970,6 +988,46 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(name) || name == oldName) return;
         var destination = NativeJoin(NativeParent(path) ?? _nativeFilesView, name.Trim());
         using var result = await PostJsonAsync("/fs/rename", new { source = path, destination });
+        await LoadNativeFilesAsync(_nativeFilesPath, false);
+    }
+
+    private async Task NativeBulkCopyAsync()
+    {
+        if (_nativeSelected.Count == 0)
+        {
+            MessageBox.Show("Сначала выбери файлы: Ctrl+клик.", "Kivi");
+            return;
+        }
+        var destination = Prompt("Копировать выбранные", "Куда (полный путь)", _nativeFilesView);
+        if (string.IsNullOrWhiteSpace(destination)) return;
+        foreach (var source in _nativeSelected.ToArray())
+        {
+            var name = System.IO.Path.GetFileName(source.TrimEnd('/', '\\'));
+            using var result = await PostJsonAsync("/fs/copy", new
+            {
+                source,
+                destination = NativeJoin(destination.Trim(), name),
+            });
+        }
+        _nativeSelected.Clear();
+        await LoadNativeFilesAsync(_nativeFilesPath, false);
+    }
+
+    private async Task NativeBulkTrashAsync()
+    {
+        if (_nativeSelected.Count == 0)
+        {
+            MessageBox.Show("Сначала выбери файлы: Ctrl+клик.", "Kivi");
+            return;
+        }
+        if (MessageBox.Show($"Переместить выбранные объекты ({_nativeSelected.Count}) в Корзину?", "Kivi",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        foreach (var path in _nativeSelected.ToArray())
+        {
+            var name = System.IO.Path.GetFileName(path.TrimEnd('/', '\\'));
+            using var result = await PostJsonAsync("/fs/trash", new { path, confirm = name });
+        }
+        _nativeSelected.Clear();
         await LoadNativeFilesAsync(_nativeFilesPath, false);
     }
 
