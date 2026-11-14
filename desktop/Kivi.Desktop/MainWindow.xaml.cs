@@ -1583,20 +1583,56 @@ public partial class MainWindow : Window
             Margin = new Thickness(0, 6, 0, 0),
         });
         if (!fromUser && !pending) AddSpeakButton(content, text);
-        var border = new Border
+        var bubble = new Border
         {
             Background = new SolidColorBrush(fromUser ? Color.FromRgb(10, 58, 52) : Color.FromRgb(8, 47, 43)),
             BorderBrush = (Brush)FindResource("Line"),
             BorderThickness = fromUser ? new Thickness(0) : new Thickness(1),
             CornerRadius = new CornerRadius(fromUser ? 15 : 4, 15, 15, 15),
             Padding = new Thickness(16, 12, 16, 12),
-            Margin = new Thickness(fromUser ? 120 : 0, 0, fromUser ? 0 : 120, 18),
-            HorizontalAlignment = fromUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
             MaxWidth = 620,
             Child = content,
         };
-        MessagesPanel.Children.Add(border);
-        if (pending) _pendingBubble = border;
+        var avatar = new Border
+        {
+            Width = 30,
+            Height = 30,
+            CornerRadius = new CornerRadius(15),
+            Background = new SolidColorBrush(fromUser ? Color.FromRgb(21, 83, 72) : Color.FromRgb(18, 63, 56)),
+            BorderBrush = (Brush)FindResource("Line"),
+            BorderThickness = new Thickness(1),
+            Child = new TextBlock
+            {
+                Text = fromUser ? "Я" : "K",
+                Foreground = (Brush)FindResource(fromUser ? "Muted" : "Mint"),
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        var rowGrid = new Grid { Margin = new Thickness(0, 0, 0, 18) };
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
+        if (fromUser)
+        {
+            Grid.SetColumn(bubble, 1);
+            bubble.HorizontalAlignment = HorizontalAlignment.Right;
+            Grid.SetColumn(avatar, 2);
+        }
+        else
+        {
+            Grid.SetColumn(avatar, 0);
+            Grid.SetColumn(bubble, 1);
+            bubble.HorizontalAlignment = HorizontalAlignment.Left;
+        }
+        avatar.VerticalAlignment = VerticalAlignment.Bottom;
+        avatar.Margin = new Thickness(fromUser ? 8 : 0, 0, fromUser ? 0 : 8, 0);
+        rowGrid.Children.Add(avatar);
+        rowGrid.Children.Add(bubble);
+        MessagesPanel.Children.Add(rowGrid);
+        if (pending) _pendingBubble = bubble;
         MessagesScroll.ScrollToEnd();
     }
 
