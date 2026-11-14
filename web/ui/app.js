@@ -3133,6 +3133,7 @@ function normalizeFsEntries(raw) {
     seen.add(name);
     const type = item.type === "dir" || item.type === "file" ? item.type : "other";
     const size = Number(item.size);
+    const mtime = Number(item.mtime);
     const entryPath =
       typeof item.path === "string" && item.path.trim()
         ? normalizeFsPath(item.path)
@@ -3141,6 +3142,7 @@ function normalizeFsEntries(raw) {
       name,
       type,
       size: Number.isFinite(size) && size >= 0 ? size : null,
+      mtime: Number.isFinite(mtime) && mtime > 0 ? mtime : null,
       ...(entryPath ? { path: entryPath } : {}),
     });
   }
@@ -3187,9 +3189,9 @@ function normalizeFsSearchMatches(raw) {
   return matches;
 }
 
-// /fs/list and /fs/search expose name/type/size only, with no mtime. The panel
-// therefore offers name/size/type and never invents a "modified" sort value.
-const FS_SORT_KEYS = new Set(["name", "size", "type"]);
+// /fs/list exposes name/type/size/mtime; search exposes names only, so the
+// modified sort is meaningful for directory listings.
+const FS_SORT_KEYS = new Set(["name", "size", "type", "modified"]);
 // Folders stay grouped first in both directions, as they were before sorting.
 const FS_TYPE_ORDER = Object.freeze({ dir: 0, file: 1, other: 2 });
 
@@ -3223,6 +3225,8 @@ function sortFsItems(items, key, direction) {
       result = aSize - bSize;
     } else if (sortKey === "type") {
       result = compareFsSortText(fsSortTypeLabel(a), fsSortTypeLabel(b));
+    } else if (sortKey === "modified") {
+      result = (Number(a.mtime) || 0) - (Number(b.mtime) || 0);
     }
     // Name is the key for "name" and the stable tie-breaker for the rest;
     // search results may share a basename, so their relative path breaks ties.
@@ -5396,6 +5400,26 @@ async function runFilesDropTransfer({ source, destination, name, mode }) {
   }
 }
 
+function openFilesTrashFormForRow(row) {
+  if (!row || state.files.busy) return;
+  const path = row.dataset.fsPath || "";
+  const type = row.dataset.fsType === "dir" ? "dir" : "file";
+  if (!path) return;
+  setFilesTarget({ path, name: fsName(path), type });
+  openFilesTrashForm();
+  syncFilesTarget();
+}
+
+function openFilesRenameFormForRow(row) {
+  if (!row || state.files.busy) return;
+  const path = row.dataset.fsPath || "";
+  const type = row.dataset.fsType === "dir" ? "dir" : "file";
+  if (!path) return;
+  setFilesTarget({ path, name: fsName(path), type });
+  openFilesRenameForm();
+  syncFilesTarget();
+}
+
 function onFilesListKeydown(event) {
   if (!els.filesList) return;
   const rows = Array.from(els.filesList.querySelectorAll("button.file-row"));
@@ -5415,6 +5439,21 @@ function onFilesListKeydown(event) {
   }
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
   if (current === -1) return;
+  if (event.key === "Enter") {
+    event.preventDefault();
+    rows[current].click();
+    return;
+  }
+  if (event.key === "Delete") {
+    event.preventDefault();
+    openFilesTrashFormForRow(rows[current]);
+    return;
+  }
+  if (event.key === "F2") {
+    event.preventDefault();
+    openFilesRenameFormForRow(rows[current]);
+    return;
+  }
   let next = current;
   if (event.key === "ArrowDown") next = Math.min(rows.length - 1, current + 1);
   else if (event.key === "ArrowUp") next = Math.max(0, current - 1);
@@ -5442,6 +5481,7 @@ const FILES_MENU_LABELS = Object.freeze({
   rename: "Переименовать",
   trash: "В корзину",
   path: "Копировать путь",
+  explorer: "Открыть в Проводнике",
 });
 
 function filesMenuItemsFor(type) {
@@ -5451,6 +5491,7 @@ function filesMenuItemsFor(type) {
       { action: "open", label: FILES_MENU_LABELS.open },
       { action: "rename", label: FILES_MENU_LABELS.rename, disabled: busy },
       { action: "trash", label: FILES_MENU_LABELS.trash, danger: true, disabled: busy },
+      { action: "explorer", label: FILES_MENU_LABELS.explorer },
       { action: "path", label: FILES_MENU_LABELS.path, separatorBefore: true },
     ];
   }
@@ -5460,6 +5501,7 @@ function filesMenuItemsFor(type) {
     { action: "move", label: FILES_MENU_LABELS.move, disabled: busy },
     { action: "rename", label: FILES_MENU_LABELS.rename, disabled: busy },
     { action: "trash", label: FILES_MENU_LABELS.trash, danger: true, disabled: busy },
+    { action: "explorer", label: FILES_MENU_LABELS.explorer },
     { action: "path", label: FILES_MENU_LABELS.path, separatorBefore: true },
   ];
 }
@@ -5670,6 +5712,15 @@ function activateFilesMenuItem(action) {
     }
     case "path":
       void copyFilesPath(path);
+      break;
+    case "explorer":
+      void apiRequest("/fs/reveal", {
+        method: "POST",
+        body: { path },
+        timeout: 10000,
+      }).catch((error) =>
+        showToast(describeApiError(error, "открытии Проводника"), "error"),
+      );
       break;
     default:
       break;

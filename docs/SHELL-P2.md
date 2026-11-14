@@ -2,24 +2,21 @@
 
 ## Shell namespace
 
-The Files page now has a **Компьютер** button. It opens `shell://` with:
+The Files page has a **Компьютер** button. It opens `shell://` with:
 
 - the workspace;
-- Desktop;
-- Documents;
-- Downloads;
-- Pictures;
-- Music;
-- Videos.
+- Desktop, Documents, Downloads, Pictures, Music, Videos;
+- local and removable drives (`C:`, `D:`, …);
+- network drives when Windows exposes them (listed as `Сеть …`).
 
-This is a metadata namespace: names, types and sizes only. It deliberately does
-not enumerate drive roots or system directories. Writes and file reads outside
-the workspace still go through `ProtectedZones`.
+System directories are filtered from listings. File contents outside the
+workspace are not readable by `fs.read`; the namespace is metadata-first.
+Images/videos can still produce thumbnails.
 
 ## Undo
 
 The **Отменить** button and `Ctrl+Z` undo the last operation kept in
-`data/fs-undo.json`:
+`data/fs-undo.json` (up to 50):
 
 | Operation | Undo |
 |---|---|
@@ -27,8 +24,11 @@ The **Отменить** button and `Ctrl+Z` undo the last operation kept in
 | `fs.rename` | rename back |
 | `fs.copy` | move the copy to the Recycle Bin |
 | `fs.move` | move back |
+| `fs.trash` | restore from a bounded local snapshot |
 
-`fs.trash` is not undoable by Kivi because Windows owns Recycle Bin restore.
+For Recycle Bin deletes Kivi keeps a local snapshot (up to 100 MB per item) in
+`data/trash-undo/`, so undo works even though Windows owns the Recycle Bin.
+Larger items are moved to the Recycle Bin without undo.
 
 ## Thumbnails
 
@@ -37,19 +37,22 @@ The **Отменить** button and `Ctrl+Z` undo the last operation kept in
 - images via Pillow;
 - the first frame of MP4/WebM/MKV/MOV via OpenCV.
 
-The file list loads thumbnails lazily only for recognized image files.
+Thumbnails load lazily in the file list.
+
+## Explorer and sorting
+
+- Context menu has **Открыть в Проводнике** (`/fs/reveal`).
+- Sort includes **По дате изменения**.
+- Enter opens the focused row, Delete opens the trash form, F2 opens rename.
 
 ## Checks
 
 ```powershell
 .venv\Scripts\python.exe -m pytest -q
-kivi tools list
 ```
 
-Manual API checks:
-
 ```text
-GET /fs/list?path=shell:// → known folders
+GET /fs/list?path=shell:// → known folders + drives
 GET /fs/thumb?path=data/bench/ocr.png → image/jpeg
-POST /fs/mkdir + POST /fs/undo → directory removed
+POST /fs/trash + POST /fs/undo → file restored
 ```

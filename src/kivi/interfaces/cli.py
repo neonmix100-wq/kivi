@@ -691,7 +691,7 @@ def _serve_history(paths: Any, limit: int) -> list[dict[str, Any]]:
 
 
 def _shell_roots(paths: Any) -> list[dict[str, Any]]:
-    """Known Windows folders exposed as a read-only shell namespace."""
+    """Known Windows folders, fixed/removable drives and network drives."""
     home = Path.home()
     roots: list[dict[str, Any]] = [
         {"name": "Рабочая папка", "path": str(paths.root), "type": "dir"},
@@ -708,6 +708,39 @@ def _shell_roots(paths: Any) -> list[dict[str, Any]]:
         candidate = home / folder
         if candidate.is_dir():
             roots.append({"name": label, "path": str(candidate), "type": "dir"})
+    try:
+        import psutil
+
+        seen = {str(Path(item["path"]).resolve()).lower() for item in roots}
+        for partition in psutil.disk_partitions(all=True):
+            device = str(partition.device or "").strip()
+            if not device:
+                continue
+            try:
+                resolved = Path(device).resolve()
+            except OSError:
+                continue
+            key = str(resolved).lower()
+            if key in seen or not Path(device).exists():
+                continue
+            seen.add(key)
+            opts = str(partition.opts or "").lower()
+            remote = "remote" in opts or str(partition.fstype).lower() in {
+                "cifs",
+                "smbfs",
+                "nfs",
+                "nfs4",
+            }
+            roots.append(
+                {
+                    "name": f"{'Сеть' if remote else 'Диск'} {device.rstrip(chr(92))}",
+                    "path": device,
+                    "type": "dir",
+                    "remote": remote,
+                }
+            )
+    except (ImportError, OSError):
+        pass
     return roots
 
 
@@ -736,13 +769,27 @@ def _shell_list(paths: Any, rel: str) -> dict[str, Any]:
     if not target.is_dir():
         raise RuntimeError("not a directory")
     entries: list[dict[str, Any]] = []
+    blocked = {
+        ".env",
+        "private",
+        "secrets",
+        ".ssh",
+        "$recycle.bin",
+        "system volume information",
+        "windows",
+        "program files",
+        "program files (x86)",
+        "programdata",
+        "appdata",
+    }
     with os.scandir(target) as iterator:
         for entry in sorted(iterator, key=lambda item: item.name.lower()):
-            if entry.name.lower() in {".env", "private", "secrets", ".ssh"}:
+            if entry.name.lower() in blocked:
                 continue
             try:
                 is_dir = entry.is_dir(follow_symlinks=False)
-                size = 0 if is_dir else entry.stat(follow_symlinks=False).st_size
+                stat = entry.stat(follow_symlinks=False)
+                size = 0 if is_dir else stat.st_size
             except OSError:
                 continue
             entries.append(
@@ -751,6 +798,7 @@ def _shell_list(paths: Any, rel: str) -> dict[str, Any]:
                     "path": str(Path(entry.path)),
                     "type": "dir" if is_dir else "file",
                     "size": size,
+                    "mtime": stat.st_mtime,
                 }
             )
     return {"path": str(target), "entries": entries[:500], "truncated": len(entries) > 500}
@@ -786,11 +834,15 @@ def _ui_fs_list(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
                 size = 0
         else:
             name, size = rest, 0
+        mtime = None
+        with suppress(OSError):
+            mtime = (paths.root / rel / name).stat().st_mtime
         entries.append(
             {
                 "name": name,
                 "type": "dir" if kind == "d" else "file" if kind == "f" else "other",
                 "size": size,
+                "mtime": mtime,
             }
         )
     return {"path": rel, "entries": entries, "truncated": truncated}
@@ -941,6 +993,7 @@ def _ui_fs_transfer(
 
 
 def _ui_fs_trash(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
+    backup = _fs_trash_backup(paths, rel)
     result = _run_direct_tool(
         paths,
         config,
@@ -950,12 +1003,67 @@ def _ui_fs_trash(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
         approved=True,
     )
     if not result.ok:
+        if backup:
+            shutil.rmtree(paths.root / backup, ignore_errors=True)
         raise RuntimeError(result.error or "cannot move to Recycle Bin")
-    return {"ok": True, "path": rel, "output": result.output}
+    if backup:
+        _fs_undo_push(
+            paths,
+            {"kind": "trash", "path": rel, "backup": backup},
+        )
+    return {
+        "ok": True,
+        "path": rel,
+        "output": result.output,
+        "undo_available": bool(backup),
+    }
 
 
 def _fs_undo_path(paths: Any) -> Path:
     return paths.data / "fs-undo.json"
+
+
+def _fs_trash_backup(paths: Any, rel: str) -> str | None:
+    """Keep a bounded local snapshot so Recycle Bin delete can be undone."""
+    from kivi.safety.zones import ProtectedZones
+
+    zones = ProtectedZones(paths.root, extra_rules=_zones_extra(paths))
+    target = zones.check(rel, "write").require()
+    if not target.exists() or target.is_symlink():
+        return None
+    size = 0
+    try:
+        if target.is_dir():
+            for item in target.rglob("*"):
+                if item.is_file():
+                    size += item.stat().st_size
+                    if size > 100 * 1024 * 1024:
+                        return None
+        else:
+            size = target.stat().st_size
+            if size > 100 * 1024 * 1024:
+                return None
+    except OSError:
+        return None
+    backup_root = paths.data / "trash-undo" / uuid.uuid4().hex
+    backup_root.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if target.is_dir():
+            shutil.copytree(target, backup_root)
+            backup_item = backup_root
+        else:
+            backup_root.mkdir(parents=True)
+            backup_item = backup_root / target.name
+            shutil.copy2(target, backup_item)
+    except (OSError, shutil.Error):
+        shutil.rmtree(backup_root, ignore_errors=True)
+        return None
+    try:
+        return str(backup_item.relative_to(paths.root))
+    except ValueError:
+        return str(backup_item)
+
+
 
 
 def _fs_undo_load(paths: Any) -> list[dict[str, Any]]:
@@ -996,6 +1104,25 @@ def _ui_fs_undo(paths: Any, config: KiviConfig) -> dict[str, Any]:
             {"source": entry.get("destination", ""), "destination": entry.get("source", "")},
             ["fs.write"],
         )
+    elif kind == "trash":
+        backup = Path(entry.get("backup", ""))
+        if not backup.is_absolute():
+            backup = paths.root / backup
+        if not backup.exists():
+            result = None
+        else:
+            result = _run_direct_tool(
+                paths,
+                config,
+                "fs.copy",
+                {"source": str(backup), "destination": entry.get("path", "")},
+                ["fs.write"],
+            )
+            if result.ok:
+                if backup.is_dir():
+                    shutil.rmtree(backup, ignore_errors=True)
+                else:
+                    backup.unlink(missing_ok=True)
     elif kind in {"copy", "move"}:
         if kind == "copy":
             result = _run_direct_tool(
@@ -1027,6 +1154,30 @@ def _ui_fs_undo(paths: Any, config: KiviConfig) -> dict[str, Any]:
     temporary.write_text(json.dumps(stack, ensure_ascii=False), encoding="utf-8")
     os.replace(temporary, target)
     return {"ok": True, "undone": entry}
+
+
+def _ui_fs_reveal(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
+    """Open Explorer with the target selected (read-only shell action)."""
+    from kivi.safety.zones import ProtectedZones
+
+    candidate = Path(rel)
+    if candidate.is_absolute() and _shell_allowed(candidate, _shell_roots(paths)):
+        target = candidate
+    else:
+        target = ProtectedZones(paths.root, extra_rules=_zones_extra(paths)).check(
+            rel, "read"
+        ).require()
+    if not target.exists():
+        raise RuntimeError("path does not exist")
+    command = ["explorer.exe", f"/select,{target}"]
+    kwargs: dict[str, Any] = {"close_fds": True}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    try:
+        subprocess.Popen(command, **kwargs)
+    except OSError as exc:
+        raise RuntimeError(f"cannot open Explorer: {exc}") from exc
+    return {"ok": True, "path": str(target)}
 
 
 def _ui_fs_thumb(paths: Any, config: KiviConfig, rel: str) -> bytes:
@@ -1825,6 +1976,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
         ),
         fs_undo_handler=(
             (lambda: _ui_fs_undo(paths, config))
+            if getattr(args, "ui", False)
+            else None
+        ),
+        fs_reveal_handler=(
+            (lambda rel: _ui_fs_reveal(paths, config, rel))
             if getattr(args, "ui", False)
             else None
         ),

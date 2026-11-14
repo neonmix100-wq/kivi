@@ -1,7 +1,7 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–9 закрыты, M5 ~99%, M6 100%, M7 ~80%, M8 ~99% (v0.20).
-> Shell namespace, undo и thumbnails добавлены в 0.21-кандидат. Железо
+> **Статус:** этапы 0–9 закрыты, M5 ~99%, M6 100%, M7 ~80%, M8 100% (P0/P1/P2)
+> в 0.21-кандидате. Железо
 > перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q4/14B/SDXL/Whisper
 > стали реалистичны. Работают `kivi doctor`, `kivi models`, `kivi ask`,
 > `kivi chat`, `kivi serve`, `kivi say`, `kivi voice design`, `kivi coder`,
@@ -15,8 +15,7 @@
 > и Qwen3-TTS VoiceDesign/Base голос Kivi; **Fish Audio S2.1 Pro Free + Astrea/s
 > сейчас основной голос**. Есть импорт голосов из файлов/URL и `media.image`.
 > Новый план: [`docs/PLAN-2026-11-12.md`](docs/PLAN-2026-11-12.md).
-> Осталось: M7 видео, M8 Explorer-замена (P2), OCR/PDF и approvals закрыты
-> в 0.21-кандидате; M6 паритет/rollback проверены.
+> Осталось: M7 настоящий text-to-video; M8 P0/P1/P2 закрыт, M6 — 100%.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Запуск интерфейса
@@ -286,7 +285,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
    микрофон, замеры false wake/WER.
 4. Закрыть M6 при доступе к реальному AltCRM: 10 заказов, графическая панель,
    паритет с extension.
-5. Дальше — M8 Kivi Shell (P2) и M7-видео; OCR/PDF и approvals уже в 0.21.
+5. Дальше — M7-видео; M8 P0/P1/P2, OCR/PDF и approvals уже в 0.21.
 
 Полный график — [PLAN-2026-11-12.md](docs/PLAN-2026-11-12.md).
 

@@ -64,6 +64,7 @@ def ui_api(tmp_path: Path):
         },
         fs_thumb_handler=lambda path: b"\xff\xd8\xff\xe0thumb",
         fs_undo_handler=lambda: {"ok": True, "undone": {"kind": "mkdir"}},
+        fs_reveal_handler=lambda path: {"ok": True, "path": path},
         crm_status_handler=lambda: {
             "connected": False,
             "hint": "start Chrome",
@@ -337,3 +338,11 @@ def test_ui_routes_503_when_not_configured(tmp_path: Path) -> None:
 def test_static_missing_file_is_404(ui_api: LocalApi) -> None:
     with _client(ui_api) as client:
         assert client.get("/nope").status_code == 404
+
+def test_fs_reveal(ui_api: LocalApi) -> None:
+    with _client(ui_api) as client:
+        response = client.post("/fs/reveal", json={"path": "docs"})
+        missing = client.post("/fs/reveal", json={})
+    assert response.status_code == 200
+    assert response.json()["path"] == "docs"
+    assert missing.status_code == 400

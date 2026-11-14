@@ -60,10 +60,10 @@ generated: true
 | [[SANDBOX]] | 24.6 KB | 9 | code.run запускает сгенерированный Python в best-effort песочнице. Это первый шаг M2 Coder: код изолирован на уровне Python-аудита и ресурсных лимитов Windows, но это не граница безопасности ОС. Полная изоляция — WSL2 ил… |
 | [[SDXL]] | 19.4 KB | 12 | Срез media.sdxl: локальная генерация картинок через уже установленный Stable Diffusion WebUI (D:\stable-diffusion-webui) и его HTTP API. Инструмент не запускает сервер, не скачивает модели и не ходит в интернет: он делае… |
 | [[SECURITY]] | 26.4 KB | 11 | Версия: 0.1 (09.11.2026). Связанные документы: docs/DECISIONS.md, docs/ARCHITECTURE.md, docs/MODULES.md, docs/SHELL.md. |
-| [[SHELL-P2]] | 1.3 KB | 4 | The Files page now has a Компьютер button. It opens shell:// with: |
+| [[SHELL-P2]] | 1.7 KB | 5 | The Files page has a Компьютер button. It opens shell:// with: |
 | [[SHELL]] | 22.6 KB | 15 | Версия: 0.1 (09.11.2026). Связанные документы: docs/ARCHITECTURE.md, docs/SECURITY.md, docs/ROADMAP.md. |
 | [[SKILLS-PLUGINS]] | 2.4 KB | 5 | Проверено через pluginmanager listplugins / listbundles. |
-| [[STATUS]] | 15.8 KB | 9 | Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1699, ruff чистый. kivi doctor и kivi models работают. |
+| [[STATUS]] | 15.8 KB | 9 | Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1700, ruff чистый. kivi doctor и kivi models работают. |
 | [[TELEGRAM]] | 18.3 KB | 10 | Kivi общается с Telegram только через Bot API и только тремя методами: getMe, getUpdates, sendMessage. User-account (MTProto, вход по номеру телефона) не поддерживается и не будет добавлен: это другой протокол, другие ри… |
 | [[TOOLS]] | 15.9 KB | 10 | Инструмент — единственный способ, которым Kivi меняет что-то вне своего процесса. Контракт, права и аудит появились раньше первого инструмента: это инвариант проекта, а не надстройка. |
 | [[TRUST]] | 5.6 KB | 6 | Всё, что приходит извне, попадает в контекст только с меткой происхождения. Метка ставится до модели и сохраняется в аудите. Правило простое: файл, сайт, письмо, вывод инструмента и картинка могут сообщать факты, но не м… |
@@ -608,11 +608,12 @@ _Нет разделов второго уровня._
 
 ## [[SHELL-P2|M8 P2: shell namespace, undo, thumbnails]]
 
-> The Files page now has a Компьютер button. It opens shell:// with:
+> The Files page has a Компьютер button. It opens shell:// with:
 
 - [[SHELL-P2#Shell namespace|Shell namespace]]
 - [[SHELL-P2#Undo|Undo]]
 - [[SHELL-P2#Thumbnails|Thumbnails]]
+- [[SHELL-P2#Explorer and sorting|Explorer and sorting]]
 - [[SHELL-P2#Checks|Checks]]
 
 ## [[SHELL|Kivi Shell: полноэкранная замена Explorer]]
@@ -647,7 +648,7 @@ _Нет разделов второго уровня._
 
 ## [[STATUS|Статус проекта Kivi]]
 
-> Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1699, ruff чистый. kivi doctor и kivi models работают.
+> Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1700, ruff чистый. kivi doctor и kivi models работают.
 
 - [[STATUS#0. Железо на 12.11.2026|0. Железо на 12.11.2026]]
 - [[STATUS#1. Краткий ответ|1. Краткий ответ]]
