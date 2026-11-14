@@ -52,6 +52,25 @@ public partial class MainWindow : Window
             ? $"API: {_baseUrl.Replace("http://", "")}"
             : "API недоступен";
         if (found) await LoadHistoryAsync();
+        SetActiveNav("chat");
+    }
+
+    private void SetActiveNav(string tag)
+    {
+        var inactive = Brushes.Transparent;
+        var active = new SolidColorBrush(Color.FromRgb(11, 58, 52));
+        foreach (var (button, key) in new[]
+        {
+            (ChatNav, "chat"),
+            (VoicesNav, "voices"),
+            (MediaNav, "media"),
+            (FilesNav, "files"),
+            (CrmNav, "crm"),
+            (SettingsNav, "settings"),
+        })
+        {
+            button.Background = key == tag ? active : inactive;
+        }
     }
 
     private async Task<bool> FindApiAsync(int attempts = 1)
@@ -137,6 +156,7 @@ public partial class MainWindow : Window
             ["settings"] = "Настройки",
         };
         PageTitle.Text = labels.GetValueOrDefault(tag, "Kivi");
+        SetActiveNav(tag);
         ChatView.Visibility = tag == "chat" ? Visibility.Visible : Visibility.Collapsed;
         PageView.Visibility = tag == "chat" ? Visibility.Collapsed : Visibility.Visible;
         if (tag != "chat") await ShowPageAsync(tag);

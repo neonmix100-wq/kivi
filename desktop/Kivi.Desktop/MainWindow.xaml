@@ -27,12 +27,12 @@
                 </StackPanel>
 
                 <StackPanel Margin="4,0">
-                    <Button x:Name="ChatNav" Style="{StaticResource NavButton}" Content="  Чат" Tag="chat" Click="Nav_Click"/>
-                    <Button x:Name="VoicesNav" Style="{StaticResource NavButton}" Content="  Голоса" Tag="voices" Click="Nav_Click"/>
-                    <Button x:Name="MediaNav" Style="{StaticResource NavButton}" Content="  Медиа" Tag="media" Click="Nav_Click"/>
-                    <Button x:Name="FilesNav" Style="{StaticResource NavButton}" Content="  Файлы" Tag="files" Click="Nav_Click"/>
-                    <Button x:Name="CrmNav" Style="{StaticResource NavButton}" Content="  CRM" Tag="crm" Click="Nav_Click"/>
-                    <Button x:Name="SettingsNav" Style="{StaticResource NavButton}" Content="  Настройки" Tag="settings" Click="Nav_Click"/>
+                    <Button x:Name="ChatNav" Style="{StaticResource NavButton}" Content="💬  Чат" Tag="chat" Click="Nav_Click"/>
+                    <Button x:Name="VoicesNav" Style="{StaticResource NavButton}" Content="🎙  Голоса" Tag="voices" Click="Nav_Click"/>
+                    <Button x:Name="MediaNav" Style="{StaticResource NavButton}" Content="🖼  Медиа" Tag="media" Click="Nav_Click"/>
+                    <Button x:Name="FilesNav" Style="{StaticResource NavButton}" Content="📁  Файлы" Tag="files" Click="Nav_Click"/>
+                    <Button x:Name="CrmNav" Style="{StaticResource NavButton}" Content="👤  CRM" Tag="crm" Click="Nav_Click"/>
+                    <Button x:Name="SettingsNav" Style="{StaticResource NavButton}" Content="⚙  Настройки" Tag="settings" Click="Nav_Click"/>
                 </StackPanel>
             </DockPanel>
         </Border>
