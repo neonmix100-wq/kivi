@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using NAudio.Wave;
+using Windows.Media.Core;
 using Windows.Storage.Streams;
 using Windows.System;
 using Windows.UI;
@@ -42,6 +43,9 @@ public sealed partial class MainWindow : Window
     private TextBlock? _filesStatus;
     private readonly List<WinFileEntry> _filesEntries = new();
     private readonly HashSet<string> _filesSelected = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<string> _winTabs = new() { "." };
+    private int _winTabIndex;
+    private StackPanel? _winTabStrip;
 
     public MainWindow()
     {
@@ -342,10 +346,13 @@ public sealed partial class MainWindow : Window
         };
     }
 
+    private readonly List<(string Kind, string Value)> _winMedia = new();
+    private StackPanel? _winGalleryPanel;
+
     private async Task BuildMediaAsync()
     {
         PagePanel.Children.Add(Heading("Медиа"));
-        PagePanel.Children.Add(Sub("Генерация изображений через локальный API."));
+        PagePanel.Children.Add(Sub("Генерация изображений и видео через локальный API."));
         var prompt = new TextBox
         {
             PlaceholderText = "Опиши изображение",
@@ -373,25 +380,113 @@ public sealed partial class MainWindow : Window
             var comma = image.IndexOf(',');
             if (comma <= 0) return;
             var bytes = Convert.FromBase64String(image[(comma + 1)..]);
-            var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
-            using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
-            using var writer = new Windows.Storage.Streams.DataWriter(stream);
-            writer.WriteBytes(bytes);
-            await writer.StoreAsync();
-            await writer.FlushAsync();
-            writer.DetachStream();
-            stream.Seek(0);
-            await bitmap.SetSourceAsync(stream);
-            output.Children.Add(new Image { Source = bitmap, MaxWidth = 420, MaxHeight = 420, HorizontalAlignment = HorizontalAlignment.Left });
+            output.Children.Add(await BuildWinImageAsync(bytes));
+            _winMedia.Insert(0, ("image", Convert.ToBase64String(bytes)));
+            TrimWinMedia();
+            RenderWinGallery();
+        }));
+        PagePanel.Children.Add(PageButton("Сгенерировать видео 4 с", async (_, _) =>
+        {
+            output.Children.Clear();
+            using var result = await PostJsonAsync("/media/video", new
+            {
+                prompt = prompt.Text,
+                duration = 4,
+                model = "local",
+            });
+            if (result is null) { output.Children.Add(Sub("Видео недоступно.")); return; }
+            var video = result.RootElement.TryGetProperty("video", out var value) ? value.GetString() : null;
+            if (video is null || !video.StartsWith("data:video/", StringComparison.Ordinal)) return;
+            var comma = video.IndexOf(',');
+            if (comma <= 0) return;
+            var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"kivi-{Guid.NewGuid():N}.mp4");
+            await File.WriteAllBytesAsync(path, Convert.FromBase64String(video[(comma + 1)..]));
+            output.Children.Add(BuildWinVideo(path));
+            _winMedia.Insert(0, ("video", path));
+            TrimWinMedia();
+            RenderWinGallery();
         }));
         PagePanel.Children.Add(output);
+        PagePanel.Children.Add(new TextBlock
+        {
+            Text = "Галерея",
+            Foreground = new SolidColorBrush(Color.FromArgb(255, 228, 247, 241)),
+            FontSize = 18,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Margin = new Thickness(0, 20, 0, 8),
+        });
+        _winGalleryPanel = new StackPanel { Spacing = 8 };
+        PagePanel.Children.Add(_winGalleryPanel);
+        RenderWinGallery();
         await Task.CompletedTask;
+    }
+
+    private void TrimWinMedia()
+    {
+        while (_winMedia.Count > 12) _winMedia.RemoveAt(_winMedia.Count - 1);
+    }
+
+    private void RenderWinGallery()
+    {
+        if (_winGalleryPanel is null) return;
+        _winGalleryPanel.Children.Clear();
+        if (_winMedia.Count == 0)
+        {
+            _winGalleryPanel.Children.Add(Sub("Здесь появятся сгенерированные изображения и видео."));
+            return;
+        }
+        foreach (var (kind, value) in _winMedia)
+        {
+            if (kind == "image")
+            {
+                var bitmap = new BitmapImage();
+                using var stream = new InMemoryRandomAccessStream();
+                using var writer = new DataWriter(stream);
+                writer.WriteBytes(Convert.FromBase64String(value));
+                writer.StoreAsync().AsTask().GetAwaiter().GetResult();
+                writer.FlushAsync().AsTask().GetAwaiter().GetResult();
+                writer.DetachStream();
+                stream.Seek(0);
+                bitmap.SetSourceAsync(stream).AsTask().GetAwaiter().GetResult();
+                _winGalleryPanel.Children.Add(new Image { Source = bitmap, MaxWidth = 320, MaxHeight = 320, HorizontalAlignment = HorizontalAlignment.Left });
+            }
+            else if (File.Exists(value))
+            {
+                _winGalleryPanel.Children.Add(BuildWinVideo(value));
+            }
+        }
+    }
+
+    private static MediaPlayerElement BuildWinVideo(string path) => new()
+    {
+        Source = MediaSource.CreateFromUri(new Uri(path)),
+        Width = 480,
+        Height = 270,
+        AreTransportControlsEnabled = true,
+        HorizontalAlignment = HorizontalAlignment.Left,
+    };
+
+    private static async Task<Image> BuildWinImageAsync(byte[] bytes)
+    {
+        var bitmap = new BitmapImage();
+        using var stream = new InMemoryRandomAccessStream();
+        using var writer = new DataWriter(stream);
+        writer.WriteBytes(bytes);
+        await writer.StoreAsync();
+        await writer.FlushAsync();
+        writer.DetachStream();
+        stream.Seek(0);
+        await bitmap.SetSourceAsync(stream);
+        return new Image { Source = bitmap, MaxWidth = 420, MaxHeight = 420, HorizontalAlignment = HorizontalAlignment.Left };
     }
 
     private async Task BuildFilesAsync()
     {
         PagePanel.Children.Add(Heading("Файлы"));
         PagePanel.Children.Add(Sub("Навигация, поиск, сортировка, preview и операции."));
+        _winTabStrip = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Margin = new Thickness(0, 0, 0, 8) };
+        PagePanel.Children.Add(_winTabStrip);
+        RenderWinTabs();
 
         var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 0, 0, 8) };
         toolbar.Children.Add(PageButton("Компьютер", async (_, _) => await LoadFilesAsync("shell://")));
@@ -453,6 +548,35 @@ public sealed partial class MainWindow : Window
         await LoadFilesAsync(_filesPath);
     }
 
+    private void RenderWinTabs()
+    {
+        if (_winTabStrip is null) return;
+        _winTabStrip.Children.Clear();
+        for (var index = 0; index < _winTabs.Count; index++)
+        {
+            var tabIndex = index;
+            var path = _winTabs[index];
+            var label = path == "." ? "Рабочая" : path == "shell://" ? "Компьютер" : System.IO.Path.GetFileName(path.TrimEnd('/', '\\'));
+            if (string.IsNullOrWhiteSpace(label)) label = path;
+            var button = PageButton(label, async (_, _) =>
+            {
+                _winTabIndex = tabIndex;
+                await LoadFilesAsync(_winTabs[tabIndex], false);
+            });
+            button.Background = tabIndex == _winTabIndex
+                ? new SolidColorBrush(Color.FromArgb(255, 11, 58, 52))
+                : new SolidColorBrush(Color.FromArgb(255, 8, 47, 43));
+            _winTabStrip.Children.Add(button);
+        }
+        _winTabStrip.Children.Add(PageButton("+", async (_, _) =>
+        {
+            _winTabs.Add(_filesView);
+            _winTabIndex = _winTabs.Count - 1;
+            RenderWinTabs();
+            await LoadFilesAsync(_filesView, false);
+        }));
+    }
+
     private async Task LoadFilesAsync(string path, bool record = true)
     {
         if (_filesListPanel is null || _filesStatus is null) return;
@@ -460,6 +584,8 @@ public sealed partial class MainWindow : Window
         if (record && !string.Equals(_filesPath, path, StringComparison.OrdinalIgnoreCase))
             _filesBack.Push(_filesPath);
         _filesPath = path;
+        if (_winTabIndex >= 0 && _winTabIndex < _winTabs.Count) _winTabs[_winTabIndex] = path;
+        RenderWinTabs();
         if (_filesPathBox is not null) _filesPathBox.Text = path;
         _filesStatus.Text = "Загружаю…";
         _filesListPanel.Children.Clear();
