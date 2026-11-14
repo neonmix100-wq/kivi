@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Media;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using NAudio.Wave;
 
 namespace Kivi.Desktop;
 
@@ -16,6 +18,16 @@ public partial class MainWindow : Window
     private string _baseUrl = "http://127.0.0.1:8765";
     private bool _sending;
     private Process? _ownedBackend;
+    private bool _autoSpeak;
+    private bool _recording;
+    private WaveInEvent? _waveIn;
+    private MemoryStream? _micStream;
+    private WaveFileWriter? _micWriter;
+    private bool _wakeMode;
+    private WaveInEvent? _wakeIn;
+    private readonly List<byte> _wakePcm = new();
+    private readonly object _wakeLock = new();
+    private bool _wakeBusy;
 
     public MainWindow()
     {
@@ -367,6 +379,7 @@ public partial class MainWindow : Window
     private string _nativeFilesView = ".";
     private readonly Stack<string> _nativeFilesBack = new();
     private TextBox? _nativePathBox;
+    private TextBox? _nativeSearchBox;
     private StackPanel? _nativeFilesList;
     private StackPanel? _nativePreview;
     private TextBlock? _nativeFilesStatus;
@@ -419,6 +432,30 @@ public partial class MainWindow : Window
         pathRow.Children.Add(go);
         pathRow.Children.Add(_nativePathBox);
         PagePanel.Children.Add(pathRow);
+
+        var searchRow = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
+        _nativeSearchBox = new TextBox
+        {
+            Background = (Brush)FindResource("Panel2"),
+            Foreground = (Brush)FindResource("Text"),
+            BorderBrush = (Brush)FindResource("Line"),
+            Padding = new Thickness(10, 8, 10, 8),
+            FontSize = 13,
+        };
+        var searchButton = PageButton("Найти", async (_, _) => await NativeSearchAsync());
+        searchButton.Margin = new Thickness(8, 0, 0, 0);
+        DockPanel.SetDock(searchButton, Dock.Right);
+        var clearButton = PageButton("Очистить", async (_, _) =>
+        {
+            if (_nativeSearchBox is not null) _nativeSearchBox.Text = "";
+            await LoadNativeFilesAsync(_nativeFilesPath, false);
+        });
+        clearButton.Margin = new Thickness(8, 0, 0, 0);
+        DockPanel.SetDock(clearButton, Dock.Right);
+        searchRow.Children.Add(searchButton);
+        searchRow.Children.Add(clearButton);
+        searchRow.Children.Add(_nativeSearchBox);
+        PagePanel.Children.Add(searchRow);
 
         _nativeFilesStatus = PageSub("Загружаю…");
         PagePanel.Children.Add(_nativeFilesStatus);
@@ -493,15 +530,26 @@ public partial class MainWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+        var iconHost = new Border
+        {
+            Width = 34,
+            Height = 34,
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(Color.FromRgb(10, 55, 49)),
+            Margin = new Thickness(0, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
         var icon = new TextBlock
         {
             Text = type == "dir" ? "▸" : "·",
             Foreground = (Brush)FindResource(type == "dir" ? "Mint" : "Muted"),
             FontSize = 18,
-            Width = 24,
+            HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        grid.Children.Add(icon);
+        iconHost.Child = icon;
+        grid.Children.Add(iconHost);
+        if (type != "dir") _ = LoadNativeThumbAsync(iconHost, path);
         var title = new TextBlock
         {
             Text = name,
@@ -534,13 +582,91 @@ public partial class MainWindow : Window
         openExplorer.Click += async (_, _) => await PostJsonAsync("/fs/reveal", new { path });
         var rename = new MenuItem { Header = "Переименовать" };
         rename.Click += async (_, _) => await NativeRenameAsync(path, name);
+        var copy = new MenuItem { Header = "Копировать в…" };
+        copy.Click += async (_, _) => await NativeTransferAsync(path, name, "copy");
+        var move = new MenuItem { Header = "Переместить в…" };
+        move.Click += async (_, _) => await NativeTransferAsync(path, name, "move");
         var trash = new MenuItem { Header = "В корзину" };
         trash.Click += async (_, _) => await NativeTrashAsync(path, name);
         menu.Items.Add(openExplorer);
         menu.Items.Add(rename);
+        menu.Items.Add(copy);
+        menu.Items.Add(move);
         menu.Items.Add(trash);
         row.ContextMenu = menu;
         return row;
+    }
+
+    private async Task LoadNativeThumbAsync(Border host, string path)
+    {
+        try
+        {
+            var bytes = await Http.GetByteArrayAsync(
+                $"{_baseUrl}/fs/thumb?path={Uri.EscapeDataString(path)}");
+            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+            using var stream = new MemoryStream(bytes);
+            bitmap.BeginInit();
+            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = stream;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            host.Child = new Image
+            {
+                Source = bitmap,
+                Stretch = Stretch.UniformToFill,
+                Width = 34,
+                Height = 34,
+            };
+        }
+        catch
+        {
+            // keep the type glyph when no thumbnail is available
+        }
+    }
+
+    private async Task NativeSearchAsync()
+    {
+        if (_nativeSearchBox is null || _nativeFilesList is null || _nativeFilesStatus is null) return;
+        var query = _nativeSearchBox.Text.Trim();
+        if (query.Length == 0)
+        {
+            await LoadNativeFilesAsync(_nativeFilesPath, false);
+            return;
+        }
+        _nativeFilesList.Children.Clear();
+        _nativeFilesStatus.Text = "Ищу…";
+        using var doc = await GetJsonAsync(
+            $"/fs/search?q={Uri.EscapeDataString(query)}&path={Uri.EscapeDataString(_nativeFilesView)}");
+        if (doc is null)
+        {
+            _nativeFilesStatus.Text = "Поиск не удался.";
+            return;
+        }
+        var count = 0;
+        if (doc.RootElement.TryGetProperty("matches", out var matches))
+        {
+            foreach (var entry in matches.EnumerateArray())
+            {
+                count++;
+                var name = entry.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                var type = entry.TryGetProperty("type", out var t) ? t.GetString() ?? "file" : "file";
+                var path = entry.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
+                if (path.Length == 0) continue;
+                _nativeFilesList.Children.Add(BuildNativeFileRow(name, type, path, 0));
+            }
+        }
+        _nativeFilesStatus.Text = count == 0 ? "Ничего не найдено." : $"{count} результатов поиска.";
+    }
+
+    private async Task NativeTransferAsync(string source, string name, string mode)
+    {
+        var destination = Prompt(mode == "copy" ? "Копировать" : "Переместить", "Куда (полный путь)", _nativeFilesView);
+        if (string.IsNullOrWhiteSpace(destination)) return;
+        var target = NativeJoin(destination.Trim(), name);
+        using var result = await PostJsonAsync(
+            mode == "copy" ? "/fs/copy" : "/fs/move",
+            new { source, destination = target });
+        await LoadNativeFilesAsync(_nativeFilesPath, false);
     }
 
     private async Task ShowNativePreviewAsync(string path, string name)
@@ -692,6 +818,198 @@ public partial class MainWindow : Window
 
     private void Send_Click(object sender, RoutedEventArgs e) => _ = SendMessageAsync();
 
+    private async void Speak_Click(object sender, RoutedEventArgs e)
+    {
+        _autoSpeak = !_autoSpeak;
+        SpeakButton.Background = new SolidColorBrush(
+            _autoSpeak ? Color.FromRgb(21, 83, 72) : Colors.Transparent);
+        await Task.CompletedTask;
+    }
+
+    private async void Mic_Click(object sender, RoutedEventArgs e)
+    {        if (_recording)
+        {
+            await StopRecordingAsync();
+            return;
+        }
+        try
+        {
+            _micStream = new MemoryStream();
+            _micWriter = new WaveFileWriter(_micStream, new WaveFormat(16000, 16, 1));
+            _waveIn = new WaveInEvent
+            {
+                WaveFormat = new WaveFormat(16000, 16, 1),
+                BufferMilliseconds = 100,
+            };
+            _waveIn.DataAvailable += (_, args) =>
+            {
+                _micWriter?.Write(args.Buffer, 0, args.BytesRecorded);
+                _micWriter?.Flush();
+            };
+            _waveIn.StartRecording();
+            _recording = true;
+            MicButton.Background = new SolidColorBrush(Color.FromRgb(21, 83, 72));
+            ComposerInput.Text = "";
+        }
+        catch (Exception ex)
+        {
+            AddBubble($"Микрофон недоступен: {ex.Message}", false);
+        }
+    }
+
+    private async Task StopRecordingAsync()
+    {
+        if (!_recording) return;
+        _recording = false;
+        MicButton.Background = Brushes.Transparent;
+        _waveIn?.StopRecording();
+        _waveIn?.Dispose();
+        _waveIn = null;
+        _micWriter?.Dispose();
+        _micWriter = null;
+        if (_micStream is null) return;
+        var audio = _micStream.ToArray();
+        _micStream.Dispose();
+        _micStream = null;
+        try
+        {
+            using var content = new ByteArrayContent(audio);
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+            using var response = await Http.PostAsync($"{_baseUrl}/transcribe", content);
+            if (!response.IsSuccessStatusCode) return;
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var text = doc.RootElement.TryGetProperty("text", out var value) ? value.GetString() : "";
+            if (!string.IsNullOrWhiteSpace(text)) ComposerInput.Text = text;
+        }
+        catch (Exception ex)
+        {
+            AddBubble($"Не удалось распознать речь: {ex.Message}", false);
+        }
+    }
+
+    private async void Wake_Click(object sender, RoutedEventArgs e)
+    {
+        if (_wakeMode)
+        {
+            StopWakeMode();
+            return;
+        }
+        if (_recording) await StopRecordingAsync();
+        try
+        {
+            _wakeMode = true;
+            lock (_wakeLock) _wakePcm.Clear();
+            _wakeIn = new WaveInEvent
+            {
+                WaveFormat = new WaveFormat(16000, 16, 1),
+                BufferMilliseconds = 200,
+            };
+            _wakeIn.DataAvailable += (_, args) =>
+            {
+                lock (_wakeLock)
+                {
+                    _wakePcm.AddRange(args.Buffer.Take(args.BytesRecorded));
+                    if (_wakePcm.Count > 16000 * 2 * 4)
+                        _wakePcm.RemoveRange(0, _wakePcm.Count - 16000 * 2 * 4);
+                }
+            };
+            _wakeIn.StartRecording();
+            WakeButton.Background = new SolidColorBrush(Color.FromRgb(21, 83, 72));
+            ConnectionText.Text = "Слушаю «Киви»…";
+            _ = WakeLoopAsync();
+        }
+        catch (Exception ex)
+        {
+            _wakeMode = false;
+            AddBubble($"Wake недоступен: {ex.Message}", false);
+        }
+    }
+
+    private async Task WakeLoopAsync()
+    {
+        while (_wakeMode)
+        {
+            await Task.Delay(1200);
+            if (!_wakeMode || _wakeBusy) continue;
+            byte[] pcm;
+            lock (_wakeLock) pcm = _wakePcm.ToArray();
+            if (pcm.Length < 32000) continue;
+            _wakeBusy = true;
+            try
+            {
+                var wav = PcmToWav(pcm);
+                using var content = new ByteArrayContent(wav);
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+                using var response = await Http.PostAsync($"{_baseUrl}/wake", content);
+                if (!response.IsSuccessStatusCode) continue;
+                using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                var detected = doc.RootElement.TryGetProperty("detected", out var value) && value.GetBoolean();
+                if (!detected) continue;
+                StopWakeMode();
+                using var audio = new ByteArrayContent(wav);
+                audio.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+                using var stt = await Http.PostAsync($"{_baseUrl}/transcribe", audio);
+                if (!stt.IsSuccessStatusCode) return;
+                using var sttDoc = JsonDocument.Parse(await stt.Content.ReadAsStringAsync());
+                var text = sttDoc.RootElement.TryGetProperty("text", out var t) ? t.GetString() : "";
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    ComposerInput.Text = text;
+                    await SendMessageAsync();
+                }
+                return;
+            }
+            catch
+            {
+                // a wake probe failure is not fatal; keep listening
+            }
+            finally
+            {
+                _wakeBusy = false;
+            }
+        }
+    }
+
+    private void StopWakeMode()
+    {
+        _wakeMode = false;
+        WakeButton.Background = Brushes.Transparent;
+        _wakeIn?.StopRecording();
+        _wakeIn?.Dispose();
+        _wakeIn = null;
+        ConnectionText.Text = $"API: {_baseUrl.Replace("http://", "")}";
+    }
+
+    private static byte[] PcmToWav(byte[] pcm)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new WaveFileWriter(stream, new WaveFormat(16000, 16, 1)))
+        {
+            writer.Write(pcm, 0, pcm.Length);
+        }
+        return stream.ToArray();
+    }
+
+    private async Task SpeakTextAsync(string text)
+    {
+        try
+        {
+            using var response = await Http.PostAsJsonAsync($"{_baseUrl}/tts", new { text });
+            if (!response.IsSuccessStatusCode) return;
+            var audio = await response.Content.ReadAsByteArrayAsync();
+            await Task.Run(() =>
+            {
+                using var stream = new MemoryStream(audio);
+                using var player = new SoundPlayer(stream);
+                player.PlaySync();
+            });
+        }
+        catch
+        {
+            // speech is best-effort
+        }
+    }
+
     private async Task SendMessageAsync()
     {
         if (_sending) return;
@@ -714,7 +1032,9 @@ public partial class MainWindow : Window
             var answer = doc.RootElement.TryGetProperty("answer", out var value)
                 ? value.GetString()
                 : null;
-            ReplacePending(string.IsNullOrWhiteSpace(answer) ? "Пустой ответ." : answer);
+            var answerText = string.IsNullOrWhiteSpace(answer) ? "Пустой ответ." : answer!;
+            ReplacePending(answerText);
+            if (_autoSpeak) await SpeakTextAsync(answerText);
         }
         catch (Exception ex)
         {

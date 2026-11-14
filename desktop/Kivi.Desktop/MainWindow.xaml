@@ -91,9 +91,9 @@
                                      KeyDown="ComposerInput_KeyDown"/>
                             <DockPanel Grid.Row="1" Margin="0,8,0,0">
                                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                                    <Button Style="{StaticResource ToolButton}" Content="🎙" ToolTip="Голосовой ввод"/>
-                                    <Button Style="{StaticResource ToolButton}" Content="⌁" ToolTip="Слушать Kivi"/>
-                                    <Button Style="{StaticResource ToolButton}" Content="🔊" ToolTip="Автоозвучивание"/>
+                                    <Button x:Name="MicButton" Style="{StaticResource ToolButton}" Content="🎙" ToolTip="Голосовой ввод" Click="Mic_Click"/>
+                                    <Button x:Name="WakeButton" Style="{StaticResource ToolButton}" Content="⌁" ToolTip="Слушать Kivi"/>
+                                    <Button x:Name="SpeakButton" Style="{StaticResource ToolButton}" Content="🔊" ToolTip="Автоозвучивание" Click="Speak_Click"/>
                                     <TextBlock Text="Enter — отправить · Shift+Enter — перенос" Foreground="{StaticResource Muted}" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0"/>
                                 </StackPanel>
                                 <Button x:Name="SendButton" DockPanel.Dock="Right" Style="{StaticResource SendButton}" Content="➤" Click="Send_Click"/>
