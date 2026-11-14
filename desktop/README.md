@@ -30,12 +30,15 @@ the native window closes.
 | native window, dark theme, sidebar | done |
 | chat request/response | done |
 | automatic local backend start | done |
-| chat history | next |
-| voices and TTS | next |
-| media | next |
-| files/shell | next |
-| CRM | next |
-| settings | next |
+| chat history | done |
+| voices list/select | done |
+| settings provider | done |
+| media image generation | basic |
+| files list | basic |
+| CRM status/read | basic |
+| full files/shell operations | next |
+| media gallery/video | next |
+| CRM write forms | next |
 | installer / Python sidecar | next |
 
 The existing web UI remains available during the migration; both clients use

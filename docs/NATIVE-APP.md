@@ -26,10 +26,11 @@ share the same SQLite data, config and loopback API.
 
 ## Phases
 
-1. **Shell** — window, sidebar, chat send/answer, backend autostart. Done in
-   `0.21-native-alpha`.
-2. **Chat** — history, retry, auto-speak, voice input, wake button.
-3. **Pages** — voices, media, files/shell, CRM, settings.
+1. **Shell** — window, sidebar, chat send/answer, backend autostart. Done.
+2. **Chat/history/voices/settings** — history rendering, voices list/select,
+   settings provider. Done in native alpha 2.
+3. **Pages** — native basic media image, file list, CRM status/read. Next:
+   full files/shell, media gallery/video, CRM forms, voice/TTS controls.
 4. **Packaging** — Python sidecar/installer, icon, first-run, update check.
 5. **Parity audit** — every current UI action covered by a native control and
    tested.
