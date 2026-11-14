@@ -53,7 +53,7 @@ def ui_api(tmp_path: Path):
         fs_copy_handler=lambda source, destination: {"ok": True},
         fs_move_handler=lambda source, destination: {"ok": True},
         fs_trash_handler=lambda path: {"ok": True, "path": path},
-        fs_search_handler=lambda query: {
+        fs_search_handler=lambda query, root="": {
             "query": query,
             "matches": [{"path": "docs/API.md", "name": "API.md"}],
             "truncated": False,

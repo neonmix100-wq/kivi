@@ -49,7 +49,7 @@ FsMkdirHandler = Callable[[str], dict[str, Any]]
 FsRenameHandler = Callable[[str, str], dict[str, Any]]
 FsCopyMoveHandler = Callable[[str, str], dict[str, Any]]
 FsTrashHandler = Callable[[str], dict[str, Any]]
-FsSearchHandler = Callable[[str], dict[str, Any]]
+FsSearchHandler = Callable[[str, str], dict[str, Any]]
 FsRawHandler = Callable[[str], dict[str, Any]]
 FsThumbHandler = Callable[[str], bytes]
 FsUndoHandler = Callable[[], dict[str, Any]]
@@ -666,11 +666,12 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._send_json(503, {"error": "files are not configured"})
             return
         raw = parse_qs(query).get("q", [""])[0]
+        root = parse_qs(query).get("path", [""])[0]
         if not isinstance(raw, str) or not raw.strip():
             self._send_json(400, {"error": "q must be a non-empty string"})
             return
         try:
-            result = api._fs_search_handler(raw.strip())
+            result = api._fs_search_handler(raw.strip(), root.strip())
         except Exception:
             logger.warning("fs search failed")
             self._send_json(500, {"error": "search failed"})

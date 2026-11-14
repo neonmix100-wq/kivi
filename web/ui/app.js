@@ -3662,9 +3662,10 @@ async function runFilesSearch(rawQuery) {
   updateViewHeader();
 
   try {
-    const data = await apiRequest(`/fs/search?q=${encodeURIComponent(query)}`, {
-      timeout: 20000,
-    });
+    const data = await apiRequest(
+      `/fs/search?q=${encodeURIComponent(query)}&path=${encodeURIComponent(state.files.path)}`,
+      { timeout: 20000 },
+    );
     if (epoch !== state.files.searchEpoch) return;
     const matches = normalizeFsSearchMatches(data && data.matches);
     state.files.searchMatches = matches;

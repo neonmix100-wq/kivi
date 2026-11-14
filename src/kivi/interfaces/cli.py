@@ -954,7 +954,88 @@ def _ui_fs_rename(
     }
 
 
-def _ui_fs_search(paths: Any, config: KiviConfig, query: str) -> dict[str, Any]:
+def _shell_search(
+    paths: Any,
+    query: str,
+    root: str,
+    *,
+    limit: int = 100,
+    max_depth: int = 8,
+) -> dict[str, Any]:
+    roots = _shell_roots(paths)
+    if root.strip().lower() == "shell://" or not root.strip():
+        starts = [Path(item["path"]) for item in roots]
+    else:
+        candidate = Path(root.strip())
+        if len(root.strip()) == 2 and root.strip()[1] == ":":
+            candidate = Path(root.strip() + "/")
+        if not candidate.is_absolute() or not _shell_allowed(candidate, roots):
+            raise RuntimeError("search path is outside the shell namespace")
+        starts = [candidate]
+    needle = query.casefold().strip()
+    blocked = {
+        ".env",
+        "private",
+        "secrets",
+        ".ssh",
+        "$recycle.bin",
+        "system volume information",
+        "windows",
+        "program files",
+        "program files (x86)",
+        "programdata",
+        "appdata",
+        "node_modules",
+        "__pycache__",
+    }
+    matches: list[dict[str, Any]] = []
+    visited = 0
+    stack = [(path, 0) for path in starts if path.is_dir()]
+    while stack and len(matches) < limit and visited < 20_000:
+        directory, depth = stack.pop()
+        try:
+            with os.scandir(directory) as iterator:
+                entries = sorted(iterator, key=lambda item: item.name.lower())
+        except OSError:
+            continue
+        for entry in entries:
+            visited += 1
+            if visited >= 20_000 or len(matches) >= limit:
+                break
+            if entry.name.lower() in blocked:
+                continue
+            try:
+                is_dir = entry.is_dir(follow_symlinks=False)
+                stat = entry.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if needle in entry.name.casefold():
+                matches.append(
+                    {
+                        "name": entry.name,
+                        "path": str(Path(entry.path)),
+                        "type": "dir" if is_dir else "file",
+                        "size": 0 if is_dir else stat.st_size,
+                    }
+                )
+            if is_dir and depth < max_depth:
+                stack.append((Path(entry.path), depth + 1))
+    return {
+        "query": query,
+        "path": root,
+        "matches": matches,
+        "truncated": bool(stack or visited >= 20_000),
+    }
+
+
+def _ui_fs_search(
+    paths: Any,
+    config: KiviConfig,
+    query: str,
+    root: str = "",
+) -> dict[str, Any]:
+    if root.startswith("shell://") or Path(root).is_absolute():
+        return _shell_search(paths, query, root)
     result = _run_direct_tool(
         paths,
         config,
@@ -1967,7 +2048,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
             else None
         ),
         fs_search_handler=(
-            (lambda query: _ui_fs_search(paths, config, query))
+            (lambda query, root="": _ui_fs_search(paths, config, query, root))
             if getattr(args, "ui", False)
             else None
         ),
