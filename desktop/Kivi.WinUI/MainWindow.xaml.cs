@@ -25,6 +25,16 @@ public sealed partial class MainWindow : Window
     private WaveInEvent? _waveIn;
     private MemoryStream? _micStream;
     private WaveFileWriter? _micWriter;
+    private string _filesPath = ".";
+    private string _filesView = ".";
+    private string _filesSort = "name";
+    private readonly Stack<string> _filesBack = new();
+    private TextBox? _filesPathBox;
+    private TextBox? _filesSearchBox;
+    private StackPanel? _filesListPanel;
+    private TextBlock? _filesStatus;
+    private readonly List<WinFileEntry> _filesEntries = new();
+    private readonly HashSet<string> _filesSelected = new(StringComparer.OrdinalIgnoreCase);
 
     public MainWindow()
     {
@@ -374,23 +384,281 @@ public sealed partial class MainWindow : Window
     private async Task BuildFilesAsync()
     {
         PagePanel.Children.Add(Heading("Файлы"));
-        PagePanel.Children.Add(Sub("WinUI-файловый менеджер: список рабочей папки."));
-        using var doc = await GetJsonAsync("/fs/list?path=.");
-        if (doc is null) { PagePanel.Children.Add(Sub("Не удалось получить список.")); return; }
-        if (!doc.RootElement.TryGetProperty("entries", out var entries)) return;
-        foreach (var entry in entries.EnumerateArray())
+        PagePanel.Children.Add(Sub("Навигация, поиск, сортировка, preview и операции."));
+
+        var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 0, 0, 8) };
+        toolbar.Children.Add(PageButton("Компьютер", async (_, _) => await LoadFilesAsync("shell://")));
+        toolbar.Children.Add(PageButton("Назад", async (_, _) =>
         {
-            var name = entry.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-            var type = entry.TryGetProperty("type", out var t) ? t.GetString() ?? "file" : "file";
-            PagePanel.Children.Add(new TextBlock
-            {
-                Text = $"{(type == "dir" ? "▸" : "·")} {name}",
-                Foreground = new SolidColorBrush(Color.FromArgb(255, 228, 247, 241)),
-                FontSize = 14,
-                Padding = new Thickness(8, 5, 8, 5),
-            });
-        }
+            if (_filesBack.Count > 0) await LoadFilesAsync(_filesBack.Pop(), false);
+        }));
+        toolbar.Children.Add(PageButton("Вверх", async (_, _) =>
+        {
+            var parent = WinParent(_filesView);
+            if (parent is not null) await LoadFilesAsync(parent);
+        }));
+        toolbar.Children.Add(PageButton("Новая папка", async (_, _) => await WinMkdirAsync()));
+        toolbar.Children.Add(PageButton("Отменить", async (_, _) =>
+        {
+            using var result = await PostJsonAsync("/fs/undo", new { });
+            await LoadFilesAsync(_filesPath, false);
+        }));
+        PagePanel.Children.Add(toolbar);
+
+        _filesPathBox = new TextBox
+        {
+            Text = _filesPath,
+            Width = 620,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 8, 8),
+        };
+        var pathRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        pathRow.Children.Add(_filesPathBox);
+        pathRow.Children.Add(PageButton("Перейти", async (_, _) => await LoadFilesAsync(_filesPathBox.Text)));
+        PagePanel.Children.Add(pathRow);
+
+        _filesSearchBox = new TextBox
+        {
+            PlaceholderText = "Поиск по имени",
+            Width = 420,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        var searchRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 0, 0, 8) };
+        searchRow.Children.Add(_filesSearchBox);
+        searchRow.Children.Add(PageButton("Найти", async (_, _) => await SearchFilesAsync()));
+        searchRow.Children.Add(PageButton("Очистить", async (_, _) => await LoadFilesAsync(_filesPath, false)));
+        PagePanel.Children.Add(searchRow);
+
+        var sort = new ComboBox { Width = 190, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 8) };
+        foreach (var option in new[] { "По имени", "По размеру", "По типу", "По дате" }) sort.Items.Add(option);
+        sort.SelectedIndex = _filesSort switch { "size" => 1, "type" => 2, "modified" => 3, _ => 0 };
+        sort.SelectionChanged += (_, _) =>
+        {
+            _filesSort = sort.SelectedIndex switch { 1 => "size", 2 => "type", 3 => "modified", _ => "name" };
+            RenderFiles();
+        };
+        PagePanel.Children.Add(sort);
+
+        _filesStatus = Sub("Загружаю…");
+        PagePanel.Children.Add(_filesStatus);
+        _filesListPanel = new StackPanel { Spacing = 4 };
+        PagePanel.Children.Add(_filesListPanel);
+        await LoadFilesAsync(_filesPath);
     }
+
+    private async Task LoadFilesAsync(string path, bool record = true)
+    {
+        if (_filesListPanel is null || _filesStatus is null) return;
+        if (string.IsNullOrWhiteSpace(path)) path = ".";
+        if (record && !string.Equals(_filesPath, path, StringComparison.OrdinalIgnoreCase))
+            _filesBack.Push(_filesPath);
+        _filesPath = path;
+        if (_filesPathBox is not null) _filesPathBox.Text = path;
+        _filesStatus.Text = "Загружаю…";
+        _filesListPanel.Children.Clear();
+        using var doc = await GetJsonAsync($"/fs/list?path={Uri.EscapeDataString(path)}");
+        if (doc is null)
+        {
+            _filesStatus.Text = "Не удалось открыть папку.";
+            return;
+        }
+        _filesView = doc.RootElement.TryGetProperty("path", out var resolved) ? resolved.GetString() ?? path : path;
+        _filesEntries.Clear();
+        if (doc.RootElement.TryGetProperty("entries", out var entries))
+        {
+            foreach (var entry in entries.EnumerateArray())
+            {
+                var name = entry.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                var type = entry.TryGetProperty("type", out var t) ? t.GetString() ?? "file" : "file";
+                var entryPath = entry.TryGetProperty("path", out var ep) ? ep.GetString() : null;
+                entryPath ??= WinJoin(_filesView, name);
+                var size = entry.TryGetProperty("size", out var s) && s.TryGetInt64(out var bytes) ? bytes : 0;
+                var mtime = entry.TryGetProperty("mtime", out var m) && m.TryGetDouble(out var stamp) ? stamp : 0;
+                _filesEntries.Add(new WinFileEntry(name, type, entryPath, size, mtime));
+            }
+        }
+        _filesStatus.Text = $"{_filesEntries.Count} объектов · {_filesView}";
+        RenderFiles();
+    }
+
+    private void RenderFiles()
+    {
+        if (_filesListPanel is null) return;
+        _filesListPanel.Children.Clear();
+        IEnumerable<WinFileEntry> ordered = _filesSort switch
+        {
+            "size" => _filesEntries.OrderByDescending(item => item.Size),
+            "type" => _filesEntries.OrderBy(item => item.Type).ThenBy(item => item.Name),
+            "modified" => _filesEntries.OrderByDescending(item => item.Mtime),
+            _ => _filesEntries.OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase),
+        };
+        foreach (var entry in ordered)
+            _filesListPanel.Children.Add(WinFileRow(entry));
+    }
+
+    private Button WinFileRow(WinFileEntry entry)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        content.Children.Add(new TextBlock
+        {
+            Text = entry.Type == "dir" ? "▸" : "·",
+            Foreground = new SolidColorBrush(Color.FromArgb(255, 94, 242, 214)),
+            FontSize = 18,
+            Width = 18,
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = entry.Name,
+            Foreground = new SolidColorBrush(Color.FromArgb(255, 228, 247, 241)),
+            FontSize = 14,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        var button = new Button
+        {
+            Content = content,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(10, 7, 10, 7),
+            Background = _filesSelected.Contains(entry.Path)
+                ? new SolidColorBrush(Color.FromArgb(255, 11, 58, 52))
+                : new SolidColorBrush(Color.FromArgb(255, 8, 47, 43)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(255, 22, 68, 61)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+        };
+        button.Click += async (_, _) =>
+        {
+            if ((Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+                    & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
+            {
+                if (!_filesSelected.Add(entry.Path)) _filesSelected.Remove(entry.Path);
+                RenderFiles();
+                return;
+            }
+            if (entry.Type == "dir") await LoadFilesAsync(entry.Path);
+            else await ShowFilePreviewAsync(entry);
+        };
+        var flyout = new MenuFlyout();
+        var rename = new MenuFlyoutItem { Text = "Переименовать" };
+        rename.Click += async (_, _) => await WinRenameAsync(entry);
+        var trash = new MenuFlyoutItem { Text = "В корзину" };
+        trash.Click += async (_, _) => await WinTrashAsync(entry);
+        var explorer = new MenuFlyoutItem { Text = "Открыть в Проводнике" };
+        explorer.Click += async (_, _) => await PostJsonAsync("/fs/reveal", new { path = entry.Path });
+        flyout.Items.Add(rename);
+        flyout.Items.Add(trash);
+        flyout.Items.Add(explorer);
+        button.ContextFlyout = flyout;
+        return button;
+    }
+
+    private async Task SearchFilesAsync()
+    {
+        if (_filesSearchBox is null || _filesListPanel is null || _filesStatus is null) return;
+        var query = _filesSearchBox.Text.Trim();
+        if (query.Length == 0) { await LoadFilesAsync(_filesPath, false); return; }
+        _filesStatus.Text = "Ищу…";
+        _filesListPanel.Children.Clear();
+        using var doc = await GetJsonAsync(
+            $"/fs/search?q={Uri.EscapeDataString(query)}&path={Uri.EscapeDataString(_filesView)}");
+        if (doc is null) { _filesStatus.Text = "Поиск не удался."; return; }
+        _filesEntries.Clear();
+        if (doc.RootElement.TryGetProperty("matches", out var matches))
+        {
+            foreach (var entry in matches.EnumerateArray())
+            {
+                var name = entry.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                var type = entry.TryGetProperty("type", out var t) ? t.GetString() ?? "file" : "file";
+                var path = entry.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
+                if (path.Length == 0) continue;
+                _filesEntries.Add(new WinFileEntry(name, type, path, 0, 0));
+            }
+        }
+        _filesStatus.Text = $"{_filesEntries.Count} результатов поиска.";
+        RenderFiles();
+    }
+
+    private async Task ShowFilePreviewAsync(WinFileEntry entry)
+    {
+        using var doc = await GetJsonAsync($"/fs/read?path={Uri.EscapeDataString(entry.Path)}");
+        if (doc is null) return;
+        var content = doc.RootElement.TryGetProperty("content", out var value) ? value.GetString() : "";
+        var box = new TextBox
+        {
+            Text = content,
+            IsReadOnly = true,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MaxHeight = 260,
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+        PagePanel.Children.Add(box);
+    }
+
+    private async Task WinMkdirAsync()
+    {
+        var name = await PromptAsync("Новая папка", "Имя папки");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        await PostJsonAsync("/fs/mkdir", new { path = WinJoin(_filesView, name.Trim()) });
+        await LoadFilesAsync(_filesPath, false);
+    }
+
+    private async Task WinRenameAsync(WinFileEntry entry)
+    {
+        var name = await PromptAsync("Переименовать", "Новое имя", entry.Name);
+        if (string.IsNullOrWhiteSpace(name) || name == entry.Name) return;
+        var parent = WinParent(entry.Path) ?? _filesView;
+        await PostJsonAsync("/fs/rename", new { source = entry.Path, destination = WinJoin(parent, name.Trim()) });
+        await LoadFilesAsync(_filesPath, false);
+    }
+
+    private async Task WinTrashAsync(WinFileEntry entry)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "Kivi",
+            Content = $"Переместить «{entry.Name}» в Корзину?",
+            PrimaryButtonText = "В корзину",
+            CloseButtonText = "Отмена",
+            XamlRoot = Content.XamlRoot,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        await PostJsonAsync("/fs/trash", new { path = entry.Path, confirm = entry.Name });
+        await LoadFilesAsync(_filesPath, false);
+    }
+
+    private async Task<string> PromptAsync(string title, string label, string initial = "")
+    {
+        var box = new TextBox { Text = initial, PlaceholderText = label };
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = box,
+            PrimaryButtonText = "OK",
+            CloseButtonText = "Отмена",
+            XamlRoot = Content.XamlRoot,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary ? box.Text : "";
+    }
+
+    private static string? WinParent(string path)
+    {
+        if (path == "shell://" || path == ".") return null;
+        var trimmed = path.TrimEnd('/', '\\');
+        if (trimmed.Length == 2 && trimmed[1] == ':') return "shell://";
+        var index = Math.Max(trimmed.LastIndexOf('/'), trimmed.LastIndexOf('\\'));
+        if (index <= 0) return ".";
+        var parent = trimmed[..index];
+        return parent.Length == 2 && parent[1] == ':' ? parent + "/" : parent;
+    }
+
+    private static string WinJoin(string directory, string name)
+    {
+        if (directory == "shell://") return name;
+        return directory.EndsWith('/') || directory.EndsWith('\\') ? directory + name : directory + "/" + name;
+    }
+
+    private sealed record WinFileEntry(string Name, string Type, string Path, long Size, double Mtime);
 
     private async Task BuildCrmAsync()
     {
