@@ -46,7 +46,9 @@ generated: true
 | [[MEDIA]] | 18.2 KB | 13 | Первый срез M7 Cloud Media: инструмент media.image генерирует картинку через публичный бесплатный сервис Pollinations без API-ключа, проверяет ответ и сохраняет файл в data/media. Локальный SDXL, ComfyUI, очередь job'ов … |
 | [[MEMORY]] | 7.5 KB | 7 | Память Kivi — это SQLite плюс файлы артефактов. Первый срез даёт сообщения, факты, предпочтения, content-addressed артефакты, FTS5-поиск и Context Builder. Векторная база и эмбеддинги подключаются следующим срезом. |
 | [[MODULES]] | 9.7 KB | 9 | Цель: подключать возможности (например, workcrm из D:\ai-agent) так, чтобы их можно было обновлять, тестировать и откатывать, не переписывая ядро. |
-| [[NATIVE-APP]] | 1.6 KB | 4 | The native client is WPF/XAML, not WinUI 3. WinUI 3 unpacked builds require Visual Studio/MSIX PRI tasks; without Visual Studio the current .NET 8 SDK fails with MSB4062. WPF is a native Windows XAML framework, builds wi… |
+| [[NATIVE-APP]] | 1.8 KB | 4 | The native client is WPF/XAML, not WinUI 3. WinUI 3 unpacked builds require Visual Studio/MSIX PRI tasks; without Visual Studio the current .NET 8 SDK fails with MSB4062. WPF is a native Windows XAML framework, builds wi… |
+| [[NATIVE-PARITY]] | 2.2 KB | 3 | Snapshot: native WPF/XAML client, installer built and cold-start verified. |
+| [[NATIVE-RELEASE]] | 1.9 KB | 5 | Date: 14.11.2026 |
 | [[OCR-PDF]] | 0.7 KB | 0 | Two read-only tools are registered by default: |
 | [[OPEN-QUESTIONS]] | 9.4 KB | 11 | Версия: после второй итерации ответов, 09.11.2026. Полные решения — в docs/DECISIONS.md. Безопасность — docs/SECURITY.md. Shell — docs/SHELL.md. |
 | [[OPERATOR-SYSTEM]] | 15.4 KB | 11 | Версия: 0.1 (11.11.2026). Стадия 8 / M3: Operator. Связанные документы: docs/TOOLS.md, docs/SECURITY.md, docs/ELEVATED.md, docs/STATUS.md. |
@@ -410,6 +412,24 @@ _Нет разделов второго уровня._
 - [[NATIVE-APP#Architecture|Architecture]]
 - [[NATIVE-APP#Phases|Phases]]
 - [[NATIVE-APP#Build|Build]]
+
+## [[NATIVE-PARITY|Native client parity audit]]
+
+> Snapshot: native WPF/XAML client, installer built and cold-start verified.
+
+- [[NATIVE-PARITY#Verified cold start|Verified cold start]]
+- [[NATIVE-PARITY#Verified clean install|Verified clean install]]
+- [[NATIVE-PARITY#Main remaining gaps|Main remaining gaps]]
+
+## [[NATIVE-RELEASE|Kivi Desktop — native client release snapshot]]
+
+> Date: 14.11.2026
+
+- [[NATIVE-RELEASE#Artifacts|Artifacts]]
+- [[NATIVE-RELEASE#Verified|Verified]]
+- [[NATIVE-RELEASE#Functional scope|Functional scope]]
+- [[NATIVE-RELEASE#Known deviations|Known deviations]]
+- [[NATIVE-RELEASE#To finish WinUI literally|To finish WinUI literally]]
 
 ## [[OCR-PDF|PDF and image readers]]
 
