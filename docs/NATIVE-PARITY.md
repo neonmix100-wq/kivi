@@ -4,7 +4,7 @@ Snapshot: native WPF/XAML client, installer built and cold-start verified.
 
 | Feature | Web UI | Native | Notes |
 |---|---|---|---|
-| chat request/answer | yes | yes | `/chat`, per-answer speak, timestamps, new chat |
+| chat request/answer | yes | yes | `/chat`, per-answer speak, timestamps, new chat, Ctrl+N |
 | history | yes | yes | `/history` |
 | auto TTS | yes | yes | `/tts`, SoundPlayer |
 | voice input | yes | yes | NAudio → `/transcribe` |

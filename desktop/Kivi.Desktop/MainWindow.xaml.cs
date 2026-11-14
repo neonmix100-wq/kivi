@@ -33,10 +33,71 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        KeyDown += OnWindowKeyDown;
         Closed += (_, _) =>
         {
             if (_ownedBackend is { HasExited: false }) _ownedBackend.Kill(entireProcessTree: true);
         };
+    }
+
+    private async void OnWindowKeyDown(object sender, KeyEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Control) return;
+        switch (e.Key)
+        {
+            case Key.N:
+                e.Handled = true;
+                NewChat_Click(this, new RoutedEventArgs());
+                break;
+            case Key.D1:
+            case Key.NumPad1:
+                e.Handled = true;
+                await NavigateToAsync("chat");
+                break;
+            case Key.D2:
+            case Key.NumPad2:
+                e.Handled = true;
+                await NavigateToAsync("voices");
+                break;
+            case Key.D3:
+            case Key.NumPad3:
+                e.Handled = true;
+                await NavigateToAsync("media");
+                break;
+            case Key.D4:
+            case Key.NumPad4:
+                e.Handled = true;
+                await NavigateToAsync("files");
+                break;
+            case Key.D5:
+            case Key.NumPad5:
+                e.Handled = true;
+                await NavigateToAsync("crm");
+                break;
+            case Key.D6:
+            case Key.NumPad6:
+                e.Handled = true;
+                await NavigateToAsync("settings");
+                break;
+        }
+    }
+
+    private async Task NavigateToAsync(string tag)
+    {
+        var labels = new Dictionary<string, string>
+        {
+            ["chat"] = "Чат",
+            ["voices"] = "Голоса",
+            ["media"] = "Медиа",
+            ["files"] = "Файлы",
+            ["crm"] = "CRM",
+            ["settings"] = "Настройки",
+        };
+        PageTitle.Text = labels.GetValueOrDefault(tag, "Kivi");
+        SetActiveNav(tag);
+        ChatView.Visibility = tag == "chat" ? Visibility.Visible : Visibility.Collapsed;
+        PageView.Visibility = tag == "chat" ? Visibility.Collapsed : Visibility.Visible;
+        if (tag != "chat") await ShowPageAsync(tag);
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -51,7 +112,13 @@ public partial class MainWindow : Window
         ConnectionText.Text = found
             ? $"API: {_baseUrl.Replace("http://", "")}"
             : "API недоступен";
-        if (found) await LoadHistoryAsync();
+        if (found)
+        {
+            using var health = await GetJsonAsync("/health");
+            if (health is not null && health.RootElement.TryGetProperty("version", out var version))
+                VersionText.Text = $"онлайн · v{version.GetString()}";
+            await LoadHistoryAsync();
+        }
         SetActiveNav("chat");
     }
 
@@ -1230,8 +1297,9 @@ public partial class MainWindow : Window
 
     private TextBox NativeInput(string placeholder) => new()
     {
-        Text = placeholder,
-        Foreground = (Brush)FindResource("Muted"),
+        Text = "",
+        ToolTip = placeholder,
+        Foreground = (Brush)FindResource("Text"),
         Background = (Brush)FindResource("Panel2"),
         BorderBrush = (Brush)FindResource("Line"),
         Padding = new Thickness(8),
