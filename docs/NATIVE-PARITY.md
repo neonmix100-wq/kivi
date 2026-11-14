@@ -14,7 +14,7 @@ Snapshot: native WPF/XAML client, installer built and cold-start verified.
 | media image | yes | yes | `/media/image` |
 | media video | local fallback | playable MP4 | `/media/video` |
 | media gallery | yes | yes | last 12 results in session |
-| files list | yes | yes | `/fs/list`, native sorting |
+| files list | yes | yes | `/fs/list`, sort name/size/type/modified |
 | files search | yes | yes | recursive `/fs/search` |
 | thumbnails | yes | yes | `/fs/thumb` |
 | preview text/image | yes | yes | `/fs/read`, `/fs/raw` |

@@ -716,10 +716,17 @@ public partial class MainWindow : Window
         sort.Items.Add("По имени");
         sort.Items.Add("По размеру");
         sort.Items.Add("По типу");
-        sort.SelectedIndex = _nativeSort switch { "size" => 1, "type" => 2, _ => 0 };
+        sort.Items.Add("По дате изменения");
+        sort.SelectedIndex = _nativeSort switch { "size" => 1, "type" => 2, "modified" => 3, _ => 0 };
         sort.SelectionChanged += (_, _) =>
         {
-            _nativeSort = sort.SelectedIndex switch { 1 => "size", 2 => "type", _ => "name" };
+            _nativeSort = sort.SelectedIndex switch
+            {
+                1 => "size",
+                2 => "type",
+                3 => "modified",
+                _ => "name",
+            };
             RenderNativeEntries();
         };
         sortRow.Children.Add(sort);
@@ -808,7 +815,8 @@ public partial class MainWindow : Window
             var entryPath = entry.TryGetProperty("path", out var ep) ? ep.GetString() : null;
             entryPath ??= NativeJoin(_nativeFilesView, name);
             var size = entry.TryGetProperty("size", out var s) && s.TryGetInt64(out var bytes) ? bytes : 0;
-            _nativeEntries.Add(new NativeEntry(name, type, entryPath, size));
+            var mtime = entry.TryGetProperty("mtime", out var m) && m.TryGetDouble(out var stamp) ? stamp : 0;
+            _nativeEntries.Add(new NativeEntry(name, type, entryPath, size, mtime));
         }
         RenderNativeEntries();
         _nativeFilesStatus.Text = count == 0 ? "Папка пуста." : $"{count} объектов · {_nativeFilesView}";
@@ -823,6 +831,7 @@ public partial class MainWindow : Window
         {
             "size" => _nativeEntries.OrderByDescending(item => item.Size),
             "type" => _nativeEntries.OrderBy(item => item.Type).ThenBy(item => item.Name),
+            "modified" => _nativeEntries.OrderByDescending(item => item.Mtime),
             _ => _nativeEntries.OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase),
         };
         foreach (var entry in ordered)
@@ -1664,6 +1673,6 @@ public partial class MainWindow : Window
         MessagesScroll.ScrollToEnd();
     }
 
-    private sealed record NativeEntry(string Name, string Type, string Path, long Size);
+    private sealed record NativeEntry(string Name, string Type, string Path, long Size, double Mtime);
     private sealed record MediaItem(string Kind, string Value);
 }
