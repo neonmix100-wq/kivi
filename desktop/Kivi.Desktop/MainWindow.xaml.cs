@@ -1251,6 +1251,22 @@ public partial class MainWindow : Window
 
     private void Send_Click(object sender, RoutedEventArgs e) => _ = SendMessageAsync();
 
+    private void NewChat_Click(object sender, RoutedEventArgs e)
+    {
+        _pendingBubble = null;
+        MessagesPanel.Children.Clear();
+        MessagesPanel.Children.Add(new TextBlock
+        {
+            Text = "НОВЫЙ ЧАТ",
+            Foreground = (Brush)FindResource("Muted"),
+            FontSize = 11,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 4, 0, 22),
+        });
+        AddBubble("Привет! Я Kivi. Чем помочь?", false);
+        ComposerInput.Focus();
+    }
+
     private async void Speak_Click(object sender, RoutedEventArgs e)
     {
         _autoSpeak = !_autoSpeak;
@@ -1490,6 +1506,13 @@ public partial class MainWindow : Window
             Foreground = (Brush)FindResource("Text"),
             FontSize = 14,
             TextWrapping = TextWrapping.Wrap,
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = $"{(fromUser ? "Вы" : "Kivi")} · {DateTime.Now:HH:mm}",
+            Foreground = (Brush)FindResource("Muted"),
+            FontSize = 10,
+            Margin = new Thickness(0, 6, 0, 0),
         });
         if (!fromUser && !pending) AddSpeakButton(content, text);
         var border = new Border
