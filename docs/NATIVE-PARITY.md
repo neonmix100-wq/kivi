@@ -38,8 +38,9 @@ GET /health → {"status":"ok","version":"0.20.0"}
 
 ## Verified clean install
 
-`dist\KiviTest3` installed from `dist\Kivi-Setup.exe`; cold start launched
-`runtime\pythonw.exe -m kivi ui --no-browser --port 8765`, health returned ok.
+`dist\KiviTest4` installed from the latest `dist\Kivi-Setup.exe`; cold start
+launched `runtime\pythonw.exe -m kivi ui --no-browser --port 8765` and health
+returned `{"status":"ok","version":"0.20.0"}`.
 
 ## Main remaining gaps
 

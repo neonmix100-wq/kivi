@@ -37,7 +37,7 @@ the native window closes.
 | media video playback | basic |
 | files list/search/thumbnails/ops | basic |
 | CRM status/read/fill/act/task | forms |
-| installer / Python sidecar | built: `dist\Kivi-Setup.exe` (~1.8 GB) |
+| installer / Python sidecar | built: `dist\Kivi-Setup.exe` (~1.8 GB), cold-start verified |
 | installer signing / compression polish | next |
 | full files/shell edge cases | next |
 | media gallery/history | next |
