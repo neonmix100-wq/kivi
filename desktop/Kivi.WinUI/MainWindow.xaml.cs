@@ -698,6 +698,26 @@ public sealed partial class MainWindow : Window
         flyout.Items.Add(trash);
         flyout.Items.Add(explorer);
         button.ContextFlyout = flyout;
+        button.AllowDrop = true;
+        button.DragOver += (_, args) =>
+        {
+            args.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+        };
+        button.Drop += async (_, args) =>
+        {
+            if (!args.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems)) return;
+            var items = await args.DataView.GetStorageItemsAsync();
+            foreach (var item in items.OfType<Windows.Storage.StorageFile>())
+            {
+                using var result = await PostJsonAsync("/fs/copy", new
+                {
+                    source = item.Path,
+                    destination = WinJoin(_filesView, item.Name),
+                });
+            }
+            args.Handled = true;
+            await LoadFilesAsync(_filesPath, false);
+        };
         return button;
     }
 
