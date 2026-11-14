@@ -105,3 +105,32 @@ def test_extension_rejects_missing_token(tmp_path: Path) -> None:
     )
     with pytest.raises(ExtensionCrmError):
         client._ensure()
+
+def test_extension_and_cdp_adapters_have_the_same_actions() -> None:
+    from kivi.modules.work_crm.altcrm import AltCrmClient
+
+    extension_actions = {
+        "read_order",
+        "fill_order",
+        "add_work_rows",
+        "create_task",
+        "close",
+    }
+    for name in extension_actions:
+        assert hasattr(ExtensionCrmClient, name), name
+        assert hasattr(AltCrmClient, name), name
+
+
+def test_extension_actions_are_non_persisting(tmp_path: Path, monkeypatch) -> None:
+    client, bridge = make_client(tmp_path, monkeypatch)
+    client.fill_order("comment", {"deadline": "tomorrow"})
+    assert bridge.last[0] == "fill_order"
+    client.add_work_rows([{"name": "work", "price": 1, "warranty": 1}])
+    assert bridge.last[0] == "add_work_rows"
+    client.create_task("call", "tomorrow")
+    assert bridge.last[0] == "create_task"
+    assert not any(
+        word in action
+        for action in ("fill_order", "add_work_rows", "create_task")
+        for word in ("save", "submit", "send", "delete")
+    )

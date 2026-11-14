@@ -72,6 +72,7 @@ def build_registry(
     )
     from kivi.tools.clipboard import ClipboardReadTool, ClipboardWriteTool
     from kivi.tools.code import CodeRunTool
+    from kivi.tools.documents import build_document_tools
     from kivi.tools.fs import (
         FsCopyTool,
         FsListTool,
@@ -174,6 +175,7 @@ def build_registry(
         *build_mail_tools(),
         *build_telegram_tools(),
         *build_crm_tools(crm_factory),
+        *build_document_tools(),
         MediaImageTool(),
         MediaVideoTool(),
         SdxlTool(),

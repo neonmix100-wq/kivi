@@ -2274,6 +2274,26 @@ def cmd_crm(args: argparse.Namespace) -> int:
                 f"устройство {last.get('device_id') or '—'}, {last.get('at', '')}"
             )
         return 0
+    if action == "parity":
+        from kivi.integrations.extension_crm import ExtensionCrmClient
+        from kivi.modules.work_crm.altcrm import AltCrmClient
+
+        methods = ("read_order", "fill_order", "add_work_rows", "create_task", "close")
+        table = Table(title="CRM adapter parity")
+        table.add_column("method")
+        table.add_column("CDP", justify="center")
+        table.add_column("extension", justify="center")
+        for name in methods:
+            table.add_row(
+                name,
+                "yes" if hasattr(AltCrmClient, name) else "no",
+                "yes" if hasattr(ExtensionCrmClient, name) else "no",
+            )
+        console.print(table)
+        console.print(
+            "fill/act/task never save or create; rollback = reload the card without saving."
+        )
+        return 0
     if action == "read":
         name, payload, caps = "crm.read", {}, ["crm.read"]
     elif action == "fill":
@@ -3962,6 +3982,8 @@ def build_parser() -> argparse.ArgumentParser:
     crm_token.set_defaults(func=cmd_crm)
     crm_stats = crm_sub.add_parser("stats", help="show local CRM read-log stats")
     crm_stats.set_defaults(func=cmd_crm)
+    crm_parity = crm_sub.add_parser("parity", help="show extension/CDP capability parity")
+    crm_parity.set_defaults(func=cmd_crm)
     crm_fill = crm_sub.add_parser("fill")
     crm_fill.add_argument("--comment", default="")
     crm_fill.add_argument("--field", action="append", default=[])

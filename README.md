@@ -14,8 +14,8 @@
 > и Qwen3-TTS VoiceDesign/Base голос Kivi; **Fish Audio S2.1 Pro Free + Astrea/s
 > сейчас основной голос**. Есть импорт голосов из файлов/URL и `media.image`.
 > Новый план: [`docs/PLAN-2026-11-12.md`](docs/PLAN-2026-11-12.md).
-> Осталось: M7 видео, M6 10 заказов/паритет, M5 animation mixer/wake,
-> M8 Explorer-замена, OCR/PDF.
+> Осталось: M7 видео, M8 Explorer-замена (P2), OCR/PDF и approvals закрыты
+> в 0.21-кандидате; M6 паритет/rollback проверены.
 > Подробный статус и backlog: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## Запуск интерфейса
@@ -233,6 +233,10 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/CRM-EXTENSION.md`](docs/CRM-EXTENSION.md) | AltCRM через расширение Яндекс.Браузера |
 | [`docs/ECC.md`](docs/ECC.md) | ECC: установка, skills и рабочий цикл |
 | [`docs/WAKE-TRAINING.md`](docs/WAKE-TRAINING.md) | обучение своей ONNX wake-модели |
+| [`docs/WAKE-BACKGROUND.md`](docs/WAKE-BACKGROUND.md) | wake без окна браузера и автозапуск |
+| [`docs/OCR-PDF.md`](docs/OCR-PDF.md) | PDF-текст и офлайн-OCR |
+| [`docs/APPROVALS.md`](docs/APPROVALS.md) | durable approvals → PermissionEngine |
+| [`docs/CRM-PARITY.md`](docs/CRM-PARITY.md) | паритет extension/CDP и rollback |
 | [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) | матрица приёмки и acceptance-smoke |
 | [`docs/RELEASE-0.20.md`](docs/RELEASE-0.20.md) | release notes первого прототипа |
 | [`docs/MEDIA.md`](docs/MEDIA.md) | M7: бесплатная генерация изображений |
@@ -280,7 +284,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
    микрофон, замеры false wake/WER.
 4. Закрыть M6 при доступе к реальному AltCRM: 10 заказов, графическая панель,
    паритет с extension.
-5. Дальше — M8 Kivi Shell и backlog (OCR/PDF, approvals → PermissionEngine).
+5. Дальше — M8 Kivi Shell (P2) и M7-видео; OCR/PDF и approvals уже в 0.21.
 
 Полный график — [PLAN-2026-11-12.md](docs/PLAN-2026-11-12.md).
 

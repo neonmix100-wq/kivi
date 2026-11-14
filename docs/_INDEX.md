@@ -22,6 +22,7 @@ generated: true
 | --- | ---: | ---: | --- |
 | [[ACCEPTANCE]] | 3.1 KB | 4 | Проверка офлайн: конфиг, UI-ассеты, pythonw, реестр инструментов, CRM-токен, ffmpeg, VRM и локальный three.js. Сеть и файлы не изменяются. |
 | [[API]] | 10.5 KB | 9 | Небольшой HTTP-слой над M1-чатом. Только стандартная библиотека Python (ThreadingHTTPServer), без FastAPI и внешних зависимостей. API локальный по умолчанию: слушает loopback и не имеет аутентификации, поэтому loopback —… |
+| [[APPROVALS]] | 0.8 KB | 0 | kivi memory approvals grant writes a durable (taskid, action, scope) row. ToolExecutor now checks that store before asking for interactive confirmation: |
 | [[ARCHITECTURE]] | 60.2 KB | 18 | Версия: 0.2 (проектирование). Целевая платформа: Windows 11, один пользователь, один ПК. Персона: Kivi, женский голос, 3D-аватар. Долгосрочно — псевдо-ОС поверх Windows, позже Linux. |
 | [[ASSET-LICENSE]] | 1.7 KB | 2 | Разрешено: |
 | [[AVATAR3D-STATUS]] | 2.0 KB | 2 | VRM-ассет найден и работает локально: |
@@ -35,6 +36,7 @@ generated: true
 | [[CRM-ADAPTER]] | 20.7 KB | 8 | Адаптер AltCRM — тонкий слой Playwright/CDP поверх уже открытого и авторизованного Chrome. Он читает карточку заказа, заполняет поля чек-листа, комментарий, строки акта и окно задачи, но никогда не сохраняет, не отправля… |
 | [[CRM-DOMAIN]] | 18.7 KB | 9 | Домен Work CRM выделен из старого D:\ai-agent\modes\work без tkinter и без импортов core/modes. Это чистый Python-слой: факты звонка, проверка цитат, черновики для CRM, промпты extractor/coach, история звонков и метрики.… |
 | [[CRM-EXTENSION]] | 4.3 KB | 6 | Kivi использует существующее расширение ИИ-агента из D:\ai-agent\extension, а не отдельный Chrome с --remote-debugging-port. |
+| [[CRM-PARITY]] | 1.3 KB | 2 | Both CRM backends implement the same five methods: |
 | [[DECISIONS]] | 25.7 KB | 11 | Статус: принято 08.11.2026. Заменяет предположения из первой версии плана. |
 | [[ECC]] | 3.6 KB | 7 | ECC — MIT-инструмент affaan-m/ECC для инженерного цикла: |
 | [[ELEVATED]] | 17.1 KB | 10 | Версия: 0.1 (11.11.2026). Стадия 4. Связанные документы: docs/SECURITY.md §5.13, docs/ARCHITECTURE.md §11.7, docs/TOOLS.md. |
@@ -44,6 +46,7 @@ generated: true
 | [[MEDIA]] | 18.2 KB | 13 | Первый срез M7 Cloud Media: инструмент media.image генерирует картинку через публичный бесплатный сервис Pollinations без API-ключа, проверяет ответ и сохраняет файл в data/media. Локальный SDXL, ComfyUI, очередь job'ов … |
 | [[MEMORY]] | 7.5 KB | 7 | Память Kivi — это SQLite плюс файлы артефактов. Первый срез даёт сообщения, факты, предпочтения, content-addressed артефакты, FTS5-поиск и Context Builder. Векторная база и эмбеддинги подключаются следующим срезом. |
 | [[MODULES]] | 9.7 KB | 9 | Цель: подключать возможности (например, workcrm из D:\ai-agent) так, чтобы их можно было обновлять, тестировать и откатывать, не переписывая ядро. |
+| [[OCR-PDF]] | 0.7 KB | 0 | Two read-only tools are registered by default: |
 | [[OPEN-QUESTIONS]] | 9.4 KB | 11 | Версия: после второй итерации ответов, 09.11.2026. Полные решения — в docs/DECISIONS.md. Безопасность — docs/SECURITY.md. Shell — docs/SHELL.md. |
 | [[OPERATOR-SYSTEM]] | 15.4 KB | 11 | Версия: 0.1 (11.11.2026). Стадия 8 / M3: Operator. Связанные документы: docs/TOOLS.md, docs/SECURITY.md, docs/ELEVATED.md, docs/STATUS.md. |
 | [[OPERATOR-UI]] | 12.6 KB | 9 | Version: 0.1 (11.11.2026). Stage: M3. Related: docs/TOOLS.md, docs/SECURITY.md, docs/CODER-TOOLS.md. |
@@ -59,7 +62,7 @@ generated: true
 | [[SECURITY]] | 26.4 KB | 11 | Версия: 0.1 (09.11.2026). Связанные документы: docs/DECISIONS.md, docs/ARCHITECTURE.md, docs/MODULES.md, docs/SHELL.md. |
 | [[SHELL]] | 22.6 KB | 15 | Версия: 0.1 (09.11.2026). Связанные документы: docs/ARCHITECTURE.md, docs/SECURITY.md, docs/ROADMAP.md. |
 | [[SKILLS-PLUGINS]] | 2.4 KB | 5 | Проверено через pluginmanager listplugins / listbundles. |
-| [[STATUS]] | 15.8 KB | 9 | Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1692, ruff чистый. kivi doctor и kivi models работают. |
+| [[STATUS]] | 15.7 KB | 9 | Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1697, ruff чистый. kivi doctor и kivi models работают. |
 | [[TELEGRAM]] | 18.3 KB | 10 | Kivi общается с Telegram только через Bot API и только тремя методами: getMe, getUpdates, sendMessage. User-account (MTProto, вход по номеру телефона) не поддерживается и не будет добавлен: это другой протокол, другие ри… |
 | [[TOOLS]] | 15.9 KB | 10 | Инструмент — единственный способ, которым Kivi меняет что-то вне своего процесса. Контракт, права и аудит появились раньше первого инструмента: это инвариант проекта, а не надстройка. |
 | [[TRUST]] | 5.6 KB | 6 | Всё, что приходит извне, попадает в контекст только с меткой происхождения. Метка ставится до модели и сохраняется в аудите. Правило простое: файл, сайт, письмо, вывод инструмента и картинка могут сообщать факты, но не м… |
@@ -73,6 +76,7 @@ generated: true
 | [[VOICE-LIBRARY]] | 16.3 KB | 11 | Статус: модуль готов, CLI не изменён (интеграция — за родительским агентом). Модуль: src/kivi/senses/voicelibrary.py. Тесты: tests/unit/testvoicelibrary.py (41 тест, без сети и без реальных кодеков). |
 | [[VOICE-PIPELINE]] | 20.9 KB | 8 | Статус: черновик M5, 11.11.2026. Модуль: src/kivi/senses/voice.py. Тесты: tests/unit/testvoice.py. |
 | [[VOICE-QWEN]] | 7.4 KB | 8 | Модуль kivi.senses.qwentts добавляет Qwen3-TTS 1.7B как полноценный TtsEngine. Он состоит из двух стадий: |
+| [[WAKE-BACKGROUND]] | 0.8 KB | 0 | The UI wake button requires the Kivi tab. For microphone wake while the browser is closed, Kivi has a separate listen process: |
 | [[WAKE-TRAINING]] | 3.7 KB | 8 | Цель — маленькая ONNX-модель, которая слушает только звук и не тратит ресурсы на постоянный Whisper. |
 
 ## [[ACCEPTANCE|Приёмка Kivi]]
@@ -97,6 +101,12 @@ generated: true
 - [[API#Интеграция с KiviBrain|Интеграция с KiviBrain]]
 - [[API#Будущий Web-UI|Будущий Web-UI]]
 - [[API#Файлы и проверка|Файлы и проверка]]
+
+## [[APPROVALS|Durable approvals and PermissionEngine]]
+
+> kivi memory approvals grant writes a durable (taskid, action, scope) row. ToolExecutor now checks that store before asking for interactive confirmation:
+
+_Нет разделов второго уровня._
 
 ## [[ARCHITECTURE|Архитектура Kivi]]
 
@@ -263,6 +273,13 @@ generated: true
 - [[CRM-EXTENSION#Если не подключается|Если не подключается]]
 - [[CRM-EXTENSION#Ограничения|Ограничения]]
 
+## [[CRM-PARITY|CRM parity and rollback]]
+
+> Both CRM backends implement the same five methods:
+
+- [[CRM-PARITY#Adapter parity|Adapter parity]]
+- [[CRM-PARITY#Rollback|Rollback]]
+
 ## [[DECISIONS|ADR-0001: рамки проекта Kivi]]
 
 > Статус: принято 08.11.2026. Заменяет предположения из первой версии плана.
@@ -382,6 +399,12 @@ generated: true
 - [[MODULES#7. Обновление модулей агентом|7. Обновление модулей агентом]]
 - [[MODULES#8. Contract tests|8. Contract tests]]
 - [[MODULES#9. Будущие модули|9. Будущие модули]]
+
+## [[OCR-PDF|PDF and image readers]]
+
+> Two read-only tools are registered by default:
+
+_Нет разделов второго уровня._
 
 ## [[OPEN-QUESTIONS|Открытые вопросы (v0.3)]]
 
@@ -614,7 +637,7 @@ generated: true
 
 ## [[STATUS|Статус проекта Kivi]]
 
-> Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1692, ruff чистый. kivi doctor и kivi models работают.
+> Дата среза: 12.11.2026. Дорожная карта: ROADMAP. Новый план после перепроверки железа: PLAN-2026-11-12. Тесты: 1697, ruff чистый. kivi doctor и kivi models работают.
 
 - [[STATUS#0. Железо на 12.11.2026|0. Железо на 12.11.2026]]
 - [[STATUS#1. Краткий ответ|1. Краткий ответ]]
@@ -799,6 +822,12 @@ generated: true
 - [[VOICE-QWEN#Производительность на этой машине|Производительность на этой машине]]
 - [[VOICE-QWEN#VRAM|VRAM]]
 - [[VOICE-QWEN#Ограничения|Ограничения]]
+
+## [[WAKE-BACKGROUND|Background wake without a browser]]
+
+> The UI wake button requires the Kivi tab. For microphone wake while the browser is closed, Kivi has a separate listen process:
+
+_Нет разделов второго уровня._
 
 ## [[WAKE-TRAINING|Обучение wake-модели Kivi]]
 

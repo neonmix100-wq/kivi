@@ -148,6 +148,8 @@ def test_fs_rename_rejects_missing_source(env: ToolEnv) -> None:
         "crm.fill",
         "crm.read",
         "crm.task",
+        "doc.ocr",
+        "doc.pdf_text",
         "fs.copy",
         "fs.list",
         "fs.mkdir",
@@ -444,3 +446,66 @@ def test_audit_records_every_attempt(env: ToolEnv) -> None:
     assert row["action"] == "tool.fs.read"
     assert row["decision"] == "allow"
     assert '"trust":"untrusted:file"' in row["details"]
+
+def _write_text_pdf(path: Path, text: str) -> None:
+    from pypdf import PdfWriter
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=300, height=200)
+    font = DictionaryObject(
+        {
+            NameObject("/Type"): NameObject("/Font"),
+            NameObject("/Subtype"): NameObject("/Type1"),
+            NameObject("/BaseFont"): NameObject("/Helvetica"),
+        }
+    )
+    font_ref = writer._add_object(font)
+    page[NameObject("/Resources")] = DictionaryObject(
+        {NameObject("/Font"): DictionaryObject({NameObject("/F1"): font_ref})}
+    )
+    content = DecodedStreamObject()
+    content.set_data(f"BT /F1 24 Tf 50 100 Td ({text}) Tj ET".encode())
+    page[NameObject("/Contents")] = writer._add_object(content)
+    writer.write(str(path))
+
+
+def test_pdf_text_tool(env: ToolEnv) -> None:
+    target = env.workspace / "docs" / "hello.pdf"
+    _write_text_pdf(target, "Hello Kivi")
+    result = env.run("doc.pdf_text", {"path": "docs/hello.pdf"})
+    assert result.ok is True
+    assert "Hello Kivi" in result.output
+    assert result.trust == "untrusted:file"
+
+
+def test_image_ocr_tool(env: ToolEnv) -> None:
+    pytest.importorskip("rapidocr_onnxruntime")
+    from PIL import Image, ImageDraw, ImageFont
+
+    target = env.workspace / "docs" / "ocr.png"
+    image = Image.new("RGB", (600, 160), "white")
+    draw = ImageDraw.Draw(image)
+    try:
+        font = ImageFont.truetype("arial.ttf", 64)
+    except OSError:
+        font = ImageFont.load_default()
+    draw.text((20, 40), "KIVI OCR TEST", fill="black", font=font)
+    image.save(target)
+    result = env.run("doc.ocr", {"path": "docs/ocr.png"})
+    assert result.ok is True
+    assert "KIVI" in result.output.upper()
+    assert result.trust == "untrusted:file/vision"
+
+def test_durable_approval_allows_confirm_tool(env: ToolEnv) -> None:
+    from kivi.memory.lifecycle import ApprovalStore
+    from kivi.memory.store import MemoryStore
+
+    store = ApprovalStore(MemoryStore(env.db, env.workspace / "data" / "artifacts"))
+    store.grant("t1", "shell.exec", ttl_s=60)
+    result = env.run(
+        "shell.exec",
+        {"argv": [sys.executable, "-c", "print(42)"]},
+    )
+    assert result.ok is True
+    assert result.output.strip().endswith("42")

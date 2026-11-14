@@ -75,6 +75,10 @@ ui = [
     "Pillow>=10",
     "send2trash>=1.8",
 ]
+documents = [
+    "pypdf>=7.1",
+    "rapidocr_onnxruntime>=1.4",
+]
 
 [project.scripts]
 kivi = "kivi.interfaces.cli:main"

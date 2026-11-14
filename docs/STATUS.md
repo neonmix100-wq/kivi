@@ -2,7 +2,7 @@
 
 Дата среза: **12.11.2026**. Дорожная карта: [ROADMAP](ROADMAP.md).
 Новый план после перепроверки железа: [PLAN-2026-11-12](PLAN-2026-11-12.md).
-Тесты: **1692**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
+Тесты: **1697**, `ruff` чистый. `kivi doctor` и `kivi models` работают.
 
 ## 0. Железо на 12.11.2026
 
@@ -43,10 +43,10 @@
 - **Этапы 1–3 закрыты:** ядро, Model Gateway и Cloud Broker.
 - **Этап 4 закрыт:** инструменты, Permission Engine, Protected Zones,
   trust labels, санитайзер, kill switch, hotkey, elevated broker и
-  injection-корпус готовы. OCR/PDF-читатели — отдельный backlog.
+  injection-корпус готовы. OCR/PDF-читатели закрыты в 0.21.
 - **Этап 5 закрыт:** память, FTS5, эмбеддинги, hybrid-search, Context Builder,
   импорт, суммаризация, TTL, approvals API и LanceDB-индекс готовы.
-  Автоподключение approvals к PermissionEngine — отдельный backlog.
+  Автоподключение approvals к PermissionEngine закрыто в 0.21.
 - **Этап 6 (M1) закрыт:** planner DAG, fast/deep path, `kivi chat`, `kivi serve`,
   Silero TTS, 2D-аватар и 22 сценарных теста. p50 fastpath — 0.84 с.
 - **Этап 7 (M2 Coder) закрыт:** `code.run` в Python-песочнице, `repo.index`,
@@ -87,14 +87,14 @@
 | 1. Скелет ядра | ✅ готово | конфиг, SQLite/миграции, Event Bus, JSONL, CLI, `doctor` | — |
 | 2. Model Gateway | ✅ готово | registry, Ollama, NVML, lease/eviction, watchdog, CPU fallback, benchmark 20 переключений | — |
 | 3. Cloud Broker | ✅ готово | провайдеры, квоты, `QuotaExhausted`, handoff, Scout, `cloud ask/scout/handoff` | живой ключ (внешнее) |
-| 4. Tools + safety | ✅ готово | Tool contract, разрешения R0–R4, зоны, MAC-манифест, trust/sanitizer, fs/shell/http/proc/clipboard/screen, kill switch, hotkey, elevated broker, injection-корпус | OCR/PDF — backlog |
-| 5. Память и контекст | ✅ готово | messages/facts/preferences/artifacts, FTS5, embeddings, RRF hybrid, Context Builder, импорт, суммаризация, TTL, approvals, LanceDB, CLI | автоподключение approvals — backlog |
+| 4. Tools + safety | ✅ готово | Tool contract, разрешения R0–R4, зоны, MAC-манифест, trust/sanitizer, fs/shell/http/proc/clipboard/screen, kill switch, hotkey, elevated broker, injection-корпус | OCR/PDF — закрыто в 0.21 |
+| 5. Память и контекст | ✅ готово | messages/facts/preferences/artifacts, FTS5, embeddings, RRF hybrid, Context Builder, импорт, суммаризация, TTL, approvals, LanceDB, CLI | автоподключение approvals — закрыто в 0.21 |
 | 6. M1: Core Kivi | ✅ готово | planner DAG, fastpath, chat, API, Silero/TTS, 2D-аватар, 22 сценария | — |
 | 7. M2: Coder | ✅ готово | code.run sandbox, repo.index, code.patch, git, Coder loop, CLI | WSL2/Sandbox — апгрейд |
 | 8. M3: Operator | ✅ готово | окна/приложения, UI, system, browser, 20 сценариев | — |
 | 9. M4: Communicator | ✅ готово | Gmail drafts, Telegram bot, CLI, 15 сценариев | — |
-| 10. M5: Voice & Avatar | 🟡 ~95% | audio/VAD/STT, Qwen3-TTS, Fish, voice library, UI mic, VRM + `kivi avatar`, lip-sync, text wake | ONNX wake после релиза |
-| 11. M6: Work CRM | 🟡 ~99% | домен, AltCRM CDP, extension bridge, tools, CLI, CRM read/fill/act/task UI, live 5/5+1/1+3/3 | паритет, rollback |
+| 10. M5: Voice & Avatar | ✅ ~99% | audio/VAD/STT, Qwen3-TTS, Fish, voice library, UI mic, VRM + `kivi avatar`, lip-sync, ONNX wake + UI `/wake`, background `listen` | системный сервис wake (запуск через Task Scheduler есть) |
+| 11. M6: Work CRM | ✅ 100% | домен, AltCRM CDP, extension bridge, tools, CLI, CRM read/fill/act/task UI, live 5/5+1/1+3/3, 13 reads, parity/rollback | — |
 | 12. M7: Cloud Media | 🟡 ~80% | `media.image`, `media.sdxl`, `media.video`, `MediaJobQueue`, UI image/video; fallback принят | real text-to-video после релиза |
 | 13. M8: Kivi Shell | 🟡 ~95% | Kivi UI, app-окно, трей, голос, медиа, файлы (tabs/search/sort/back-forward/path/copy/move/mkdir/rename/trash/image preview/context menu/drag-drop), CRM, settings | Explorer |
 
@@ -135,7 +135,7 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 
 - этапы 0–9 закрыты;
 - M5 ~99% (VRM/липсинк/STT; ONNX wake + UI background wake);
-- M6 ~95% (расширение AltCRM подключено, чтение/формы работают; нужны 10 заказов и паритет);
+- M6 100% (10 реальных заказов, parity/rollback закрыты);
 - 16 ГБ VRAM снимают прежнее ограничение: 8B Q4, 7B coder @16k, Whisper
   и 3D-аватар помещаются; Qwen3-TTS 1.7B добавляет ~4,1 ГБ.
 - следующий приоритет — **M7 видео / M8 файловые операции**: SDXL реалистичен локально;
@@ -152,7 +152,7 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 | 0.1 | Baseline §5 | цифры load/tokens/s/VRAM в `BASELINE.md` | 0.5 дня | закрытые Chrome/Telegram/Broadcast |
 | 4.1 | Elevated broker: allowlist | ✅ `dns.flush`, `service.query/restart` + 34 теста | сделано |
 | 4.2 | Elevated broker: UAC | ✅ helper, `runas`, аудит, `--wait` | сделано |
-| 4.3 | OCR/PDF reader | текст из PDF/картинки с `untrusted:file/vision` | 2–3 дня | библиотеки OCR/PDF |
+| 4.3 | OCR/PDF reader | ✅ `doc.pdf_text` и `doc.ocr`, `untrusted:file/vision` | сделано | `documents` extra |
 | 5.1 | Суммаризация | ✅ extractive/injected summary | сделано |
 | 5.2 | TTL и очистка | ✅ сообщения/эмбеддинги/approvals | сделано |
 | 5.3 | Approvals API | ✅ grant/check/revoke/cleanup | сделано |
@@ -175,8 +175,8 @@ MEMORY, BASELINE, BENCH-GATEWAY, CLOUD; `_INDEX` и `_CODE-MAP` генериру
 4. **LanceDB/ANN.** LanceDB 0.41 + pyarrow, `vector-sync`, `memory similar --ann`;
    SQLite остаётся fallback.
 
-Остался отдельный backlog: OCR/PDF-читатели и автоподключение approvals
-к PermissionEngine; они не блокируют закрытие этапов 0/4/5.
+OCR/PDF-читатели (`doc.pdf_text`, `doc.ocr`) и автоподключение approvals
+к `ToolExecutor`/`PermissionEngine` закрыты в 0.21.
 
 ### ✅ P1 — M1: Core Kivi закрыт
 

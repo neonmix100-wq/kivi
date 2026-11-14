@@ -45,6 +45,7 @@ class ToolExecutor:
         events: Any = None,
         limits: Limits | None = None,
         killswitch: Any = None,
+        approvals: Any = None,
     ) -> None:
         self.registry = registry
         self.db = db
@@ -55,6 +56,17 @@ class ToolExecutor:
         self.events = events
         self.limits = limits or Limits()
         self.killswitch = killswitch
+        self.approvals = approvals
+        if self.approvals is None:
+            try:
+                from kivi.memory.lifecycle import ApprovalStore
+                from kivi.memory.store import MemoryStore
+
+                self.approvals = ApprovalStore(
+                    MemoryStore(db, self.workspace / "data" / "artifacts")
+                )
+            except Exception:  # noqa: BLE001 - approvals are optional at this boundary
+                self.approvals = None
 
     # -- helpers ---------------------------------------------------------
     def _emit(self, name: str, payload: dict[str, Any]) -> None:
@@ -166,13 +178,21 @@ class ToolExecutor:
         )
 
         for capability in tool.capabilities:
+            durable_approved = False
+            if self.approvals is not None:
+                try:
+                    durable_approved = self.approvals.is_approved(
+                        grant.task_id, name, scope=target
+                    )
+                except Exception:  # noqa: BLE001 - approval lookup is best effort
+                    durable_approved = False
             request = PermissionRequest(
                 tool=name,
                 capability=capability,
                 risk=tool.risk,  # type: ignore[arg-type]
                 task_id=grant.task_id,
                 path=target,
-                approved=approved or dry_run,
+                approved=approved or dry_run or durable_approved,
             )
             decision = self.permissions.check(request, grant)
             if decision.action == "deny":

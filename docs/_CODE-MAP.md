@@ -60,7 +60,7 @@ generated: true
 | `src.kivi.interfaces.api` | 975 | Local-only HTTP API for Kivi chat. |
 | `src.kivi.interfaces.avatar2d` | 383 | Pure 2D avatar state and lip-sync logic plus an optional Tk renderer. |
 | `src.kivi.interfaces.avatar3d` | 637 | 3D avatar (VRM) state, viseme lip-sync and a loopback web renderer. |
-| `src.kivi.interfaces.cli` | 4261 | Command-line interface (stage 1). |
+| `src.kivi.interfaces.cli` | 4283 | Command-line interface (stage 1). |
 
 ## kernel
 
@@ -154,7 +154,8 @@ generated: true
 | `src.kivi.tools.browser` | 1018 | Playwright browser automation with a managed profile and untrusted output. |
 | `src.kivi.tools.clipboard` | 205 | Clipboard tools: explicit, confirmed access to the Windows clipboard. |
 | `src.kivi.tools.code` | 627 | ``code.run``: run generated Python in a best-effort process sandbox. |
-| `src.kivi.tools.executor` | 288 | Capability Broker: the only path from a proposed tool call to the OS. |
+| `src.kivi.tools.documents` | 172 | PDF text and image OCR readers. |
+| `src.kivi.tools.executor` | 308 | Capability Broker: the only path from a proposed tool call to the OS. |
 | `src.kivi.tools.fs` | 527 | Filesystem tools: read, list and write inside the workspace. |
 | `src.kivi.tools.git` | 348 | Fixed git operations: status, diff, branch and commit. |
 | `src.kivi.tools.mail` | 472 | Gmail tools: list, search, read, save an attachment and create a draft. |
@@ -162,7 +163,7 @@ generated: true
 | `src.kivi.tools.net` | 209 | HTTP GET with an SSRF guard and an explicit ``untrusted:web`` label. |
 | `src.kivi.tools.patch` | 209 | Exact-text patch tool: replace a counted occurrence inside one UTF-8 file. |
 | `src.kivi.tools.proc` | 278 | Process list tool: names and memory only, never command lines. |
-| `src.kivi.tools.registry` | 185 | Tool registry: one place that knows which tools exist. |
+| `src.kivi.tools.registry` | 187 | Tool registry: one place that knows which tools exist. |
 | `src.kivi.tools.repo` | 524 | Repository index: a read-only map of the text files inside the workspace. |
 | `src.kivi.tools.screen` | 306 | Screen capture tool: save the desktop as a BMP inside the workspace. |
 | `src.kivi.tools.sdxl` | 418 | Local SDXL generation through the Stable Diffusion WebUI API. |
