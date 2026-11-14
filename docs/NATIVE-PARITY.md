@@ -13,7 +13,7 @@ Snapshot: native WPF/XAML client, installer built and cold-start verified.
 | settings | full | provider + read-only model/speaker/rate | save of model/speaker not yet exposed |
 | media image | yes | yes | `/media/image` |
 | media video | local fallback | playable MP4 | `/media/video` |
-| media gallery | yes | partial | current result only |
+| media gallery | yes | yes | last 12 results in session |
 | files list | yes | yes | `/fs/list`, native sorting |
 | files search | yes | yes | recursive `/fs/search` |
 | thumbnails | yes | yes | `/fs/thumb` |
@@ -21,7 +21,7 @@ Snapshot: native WPF/XAML client, installer built and cold-start verified.
 | copy/move/rename/trash | yes | yes | context menu/prompts |
 | undo | yes | yes | `/fs/undo` |
 | history tabs | yes | no | next |
-| drag-and-drop | yes | no | next |
+| drag-and-drop | yes | basic | drop files to copy into current folder |
 | multi-select/keyboard | yes | no | next |
 | CRM read | yes | yes | `/crm/read` |
 | CRM fill/act/task | yes | yes | native forms |

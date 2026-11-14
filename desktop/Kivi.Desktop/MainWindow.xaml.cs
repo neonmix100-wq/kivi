@@ -349,10 +349,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private readonly List<MediaItem> _mediaGallery = new();
+    private StackPanel? _mediaGalleryPanel;
+
     private void BuildMediaPage()
     {
         PagePanel.Children.Add(PageHeading("Медиа"));
         PagePanel.Children.Add(PageSub("Локальная генерация изображений и видео через текущий Kivi API."));
+        _mediaGalleryPanel = new StackPanel();
         var prompt = new TextBox
         {
             MinHeight = 58,
@@ -387,7 +391,13 @@ public partial class MainWindow : Window
             if (image is not null && image.StartsWith("data:image/", StringComparison.Ordinal))
             {
                 var comma = image.IndexOf(',');
-                if (comma > 0) output.Children.Add(BuildImage(Convert.FromBase64String(image[(comma + 1)..])));
+                if (comma > 0)
+                {
+                    output.Children.Add(BuildImage(Convert.FromBase64String(image[(comma + 1)..])));
+                    _mediaGallery.Insert(0, new MediaItem("image", image[(comma + 1)..]));
+                    TrimGallery();
+                    RenderMediaGallery();
+                }
             }
         }));
         PagePanel.Children.Add(PageButton("Сгенерировать видео 4 с", async (_, _) =>
@@ -416,20 +426,68 @@ public partial class MainWindow : Window
             if (comma <= 0) return;
             var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"kivi-{Guid.NewGuid():N}.mp4");
             await File.WriteAllBytesAsync(path, Convert.FromBase64String(video[(comma + 1)..]));
-            var player = new MediaElement
-            {
-                Source = new Uri(path),
-                Width = 520,
-                Height = 292,
-                LoadedBehavior = MediaState.Manual,
-                UnloadedBehavior = MediaState.Manual,
-                Margin = new Thickness(0, 12, 0, 0),
-            };
-            player.MediaEnded += (_, _) => player.Position = TimeSpan.Zero;
-            output.Children.Add(player);
-            player.Play();
+            output.Children.Add(BuildVideo(path));
+            _mediaGallery.Insert(0, new MediaItem("video", path));
+            TrimGallery();
+            RenderMediaGallery();
         }));
         PagePanel.Children.Add(output);
+        PagePanel.Children.Add(new TextBlock
+        {
+            Text = "Галерея",
+            Foreground = (Brush)FindResource("Text"),
+            FontSize = 18,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 24, 0, 8),
+        });
+        PagePanel.Children.Add(_mediaGalleryPanel);
+        RenderMediaGallery();
+    }
+
+    private void TrimGallery()
+    {
+        while (_mediaGallery.Count > 12) _mediaGallery.RemoveAt(_mediaGallery.Count - 1);
+    }
+
+    private void RenderMediaGallery()
+    {
+        if (_mediaGalleryPanel is null) return;
+        _mediaGalleryPanel.Children.Clear();
+        if (_mediaGallery.Count == 0)
+        {
+            _mediaGalleryPanel.Children.Add(PageSub("Здесь появятся сгенерированные изображения и видео."));
+            return;
+        }
+        foreach (var item in _mediaGallery)
+        {
+            try
+            {
+                if (item.Kind == "image")
+                    _mediaGalleryPanel.Children.Add(BuildImage(Convert.FromBase64String(item.Value)));
+                else if (File.Exists(item.Value))
+                    _mediaGalleryPanel.Children.Add(BuildVideo(item.Value));
+            }
+            catch
+            {
+                // skip a broken gallery item
+            }
+        }
+    }
+
+    private static MediaElement BuildVideo(string path)
+    {
+        var player = new MediaElement
+        {
+            Source = new Uri(path),
+            Width = 420,
+            Height = 236,
+            LoadedBehavior = MediaState.Manual,
+            UnloadedBehavior = MediaState.Manual,
+            Margin = new Thickness(0, 8, 0, 8),
+        };
+        player.MediaEnded += (_, _) => player.Position = TimeSpan.Zero;
+        player.Play();
+        return player;
     }
 
     private static Image BuildImage(byte[] bytes)
@@ -709,6 +767,29 @@ public partial class MainWindow : Window
         menu.Items.Add(move);
         menu.Items.Add(trash);
         row.ContextMenu = menu;
+        row.AllowDrop = true;
+        row.Drop += async (_, args) =>
+        {
+            if (!args.Data.GetDataPresent(DataFormats.FileDrop)) return;
+            if (args.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
+            foreach (var source in paths)
+            {
+                var name = System.IO.Path.GetFileName(source);
+                if (string.IsNullOrWhiteSpace(name)) continue;
+                using var result = await PostJsonAsync("/fs/copy", new
+                {
+                    source,
+                    destination = NativeJoin(_nativeFilesView, name),
+                });
+            }
+            args.Handled = true;
+            await LoadNativeFilesAsync(_nativeFilesPath, false);
+        };
+        row.DragOver += (_, args) =>
+        {
+            if (args.Data.GetDataPresent(DataFormats.FileDrop))
+                args.Effects = DragDropEffects.Copy;
+        };
         return row;
     }
 
@@ -1268,4 +1349,5 @@ public partial class MainWindow : Window
     }
 
     private sealed record NativeEntry(string Name, string Type, string Path, long Size);
+    private sealed record MediaItem(string Kind, string Value);
 }
