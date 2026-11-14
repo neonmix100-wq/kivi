@@ -512,6 +512,9 @@ public partial class MainWindow : Window
     private string _nativeFilesPath = ".";
     private string _nativeFilesView = ".";
     private readonly Stack<string> _nativeFilesBack = new();
+    private readonly List<string> _nativeTabs = new() { "." };
+    private int _nativeTabIndex;
+    private StackPanel? _nativeTabStrip;
     private TextBox? _nativePathBox;
     private TextBox? _nativeSearchBox;
     private StackPanel? _nativeFilesList;
@@ -524,6 +527,9 @@ public partial class MainWindow : Window
     {
         PagePanel.Children.Add(PageHeading("Файлы"));
         PagePanel.Children.Add(PageSub("Нативный файловый менеджер Kivi: рабочая папка, известные папки и диски."));
+        _nativeTabStrip = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        PagePanel.Children.Add(_nativeTabStrip);
+        RenderNativeTabs();
 
         var toolbar = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
         toolbar.Children.Add(PageButton("Компьютер", async (_, _) =>
@@ -633,11 +639,43 @@ public partial class MainWindow : Window
         await LoadNativeFilesAsync(_nativeFilesPath);
     }
 
+    private void RenderNativeTabs()
+    {
+        if (_nativeTabStrip is null) return;
+        _nativeTabStrip.Children.Clear();
+        for (var index = 0; index < _nativeTabs.Count; index++)
+        {
+            var tabIndex = index;
+            var path = _nativeTabs[index];
+            var label = path == "." ? "Рабочая" : path == "shell://" ? "Компьютер" : System.IO.Path.GetFileName(path.TrimEnd('/', '\\'));
+            if (string.IsNullOrWhiteSpace(label)) label = path;
+            var button = PageButton(label, async (_, _) =>
+            {
+                _nativeTabIndex = tabIndex;
+                await LoadNativeFilesAsync(_nativeTabs[tabIndex], false);
+            });
+            button.Background = tabIndex == _nativeTabIndex
+                ? new SolidColorBrush(Color.FromRgb(11, 58, 52))
+                : Brushes.Transparent;
+            _nativeTabStrip.Children.Add(button);
+        }
+        _nativeTabStrip.Children.Add(PageButton("+", async (_, _) =>
+        {
+            _nativeTabs.Add(_nativeFilesView);
+            _nativeTabIndex = _nativeTabs.Count - 1;
+            RenderNativeTabs();
+            await LoadNativeFilesAsync(_nativeFilesView, false);
+        }));
+    }
+
     private async Task LoadNativeFilesAsync(string path, bool record = true)
     {
         if (_nativeFilesList is null || _nativeFilesStatus is null) return;
         if (record && _nativeFilesPath != path) _nativeFilesBack.Push(_nativeFilesPath);
         _nativeFilesPath = path;
+        if (_nativeTabIndex >= 0 && _nativeTabIndex < _nativeTabs.Count)
+            _nativeTabs[_nativeTabIndex] = path;
+        RenderNativeTabs();
         if (_nativePathBox is not null) _nativePathBox.Text = path;
         _nativeFilesList.Children.Clear();
         _nativeFilesStatus.Text = "Загружаю…";

@@ -20,7 +20,7 @@ Snapshot: native WPF/XAML client, installer built and cold-start verified.
 | preview text/image | yes | yes | `/fs/read`, `/fs/raw` |
 | copy/move/rename/trash | yes | yes | context menu/prompts |
 | undo | yes | yes | `/fs/undo` |
-| history tabs | yes | no | next |
+| history tabs | yes | yes | native file tabs |
 | drag-and-drop | yes | basic | drop files to copy into current folder |
 | multi-select/keyboard | yes | no | next |
 | CRM read | yes | yes | `/crm/read` |
