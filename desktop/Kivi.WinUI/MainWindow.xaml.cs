@@ -873,36 +873,78 @@ public sealed partial class MainWindow : Window
     private async Task BuildCrmAsync()
     {
         PagePanel.Children.Add(Heading("CRM"));
-        PagePanel.Children.Add(Sub("Статус AltCRM и карточка заказа."));
-        using var doc = await GetJsonAsync("/crm/status");
-        var connected = doc?.RootElement.TryGetProperty("connected", out var c) == true && c.GetBoolean();
-        PagePanel.Children.Add(Sub(connected ? "Расширение подключено." : "Расширение не подключено."));
-        var readButton = PageButton("Прочитать заказ", async (_, _) =>
+        PagePanel.Children.Add(Sub("AltCRM через расширение: чтение, поля, акт и задача без сохранения."));
+
+        var statusText = new TextBlock
         {
+            Text = "Проверяю расширение AltCRM…",
+            Foreground = new SolidColorBrush(Color.FromArgb(255, 143, 184, 176)),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(12, 4, 12, 4),
+        };
+        var connect = CrmCard("Подключение");
+        var connectBody = (StackPanel)connect.Child;
+        connectBody.Children.Add(statusText);
+        connectBody.Children.Add(PageButton("Проверить", async (_, _) => await LoadCrmStatusAsync(statusText)));
+        PagePanel.Children.Add(connect);
+
+        var orderText = new TextBox
+        {
+            IsReadOnly = true,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 100,
+            MaxHeight = 260,
+            PlaceholderText = "Здесь появится текст открытой карточки заказа.",
+        };
+        var order = CrmCard("Заказ · только чтение");
+        var orderBody = (StackPanel)order.Child;
+        orderBody.Children.Add(PageButton("Прочитать заказ", async (_, _) =>
+        {
+            orderText.Text = "Читаю карточку…";
             using var result = await GetJsonAsync("/crm/read");
-            if (result is not null) PagePanel.Children.Add(Sub(result.RootElement.ToString()));
-        });
-        PagePanel.Children.Add(readButton);
-        var comment = new TextBox { PlaceholderText = "Комментарий", Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
-        var deadline = new TextBox { PlaceholderText = "Согласованные сроки ремонта", Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
-        PagePanel.Children.Add(comment);
-        PagePanel.Children.Add(deadline);
-        PagePanel.Children.Add(PageButton("Заполнить", async (_, _) =>
+            orderText.Text = result is null
+                ? "Не удалось прочитать заказ."
+                : result.RootElement.ToString();
+        }));
+        orderBody.Children.Add(orderText);
+        PagePanel.Children.Add(order);
+
+        var tools = CrmCard("Подготовка · без сохранения");
+        var toolsBody = (StackPanel)tools.Child;
+        var toolsPanel = new StackPanel { Spacing = 8 };
+        toolsPanel.Children.Add(Sub("Kivi заполнит поля, но не нажмёт «Сохранить» и не создаст задачу."));
+
+        toolsPanel.Children.Add(CrmLabel("Комментарий"));
+        var comment = CrmInput("Например: согласовали сроки и запчасти");
+        toolsPanel.Children.Add(comment);
+        toolsPanel.Children.Add(CrmLabel("Согласованные сроки ремонта"));
+        var deadline = CrmInput("Например: 3 рабочих дня");
+        toolsPanel.Children.Add(deadline);
+        toolsPanel.Children.Add(PageButton("Заполнить без сохранения", async (_, _) =>
         {
             using var result = await PostJsonAsync("/crm/fill", new
             {
                 comment = comment.Text,
                 checklist = new Dictionary<string, string> { ["deadline"] = deadline.Text },
             });
-            PagePanel.Children.Add(Sub(result is null ? "Не удалось заполнить." : "Заполнено, не сохранено."));
+            statusText.Text = result is null ? "Не удалось заполнить." : "Заполнено, не сохранено.";
         }));
-        var work = new TextBox { PlaceholderText = "Работа", Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
-        var price = new TextBox { PlaceholderText = "Цена, ₽", Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
-        var warranty = new TextBox { PlaceholderText = "Гарантия, дней", Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
-        PagePanel.Children.Add(work);
-        PagePanel.Children.Add(price);
-        PagePanel.Children.Add(warranty);
-        PagePanel.Children.Add(PageButton("Добавить строку акта", async (_, _) =>
+
+        toolsPanel.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Color.FromArgb(255, 22, 68, 61)),
+            Margin = new Thickness(0, 8, 0, 8),
+        });
+        toolsPanel.Children.Add(CrmLabel("Акт"));
+        var work = CrmInput("Работа");
+        var price = CrmInput("Цена, ₽");
+        var warranty = CrmInput("Гарантия, дней");
+        toolsPanel.Children.Add(work);
+        toolsPanel.Children.Add(price);
+        toolsPanel.Children.Add(warranty);
+        toolsPanel.Children.Add(PageButton("Добавить строку акта", async (_, _) =>
         {
             using var result = await PostJsonAsync("/crm/act", new
             {
@@ -916,17 +958,94 @@ public sealed partial class MainWindow : Window
                     },
                 },
             });
-            PagePanel.Children.Add(Sub(result is null ? "Не удалось добавить." : "Строка добавлена, не сохранено."));
+            statusText.Text = result is null ? "Не удалось добавить." : "Строка добавлена, не сохранено.";
         }));
-        var task = new TextBox { PlaceholderText = "Текст задачи", Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
-        var when = new TextBox { PlaceholderText = "Срок, например завтра", Width = 420, HorizontalAlignment = HorizontalAlignment.Left };
-        PagePanel.Children.Add(task);
-        PagePanel.Children.Add(when);
-        PagePanel.Children.Add(PageButton("Заполнить задачу", async (_, _) =>
+
+        toolsPanel.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Color.FromArgb(255, 22, 68, 61)),
+            Margin = new Thickness(0, 8, 0, 8),
+        });
+        toolsPanel.Children.Add(CrmLabel("Задача"));
+        var task = CrmInput("Текст задачи");
+        var when = CrmInput("Срок, например завтра");
+        toolsPanel.Children.Add(task);
+        toolsPanel.Children.Add(when);
+        toolsPanel.Children.Add(PageButton("Заполнить задачу", async (_, _) =>
         {
             using var result = await PostJsonAsync("/crm/task", new { comment = task.Text, when_text = when.Text });
-            PagePanel.Children.Add(Sub(result is null ? "Не удалось заполнить." : "Задача заполнена, не создана."));
+            statusText.Text = result is null ? "Не удалось заполнить." : "Форма задачи заполнена, не создана.";
         }));
+        toolsBody.Children.Add(toolsPanel);
+        PagePanel.Children.Add(tools);
+
+        await LoadCrmStatusAsync(statusText);
+    }
+
+    private static Border CrmCard(string title)
+    {
+        var panel = new StackPanel { Spacing = 6 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = title,
+            Foreground = new SolidColorBrush(Color.FromArgb(255, 228, 247, 241)),
+            FontSize = 17,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        });
+        return new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(255, 8, 47, 43)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(255, 22, 68, 61)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(14),
+            Margin = new Thickness(0, 0, 0, 12),
+            Child = panel,
+        };
+    }
+
+    private static TextBlock CrmLabel(string text) => new()
+    {
+        Text = text,
+        Foreground = new SolidColorBrush(Color.FromArgb(255, 143, 184, 176)),
+        FontSize = 11,
+        Margin = new Thickness(0, 4, 0, 0),
+    };
+
+    private static TextBox CrmInput(string placeholder) => new()
+    {
+        PlaceholderText = placeholder,
+        Width = 520,
+        HorizontalAlignment = HorizontalAlignment.Left,
+    };
+
+    private async Task LoadCrmStatusAsync(TextBlock statusText)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            using var response = await Http.GetAsync($"{_baseUrl}/crm/status", timeout.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                statusText.Text = "CRM недоступен.";
+                return;
+            }
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token));
+            var connected = doc.RootElement.TryGetProperty("connected", out var c) && c.GetBoolean();
+            var hint = doc.RootElement.TryGetProperty("hint", out var h) ? h.GetString() : "";
+            statusText.Text = connected
+                ? "Расширение AltCRM подключено."
+                : $"Расширение AltCRM не подключено. {hint}";
+        }
+        catch (OperationCanceledException)
+        {
+            statusText.Text = "Проверка AltCRM не ответила за 5 секунд. Поля доступны, можно работать.";
+        }
+        catch
+        {
+            statusText.Text = "CRM недоступен.";
+        }
     }
 
     private static TextBlock DateLabel(string text) => new()

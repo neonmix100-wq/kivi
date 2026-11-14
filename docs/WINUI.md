@@ -40,7 +40,7 @@ powershell -ExecutionPolicy Bypass -File scripts\package_winui.ps1
 - settings provider/model/speaker/sample_rate;
 - media image generation;
 - files: tabs, navigation, search, sorting, preview, mkdir/rename/trash/undo, multi-select, thumbnails, copy/move, context menu, drag-and-drop;
-- CRM status/read/fill/task;
+- CRM: status/read/fill/act/task in labeled cards; fields render before status; 5 s status timeout.
 - wake loop through `/wake`;
 - automatic Python backend start from portable runtime.
 
