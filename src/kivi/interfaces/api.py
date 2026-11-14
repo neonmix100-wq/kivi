@@ -51,6 +51,8 @@ FsCopyMoveHandler = Callable[[str, str], dict[str, Any]]
 FsTrashHandler = Callable[[str], dict[str, Any]]
 FsSearchHandler = Callable[[str], dict[str, Any]]
 FsRawHandler = Callable[[str], dict[str, Any]]
+FsThumbHandler = Callable[[str], bytes]
+FsUndoHandler = Callable[[], dict[str, Any]]
 CrmStatusHandler = Callable[[], dict[str, Any]]
 CrmStatsHandler = Callable[[], dict[str, Any]]
 CrmReadHandler = Callable[[], dict[str, Any]]
@@ -80,6 +82,7 @@ _JSON_POST_PATHS = {
     "/fs/move",
     "/fs/rename",
     "/fs/trash",
+    "/fs/undo",
     "/crm/fill",
     "/crm/act",
     "/crm/task",
@@ -136,6 +139,8 @@ class LocalApi:
         fs_trash_handler: FsTrashHandler | None = None,
         fs_search_handler: FsSearchHandler | None = None,
         fs_raw_handler: FsRawHandler | None = None,
+        fs_thumb_handler: FsThumbHandler | None = None,
+        fs_undo_handler: FsUndoHandler | None = None,
         crm_status_handler: CrmStatusHandler | None = None,
         crm_stats_handler: CrmStatsHandler | None = None,
         crm_read_handler: CrmReadHandler | None = None,
@@ -178,6 +183,8 @@ class LocalApi:
         self._fs_trash_handler = fs_trash_handler
         self._fs_search_handler = fs_search_handler
         self._fs_raw_handler = fs_raw_handler
+        self._fs_thumb_handler = fs_thumb_handler
+        self._fs_undo_handler = fs_undo_handler
         self._crm_status_handler = crm_status_handler
         self._crm_stats_handler = crm_stats_handler
         self._crm_read_handler = crm_read_handler
@@ -373,10 +380,14 @@ class _ApiHandler(BaseHTTPRequestHandler):
             self._handle_fs_transfer(self.server.api._fs_move_handler, "move")
         elif method == "POST" and path == "/fs/trash":
             self._handle_fs_trash()
+        elif method == "POST" and path == "/fs/undo":
+            self._handle_fs_undo()
         elif method == "GET" and path == "/fs/search":
             self._handle_fs_search(split.query)
         elif method == "GET" and path == "/fs/raw":
             self._handle_fs_raw(split.query)
+        elif method == "GET" and path == "/fs/thumb":
+            self._handle_fs_thumb(split.query)
         elif method == "GET" and path == "/crm/status":
             self._handle_crm_status()
         elif method == "GET" and path == "/crm/read":
@@ -673,6 +684,40 @@ class _ApiHandler(BaseHTTPRequestHandler):
             result = api._fs_raw_handler(raw.strip())
         except Exception:  # noqa: BLE001 - no internals to the client
             self._send_json(400, {"error": "cannot read file"})
+            return
+        self._send_json(200, result)
+
+    def _handle_fs_thumb(self, query: str) -> None:
+        api = self.server.api
+        if api._fs_thumb_handler is None:
+            self._send_json(503, {"error": "files are not configured"})
+            return
+        raw = parse_qs(query).get("path", [""])[0]
+        if not isinstance(raw, str) or not raw.strip():
+            self._send_json(400, {"error": "path must be a non-empty string"})
+            return
+        try:
+            image = api._fs_thumb_handler(raw.strip())
+        except Exception:  # noqa: BLE001 - no internals to the client
+            self._send_json(400, {"error": "cannot build thumbnail"})
+            return
+        if not isinstance(image, (bytes, bytearray)) or not image:
+            self._send_json(404, {"error": "no thumbnail"})
+            return
+        self._send_bytes(200, bytes(image), "image/jpeg")
+
+    def _handle_fs_undo(self) -> None:
+        api = self.server.api
+        if api._fs_undo_handler is None:
+            self._send_json(503, {"error": "undo is not configured"})
+            return
+        payload = self._read_json_object()
+        if payload is None:
+            return
+        try:
+            result = api._fs_undo_handler()
+        except Exception:  # noqa: BLE001 - no internals to the client
+            self._send_json(400, {"error": "cannot undo"})
             return
         self._send_json(200, result)
 

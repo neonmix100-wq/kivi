@@ -1,6 +1,7 @@
 # Kivi — локальный ИИ-ассистент для Windows
 
-> **Статус:** этапы 0–9 закрыты, M5 ~99%, M6 ~99%, M7 ~80%, M8 ~95% (v0.20). Железо
+> **Статус:** этапы 0–9 закрыты, M5 ~99%, M6 100%, M7 ~80%, M8 ~99% (v0.20).
+> Shell namespace, undo и thumbnails добавлены в 0.21-кандидат. Железо
 > перепроверено 12.11.2026: **RTX 4060 Ti 16 ГБ**, 8B Q4/14B/SDXL/Whisper
 > стали реалистичны. Работают `kivi doctor`, `kivi models`, `kivi ask`,
 > `kivi chat`, `kivi serve`, `kivi say`, `kivi voice design`, `kivi coder`,
@@ -237,6 +238,7 @@ fallback GPU → CPU → облако, watchdog. В простое — 0 МБ VR
 | [`docs/OCR-PDF.md`](docs/OCR-PDF.md) | PDF-текст и офлайн-OCR |
 | [`docs/APPROVALS.md`](docs/APPROVALS.md) | durable approvals → PermissionEngine |
 | [`docs/CRM-PARITY.md`](docs/CRM-PARITY.md) | паритет extension/CDP и rollback |
+| [`docs/SHELL-P2.md`](docs/SHELL-P2.md) | shell namespace, undo, thumbnails |
 | [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) | матрица приёмки и acceptance-smoke |
 | [`docs/RELEASE-0.20.md`](docs/RELEASE-0.20.md) | release notes первого прототипа |
 | [`docs/MEDIA.md`](docs/MEDIA.md) | M7: бесплатная генерация изображений |

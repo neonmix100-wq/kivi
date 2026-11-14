@@ -2548,6 +2548,7 @@ async function selectVoice(voice) {
 function normalizeFsPath(raw) {
   const text = typeof raw === "string" ? raw.trim().replace(/\\/g, "/") : ".";
   if (!text) return ".";
+  if (text.toLowerCase() === "shell://") return "shell://";
   const parts = [];
   for (const segment of text.split("/")) {
     if (!segment || segment === ".") continue;
@@ -2685,6 +2686,9 @@ function validateFilesPathInput(raw) {
   if (text.length > FS_PATH_LIMIT) {
     return { ok: false, path: "", error: `Путь длиннее ${FS_PATH_LIMIT} символов.` };
   }
+  if (text.toLowerCase() === "shell://") {
+    return { ok: true, path: "shell://" };
+  }
   if (/^[\\/]/.test(text)) {
     return {
       ok: false,
@@ -2695,11 +2699,7 @@ function validateFilesPathInput(raw) {
     };
   }
   if (/^[A-Za-z]:/.test(text)) {
-    return {
-      ok: false,
-      path: "",
-      error: "Путь с диском запрещён: уберите «C:» и оставьте путь внутри рабочей папки.",
-    };
+    return { ok: true, path: normalizeFsPath(text) };
   }
   const normalized = text.replace(/\\/g, "/");
   for (const segment of normalized.split("/")) {
@@ -3500,6 +3500,25 @@ function resetFilesWriteForms() {
   if (els.filesTransferInput) els.filesTransferInput.value = "";
 }
 
+async function undoFilesOperation() {
+  if (state.files.busy) return;
+  state.files.busy = "undo";
+  renderFiles();
+  try {
+    await apiRequest("/fs/undo", { method: "POST", body: {} });
+    showToast("Последняя файловая операция отменена.", "ok");
+    await loadFiles(state.files.path, { force: true, focus: true });
+  } catch (error) {
+    showToast(
+      `Не удалось отменить операцию: ${describeApiError(error, "отмене")}`,
+      "error",
+    );
+  } finally {
+    state.files.busy = "";
+    renderFiles();
+  }
+}
+
 async function loadFiles(
   rawPath = state.files.path,
   { force = false, focus = false, recordHistory = true } = {},
@@ -4260,7 +4279,7 @@ function renderFilesSearchRow(match) {
 }
 
 function renderFileRow(entry) {
-  const path = fsJoin(state.files.path, entry.name);
+  const path = entry.path || fsJoin(state.files.path, entry.name);
   const previewing = Boolean(state.files.preview && state.files.preview.path === path);
   const interactive = entry.type === "dir" || entry.type === "file";
   const meta =
@@ -4290,7 +4309,19 @@ function renderFileRow(entry) {
     class: `file-icon is-${entry.type}`,
     "aria-hidden": "true",
   });
-  icon.append(fileIcon(entry.type));
+  if (entry.type === "file" && isFsImagePath(path)) {
+    icon.classList.add("has-thumb");
+    icon.append(
+      el("img", {
+        class: "file-thumb",
+        src: apiUrl(`/fs/thumb?path=${encodeURIComponent(path)}`),
+        alt: "",
+        loading: "lazy",
+      }),
+    );
+  } else {
+    icon.append(fileIcon(entry.type));
+  }
   node.append(icon);
   node.append(el("span", { class: "file-name", text: entry.name }));
   node.append(el("span", { class: "file-meta", text: meta }));
@@ -7959,6 +7990,15 @@ function onGlobalKeydown(event) {
   // the browser's own Ctrl+T / Ctrl+W / Ctrl+Tab behaviour.
   if (state.view === "files" && event.ctrlKey && !event.altKey && !event.metaKey) {
     const key = event.key.toLowerCase();
+    const target = event.target;
+    const editing =
+      target instanceof HTMLElement &&
+      (target.matches("input, textarea") || target.isContentEditable);
+    if (!event.shiftKey && key === "z" && !editing) {
+      event.preventDefault();
+      void undoFilesOperation();
+      return;
+    }
     if (!event.shiftKey && (key === "t" || key === "w")) {
       // Always swallow the browser command here: closing the Kivi page by
       // accident is worse than a no-op on the last tab.
@@ -8184,6 +8224,15 @@ function bindEvents() {
     els.filesRefresh.addEventListener("click", refreshFilesView);
     els.filesBack.addEventListener("click", () => stepFilesHistory(-1));
     els.filesForward.addEventListener("click", () => stepFilesHistory(1));
+    if (els.filesShell) {
+      els.filesShell.addEventListener("click", () => {
+        clearFilesSearch({ render: false });
+        void loadFiles("shell://", { focus: true });
+      });
+    }
+    if (els.filesUndo) {
+      els.filesUndo.addEventListener("click", () => void undoFilesOperation());
+    }
     els.filesPathForm.addEventListener("submit", onSubmitFilesPath);
     els.filesPathInput.addEventListener("input", onFilesPathInput);
     els.filesPathInput.addEventListener("keydown", onFilesPathKeydown);
@@ -8581,6 +8630,8 @@ function cacheDom() {
     filesRefresh: $id("files-refresh"),
     filesBack: $id("files-back"),
     filesForward: $id("files-forward"),
+    filesShell: $id("files-shell"),
+    filesUndo: $id("files-undo"),
     filesPathForm: $id("files-path-form"),
     filesPathInput: $id("files-path-input"),
     filesPathSubmit: $id("files-path-submit"),

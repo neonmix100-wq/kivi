@@ -690,7 +690,75 @@ def _serve_history(paths: Any, limit: int) -> list[dict[str, Any]]:
     ]
 
 
+def _shell_roots(paths: Any) -> list[dict[str, Any]]:
+    """Known Windows folders exposed as a read-only shell namespace."""
+    home = Path.home()
+    roots: list[dict[str, Any]] = [
+        {"name": "Рабочая папка", "path": str(paths.root), "type": "dir"},
+    ]
+    labels = {
+        "Desktop": "Рабочий стол",
+        "Documents": "Документы",
+        "Downloads": "Загрузки",
+        "Pictures": "Изображения",
+        "Music": "Музыка",
+        "Videos": "Видео",
+    }
+    for folder, label in labels.items():
+        candidate = home / folder
+        if candidate.is_dir():
+            roots.append({"name": label, "path": str(candidate), "type": "dir"})
+    return roots
+
+
+def _shell_allowed(path: Path, roots: list[dict[str, Any]]) -> bool:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    for root in roots:
+        try:
+            base = Path(root["path"]).resolve()
+        except OSError:
+            continue
+        if resolved == base or base in resolved.parents:
+            return True
+    return False
+
+
+def _shell_list(paths: Any, rel: str) -> dict[str, Any]:
+    roots = _shell_roots(paths)
+    if rel.strip().lower() == "shell://":
+        return {"path": "shell://", "entries": roots, "truncated": False}
+    target = Path(rel)
+    if not target.is_absolute() or not _shell_allowed(target, roots):
+        raise RuntimeError("path is outside the shell namespace")
+    if not target.is_dir():
+        raise RuntimeError("not a directory")
+    entries: list[dict[str, Any]] = []
+    with os.scandir(target) as iterator:
+        for entry in sorted(iterator, key=lambda item: item.name.lower()):
+            if entry.name.lower() in {".env", "private", "secrets", ".ssh"}:
+                continue
+            try:
+                is_dir = entry.is_dir(follow_symlinks=False)
+                size = 0 if is_dir else entry.stat(follow_symlinks=False).st_size
+            except OSError:
+                continue
+            entries.append(
+                {
+                    "name": entry.name,
+                    "path": str(Path(entry.path)),
+                    "type": "dir" if is_dir else "file",
+                    "size": size,
+                }
+            )
+    return {"path": str(target), "entries": entries[:500], "truncated": len(entries) > 500}
+
+
 def _ui_fs_list(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
+    if rel.strip().lower() == "shell://" or Path(rel).is_absolute():
+        return _shell_list(paths, rel)
     result = _run_direct_tool(
         paths,
         config,
@@ -796,6 +864,7 @@ def _ui_fs_mkdir(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
     result = _run_direct_tool(paths, config, "fs.mkdir", {"path": rel}, ["fs.write"])
     if not result.ok:
         raise RuntimeError(result.error or "cannot create directory")
+    _fs_undo_push(paths, {"kind": "mkdir", "path": rel})
     return {"ok": True, "path": rel, "output": result.output}
 
 
@@ -814,6 +883,10 @@ def _ui_fs_rename(
     )
     if not result.ok:
         raise RuntimeError(result.error or "cannot rename")
+    _fs_undo_push(
+        paths,
+        {"kind": "rename", "source": source, "destination": destination},
+    )
     return {
         "ok": True,
         "source": source,
@@ -855,6 +928,11 @@ def _ui_fs_transfer(
     )
     if not result.ok:
         raise RuntimeError(result.error or f"cannot {tool.rsplit('.', 1)[-1]}")
+    kind = "copy" if tool == "fs.copy" else "move"
+    _fs_undo_push(
+        paths,
+        {"kind": kind, "source": source, "destination": destination},
+    )
     return {
         "ok": True,
         "source": source,
@@ -874,6 +952,128 @@ def _ui_fs_trash(paths: Any, config: KiviConfig, rel: str) -> dict[str, Any]:
     if not result.ok:
         raise RuntimeError(result.error or "cannot move to Recycle Bin")
     return {"ok": True, "path": rel, "output": result.output}
+
+
+def _fs_undo_path(paths: Any) -> Path:
+    return paths.data / "fs-undo.json"
+
+
+def _fs_undo_load(paths: Any) -> list[dict[str, Any]]:
+    try:
+        payload = json.loads(_fs_undo_path(paths).read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return []
+    return [item for item in payload if isinstance(item, dict)] if isinstance(payload, list) else []
+
+
+def _fs_undo_push(paths: Any, entry: dict[str, Any]) -> None:
+    stack = _fs_undo_load(paths)
+    stack.append(entry)
+    del stack[:-50]
+    target = _fs_undo_path(paths)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f".{target.name}.tmp")
+    temporary.write_text(json.dumps(stack, ensure_ascii=False), encoding="utf-8")
+    os.replace(temporary, target)
+
+
+def _ui_fs_undo(paths: Any, config: KiviConfig) -> dict[str, Any]:
+    stack = _fs_undo_load(paths)
+    if not stack:
+        return {"ok": False, "message": "Нечего отменять."}
+    entry = stack[-1]
+    kind = str(entry.get("kind", ""))
+    if kind == "mkdir":
+        result = _run_direct_tool(
+            paths, config, "fs.trash", {"path": entry.get("path", "")}, ["fs.delete"],
+            approved=True,
+        )
+    elif kind == "rename":
+        result = _run_direct_tool(
+            paths,
+            config,
+            "fs.rename",
+            {"source": entry.get("destination", ""), "destination": entry.get("source", "")},
+            ["fs.write"],
+        )
+    elif kind in {"copy", "move"}:
+        if kind == "copy":
+            result = _run_direct_tool(
+                paths,
+                config,
+                "fs.trash",
+                {"path": entry.get("destination", "")},
+                ["fs.delete"],
+                approved=True,
+            )
+        else:
+            result = _run_direct_tool(
+                paths,
+                config,
+                "fs.move",
+                {
+                    "source": entry.get("destination", ""),
+                    "destination": entry.get("source", ""),
+                },
+                ["fs.write"],
+            )
+    else:
+        result = None
+    if result is None or not result.ok:
+        raise RuntimeError(result.error if result is not None else "unknown undo action")
+    stack.pop()
+    target = _fs_undo_path(paths)
+    temporary = target.with_name(f".{target.name}.tmp")
+    temporary.write_text(json.dumps(stack, ensure_ascii=False), encoding="utf-8")
+    os.replace(temporary, target)
+    return {"ok": True, "undone": entry}
+
+
+def _ui_fs_thumb(paths: Any, config: KiviConfig, rel: str) -> bytes:
+    """Return a small JPEG thumbnail for an image or the first video frame."""
+    from kivi.safety.zones import ProtectedZones
+
+    zones = ProtectedZones(paths.root, extra_rules=_zones_extra(paths))
+    candidate = Path(rel)
+    if candidate.is_absolute() and _shell_allowed(candidate, _shell_roots(paths)):
+        path = candidate
+    else:
+        path = zones.check(rel, "read").require()
+    if not path.is_file():
+        raise RuntimeError("not a file")
+    suffix = path.suffix.lower()
+    try:
+        import io as _io
+
+        from PIL import Image, ImageOps
+
+        if suffix in {".mp4", ".webm", ".mkv", ".mov"}:
+            import cv2
+
+            capture = cv2.VideoCapture(str(path))
+            try:
+                ok, frame = capture.read()
+            finally:
+                capture.release()
+            if not ok:
+                raise RuntimeError("cannot read video frame")
+            image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        elif suffix in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}:
+            image = Image.open(path)
+        else:
+            raise RuntimeError("no thumbnail for this file type")
+        image = ImageOps.exif_transpose(image).convert("RGB")
+        image.thumbnail((320, 220))
+        output = _io.BytesIO()
+        image.save(output, format="JPEG", quality=82)
+        return output.getvalue()
+    except RuntimeError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - image boundary
+        raise RuntimeError(f"cannot build thumbnail: {exc}") from exc
+
+
+
 
 
 def _ui_crm_write(
@@ -1615,6 +1815,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
         ),
         fs_raw_handler=(
             (lambda rel: _ui_fs_raw(paths, config, rel))
+            if getattr(args, "ui", False)
+            else None
+        ),
+        fs_thumb_handler=(
+            (lambda rel: _ui_fs_thumb(paths, config, rel))
+            if getattr(args, "ui", False)
+            else None
+        ),
+        fs_undo_handler=(
+            (lambda: _ui_fs_undo(paths, config))
             if getattr(args, "ui", False)
             else None
         ),

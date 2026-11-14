@@ -50,7 +50,8 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 - **файловый обзор**: вкладки папок, сортировка (имя/размер/тип), поиск имён,
   история назад/вперёд, адресная строка, переход по папкам, preview текста и
   изображений, контекстное меню, drag-and-drop (move; Ctrl — copy), копирование,
-  перемещение, создание папок, переименование и корзина;
+  перемещение, создание папок, переименование и корзина; **Компьютер** —
+  известные папки/рабочая папка, **Отменить**/Ctrl+Z и ленивые thumbnails;
 - **медиа-панель**: prompt, 512/768/1024, flux/turbo, результат и галерея
   сессии через `/media/image`; вкладка «Видео» — `/media/video`, 2/4/6 с;
 - голосовые ответы: кнопка «Озвучить», авто-озвучка, `/tts`;
@@ -78,12 +79,14 @@ kivi ui --whisper-model data/models/faster-whisper-large-v3-turbo
 | GET | `/fs/list?path=` | список папки workspace |
 | GET | `/fs/search?q=` | поиск имён в workspace |
 | GET | `/fs/raw?path=` | изображение для preview (≤8 МБ) |
+| GET | `/fs/thumb?path=` | JPEG-thumbnail изображения/видео |
 | GET | `/fs/read?path=` | текст файла workspace (read-only) |
 | POST | `/fs/mkdir` | `{path}` — создать папку |
 | POST | `/fs/rename` | `{source,destination}` — переименовать |
 | POST | `/fs/copy` | `{source,destination}` — копировать |
 | POST | `/fs/move` | `{source,destination}` — переместить |
 | POST | `/fs/trash` | `{path,confirm}` — в корзину Windows |
+| POST | `/fs/undo` | отменить последнюю файловую операцию |
 | GET | `/crm/status` | статус Chrome CDP/AltCRM |
 | GET | `/crm/read` | read-only карточка заказа |
 | GET | `/history?limit=50` | последние сообщения |

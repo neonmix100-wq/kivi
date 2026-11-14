@@ -96,7 +96,7 @@
 | 10. M5: Voice & Avatar | ✅ ~99% | audio/VAD/STT, Qwen3-TTS, Fish, voice library, UI mic, VRM + `kivi avatar`, lip-sync, ONNX wake + UI `/wake`, background `listen` | системный сервис wake (запуск через Task Scheduler есть) |
 | 11. M6: Work CRM | ✅ 100% | домен, AltCRM CDP, extension bridge, tools, CLI, CRM read/fill/act/task UI, live 5/5+1/1+3/3, 13 reads, parity/rollback | — |
 | 12. M7: Cloud Media | 🟡 ~80% | `media.image`, `media.sdxl`, `media.video`, `MediaJobQueue`, UI image/video; fallback принят | real text-to-video после релиза |
-| 13. M8: Kivi Shell | 🟡 ~95% | Kivi UI, app-окно, трей, голос, медиа, файлы (tabs/search/sort/back-forward/path/copy/move/mkdir/rename/trash/image preview/context menu/drag-drop), CRM, settings | Explorer |
+| 13. M8: Kivi Shell | ✅ ~99% | Kivi UI, app-окно, трей, голос, медиа, файлы (tabs/search/sort/back-forward/path/copy/move/mkdir/rename/trash/image preview/context menu/drag-drop), shell namespace, undo, thumbnails, CRM, settings | полный обход дисков/сети — v1.x |
 
 ## 3. Что уже сделано
 
