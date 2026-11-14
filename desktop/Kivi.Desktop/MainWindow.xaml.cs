@@ -331,22 +331,52 @@ public partial class MainWindow : Window
         var current = doc.RootElement.TryGetProperty("voice_provider", out var p) ? p.GetString() : "qwen";
         combo.SelectedItem = providers.Contains(current) ? current : "qwen";
         PagePanel.Children.Add(combo);
+        var modelBox = SettingsInput(doc, "model");
+        var speakerBox = SettingsInput(doc, "speaker");
+        var rateBox = SettingsInput(doc, "sample_rate");
+        PagePanel.Children.Add(new TextBlock { Text = "model", Foreground = (Brush)FindResource("Muted"), FontSize = 11 });
+        PagePanel.Children.Add(modelBox);
+        PagePanel.Children.Add(new TextBlock { Text = "speaker", Foreground = (Brush)FindResource("Muted"), FontSize = 11 });
+        PagePanel.Children.Add(speakerBox);
+        PagePanel.Children.Add(new TextBlock { Text = "sample_rate", Foreground = (Brush)FindResource("Muted"), FontSize = 11 });
+        PagePanel.Children.Add(rateBox);
         PagePanel.Children.Add(PageButton("Сохранить", async (_, _) =>
         {
-            using var result = await PostJsonAsync("/settings", new { voice_provider = combo.SelectedItem?.ToString() });
+            using var result = await PostJsonAsync("/settings", new
+            {
+                voice_provider = combo.SelectedItem?.ToString(),
+                model = modelBox.Text,
+                speaker = speakerBox.Text,
+                sample_rate = int.TryParse(rateBox.Text, out var rate) ? rate : 48000,
+            });
             await ShowPageAsync("settings");
         }));
-        foreach (var key in new[] { "model", "speaker", "sample_rate", "fish_model" })
+        if (doc.RootElement.TryGetProperty("fish_model", out var fish))
         {
-            if (!doc.RootElement.TryGetProperty(key, out var value)) continue;
             PagePanel.Children.Add(new TextBlock
             {
-                Text = $"{key}: {value}",
+                Text = $"fish_model: {fish}",
                 Foreground = (Brush)FindResource("Muted"),
                 FontSize = 12,
-                Margin = new Thickness(0, 4, 0, 0),
+                Margin = new Thickness(0, 6, 0, 0),
             });
         }
+    }
+
+    private TextBox SettingsInput(System.Text.Json.JsonDocument doc, string key)
+    {
+        var value = doc.RootElement.TryGetProperty(key, out var property) ? property.ToString() : "";
+        return new TextBox
+        {
+            Text = value,
+            Background = (Brush)FindResource("Panel2"),
+            Foreground = (Brush)FindResource("Text"),
+            BorderBrush = (Brush)FindResource("Line"),
+            Padding = new Thickness(8),
+            Margin = new Thickness(0, 0, 0, 8),
+            Width = 320,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
     }
 
     private readonly List<MediaItem> _mediaGallery = new();
@@ -846,7 +876,50 @@ public partial class MainWindow : Window
             if (args.Data.GetDataPresent(DataFormats.FileDrop))
                 args.Effects = DragDropEffects.Copy;
         };
+        row.Focusable = true;
+        row.KeyDown += async (_, args) =>
+        {
+            switch (args.Key)
+            {
+                case Key.Enter:
+                    args.Handled = true;
+                    if (type == "dir") await LoadNativeFilesAsync(path);
+                    else await ShowNativePreviewAsync(path, name);
+                    break;
+                case Key.Delete:
+                    args.Handled = true;
+                    await NativeTrashAsync(path, name);
+                    break;
+                case Key.F2:
+                    args.Handled = true;
+                    await NativeRenameAsync(path, name);
+                    break;
+                case Key.Space:
+                    args.Handled = true;
+                    if (!_nativeSelected.Add(path)) _nativeSelected.Remove(path);
+                    RenderNativeEntries();
+                    break;
+                case Key.Up:
+                    args.Handled = true;
+                    FocusNativeSibling(row, -1);
+                    break;
+                case Key.Down:
+                    args.Handled = true;
+                    FocusNativeSibling(row, 1);
+                    break;
+            }
+        };
         return row;
+    }
+
+    private void FocusNativeSibling(Border row, int delta)
+    {
+        if (_nativeFilesList is null) return;
+        var rows = _nativeFilesList.Children.OfType<Border>().ToList();
+        var index = rows.IndexOf(row);
+        if (index < 0) return;
+        var next = Math.Clamp(index + delta, 0, rows.Count - 1);
+        rows[next].Focus();
     }
 
     private async Task LoadNativeThumbAsync(Border host, string path)

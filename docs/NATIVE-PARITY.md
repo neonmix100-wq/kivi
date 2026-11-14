@@ -10,7 +10,7 @@ Snapshot: native WPF/XAML client, installer built and cold-start verified.
 | voice input | yes | yes | NAudio → `/transcribe` |
 | wake | yes | yes | NAudio → `/wake` |
 | voices list/select | yes | yes | `/voices`, `/voices/active` |
-| settings | full | provider + read-only model/speaker/rate | save of model/speaker not yet exposed |
+| settings | full | provider/model/speaker/sample_rate editable | fish_model read-only |
 | media image | yes | yes | `/media/image` |
 | media video | local fallback | playable MP4 | `/media/video` |
 | media gallery | yes | yes | last 12 results in session |
@@ -22,7 +22,7 @@ Snapshot: native WPF/XAML client, installer built and cold-start verified.
 | undo | yes | yes | `/fs/undo` |
 | history tabs | yes | yes | native file tabs |
 | drag-and-drop | yes | basic | drop files to copy into current folder |
-| multi-select/keyboard | yes | Ctrl+click + bulk copy/trash |
+| multi-select/keyboard | yes | Ctrl+click, Enter/Delete/F2/arrows |
 | CRM read | yes | yes | `/crm/read` |
 | CRM fill/act/task | yes | yes | native forms |
 | installer | no | yes | Inno Setup, portable runtime |

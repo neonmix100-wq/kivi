@@ -1826,6 +1826,9 @@ def cmd_serve(args: argparse.Namespace) -> int:
     wake_detector = None
     wake_lock = threading.Lock()
     wake_model = default_wake_model_path()
+    voice_model = config.voice.model
+    voice_speaker = config.voice.speaker
+    voice_sample_rate = config.voice.sample_rate
     if wake_model.is_file():
         try:
             wake_detector = DirectOnnxWakeDetector(wake_model)
@@ -1931,17 +1934,35 @@ def cmd_serve(args: argparse.Namespace) -> int:
     def ui_settings() -> dict[str, Any]:
         return {
             "voice_provider": voice_provider,
-            "model": config.voice.model,
-            "speaker": config.voice.speaker,
-            "sample_rate": config.voice.sample_rate,
+            "model": voice_model,
+            "speaker": voice_speaker,
+            "sample_rate": voice_sample_rate,
             "fish_model": config.voice.fish_model,
         }
 
     def update_ui_settings(payload: dict[str, Any]) -> dict[str, Any]:
-        nonlocal voice_provider
-        provider = str(payload.get("voice_provider", "")).strip()
+        nonlocal voice_provider, voice_model, voice_speaker, voice_sample_rate
+        provider = str(payload.get("voice_provider", voice_provider)).strip()
         if provider not in {"fish", "qwen", "silero", "piper"}:
             raise ValueError("voice_provider must be fish, qwen, silero or piper")
+        if "model" in payload:
+            model = str(payload["model"]).strip()
+            if not model or len(model) > 120:
+                raise ValueError("model must be 1..120 characters")
+            voice_model = model
+        if "speaker" in payload:
+            speaker = str(payload["speaker"]).strip()
+            if not speaker or len(speaker) > 120:
+                raise ValueError("speaker must be 1..120 characters")
+            voice_speaker = speaker
+        if "sample_rate" in payload:
+            try:
+                sample_rate = int(payload["sample_rate"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError("sample_rate must be an integer") from exc
+            if not 8000 <= sample_rate <= 96000:
+                raise ValueError("sample_rate must be between 8000 and 96000")
+            voice_sample_rate = sample_rate
         voice_provider = provider
         _save_voice_provider(paths, provider)
         return ui_settings()
@@ -1949,7 +1970,14 @@ def cmd_serve(args: argparse.Namespace) -> int:
     def ui_tts(text: str) -> bytes:
         effective = config.model_copy(
             update={
-                "voice": config.voice.model_copy(update={"provider": voice_provider}),
+                "voice": config.voice.model_copy(
+                    update={
+                        "provider": voice_provider,
+                        "model": voice_model,
+                        "speaker": voice_speaker,
+                        "sample_rate": voice_sample_rate,
+                    }
+                ),
             }
         )
         return _wav_bytes_from_results(
