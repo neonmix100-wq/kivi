@@ -3442,19 +3442,36 @@ function fileRow(path) {
   return null;
 }
 
-function fileIcon(kind) {
+function fileIcon(kind, name = "") {
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("class", "icon");
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("focusable", "false");
-  const paths =
-    kind === "dir"
-      ? [
-          "M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2.2 2.5H18a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 18 19.5H6A2.5 2.5 0 0 1 3.5 17Z",
-        ]
-      : ["M7 3.5h6.6L18 8v12.5H7Z", "M13.5 3.5V8H18"];
+  let paths;
+  if (kind === "dir") {
+    paths = [
+      "M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2.2 2.5H18a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 18 19.5H6A2.5 2.5 0 0 1 3.5 17Z",
+    ];
+  } else {
+    const suffix = String(name).toLowerCase().split(".").pop();
+    if (["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"].includes(suffix)) {
+      paths = ["M4 5.5h16v13H4Z", "m4 15 4.5-4.5 3.5 3.5 3-3L20 16", "M15.5 8.5h.01"];
+    } else if (["mp4", "webm", "mkv", "mov", "avi"].includes(suffix)) {
+      paths = ["M4 5.5h16v13H4Z", "m10 9 5 3-5 3Z"];
+    } else if (["mp3", "wav", "flac", "ogg", "m4a"].includes(suffix)) {
+      paths = ["M9 17V6l9-2v11", "M9 17a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z", "M18 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"];
+    } else if (["zip", "rar", "7z", "tar", "gz"].includes(suffix)) {
+      paths = ["M5 4h14v16H5Z", "M10 4v5h4V4M10 9v3h4V9M10 12v3h4v-3"];
+    } else if (["py", "js", "ts", "tsx", "jsx", "json", "html", "css", "md", "toml", "yaml", "yml"].includes(suffix)) {
+      paths = ["M8 7 4 12l4 5M16 7l4 5-4 5M13 5l-2 14"];
+    } else if (["pdf", "doc", "docx", "txt", "rtf"].includes(suffix)) {
+      paths = ["M7 3.5h6.6L18 8v12.5H7Z", "M13.5 3.5V8H18", "M9.5 12h6M9.5 15h6M9.5 18h4"];
+    } else {
+      paths = ["M7 3.5h6.6L18 8v12.5H7Z", "M13.5 3.5V8H18"];
+    }
+  }
   for (const d of paths) {
     const path = document.createElementNS(ns, "path");
     path.setAttribute("d", d);
@@ -4329,7 +4346,7 @@ function renderFileRow(entry) {
       }),
     );
   } else {
-    icon.append(fileIcon(entry.type));
+    icon.append(fileIcon(entry.type, entry.name));
   }
   node.append(icon);
   node.append(el("span", { class: "file-name", text: entry.name }));
