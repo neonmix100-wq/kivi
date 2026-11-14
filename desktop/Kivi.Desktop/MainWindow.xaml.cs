@@ -82,18 +82,23 @@ public partial class MainWindow : Window
     {
         var root = FindProjectRoot();
         if (root is null) return;
-        var pythonw = Path.Combine(root, ".venv", "Scripts", "pythonw.exe");
+        var pythonw = Path.Combine(root, "runtime", "pythonw.exe");
+        if (!File.Exists(pythonw))
+            pythonw = Path.Combine(root, ".venv", "Scripts", "pythonw.exe");
         if (!File.Exists(pythonw)) return;
         try
         {
-            _ownedBackend = Process.Start(new ProcessStartInfo
+            var start = new ProcessStartInfo
             {
                 FileName = pythonw,
                 Arguments = "-m kivi ui --no-browser --port 8765",
                 WorkingDirectory = root,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-            });
+            };
+            start.Environment["PYTHONPATH"] = Path.Combine(root, "src") + Path.PathSeparator
+                + Path.Combine(root, "runtime", "Lib", "site-packages");
+            _ownedBackend = Process.Start(start);
         }
         catch
         {
@@ -109,7 +114,8 @@ public partial class MainWindow : Window
             var current = new DirectoryInfo(start);
             while (current is not null)
             {
-                if (File.Exists(Path.Combine(current.FullName, ".venv", "Scripts", "pythonw.exe")))
+                if (File.Exists(Path.Combine(current.FullName, "runtime", "pythonw.exe"))
+                    || File.Exists(Path.Combine(current.FullName, ".venv", "Scripts", "pythonw.exe")))
                     return current.FullName;
                 current = current.Parent;
             }

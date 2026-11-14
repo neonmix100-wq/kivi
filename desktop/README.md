@@ -39,7 +39,7 @@ the native window closes.
 | CRM status/read/fill/act/task | forms |
 | full files/shell operations | next |
 | media gallery/history | next |
-| installer / Python sidecar | next |
+| installer / Python sidecar | installer scaffold built; runtime bundling next |
 
 The existing web UI remains available during the migration; both clients use
 the same API and data.
